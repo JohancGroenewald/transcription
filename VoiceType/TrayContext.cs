@@ -68,6 +68,8 @@ public class TrayContext : ApplicationContext
     private bool _enableSendVoiceCommand;
     private int _micLevelPercent;
     private DateTime _recordingStartedAtUtc;
+    private bool _shutdownRequested;
+    private bool _isShuttingDown;
     private bool _isRecording;
     private bool _isTranscribing;
     private bool _eventsHooked;
@@ -164,6 +166,12 @@ public class TrayContext : ApplicationContext
         if (e.HotkeyId is not PRIMARY_HOTKEY_ID and not PEN_HOTKEY_ID)
             return;
 
+        if (_shutdownRequested && !_isRecording)
+        {
+            Log.Info("Ignoring hotkey because shutdown is pending.");
+            return;
+        }
+
         if (_isTranscribing)
         {
             ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
@@ -242,7 +250,7 @@ public class TrayContext : ApplicationContext
             finally
             {
                 _isTranscribing = false;
-                SetReadyState();
+                CompleteShutdownIfRequested();
             }
         }
         else
@@ -263,7 +271,7 @@ public class TrayContext : ApplicationContext
                 StopListeningOverlay();
                 Log.Error("Failed to start recording", ex);
                 ShowOverlay("Microphone error: " + ex.Message, Color.Salmon, 4000);
-                SetReadyState();
+                CompleteShutdownIfRequested();
             }
         }
     }
@@ -307,7 +315,29 @@ public class TrayContext : ApplicationContext
         if (_overlay.IsDisposed)
             return;
 
-        Invoke(Shutdown);
+        Invoke(() =>
+        {
+            if (_isShuttingDown || _shutdownRequested)
+                return;
+
+            _shutdownRequested = true;
+            Log.Info("Shutdown requested");
+
+            if (_isRecording)
+            {
+                ShowOverlay("Close requested — finishing current recording...", Color.Gold, 0);
+                OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+                return;
+            }
+
+            if (_isTranscribing)
+            {
+                ShowOverlay("Close requested — finishing transcription...", Color.Gold, 0);
+                return;
+            }
+
+            Shutdown();
+        });
     }
 
     public void RequestListen()
@@ -317,6 +347,12 @@ public class TrayContext : ApplicationContext
 
         Invoke(() =>
         {
+            if (_shutdownRequested || _isShuttingDown)
+            {
+                Log.Info("Ignoring remote listen because shutdown is pending.");
+                return;
+            }
+
             Log.Info("Remote listen requested");
             OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
         });
@@ -324,8 +360,26 @@ public class TrayContext : ApplicationContext
 
     private void Shutdown()
     {
+        if (_isShuttingDown)
+            return;
+
+        _isShuttingDown = true;
+        _shutdownRequested = true;
+        StopListeningOverlay();
         EnsureTrayIconHidden();
         Application.Exit();
+    }
+
+    private void CompleteShutdownIfRequested()
+    {
+        if (_shutdownRequested)
+        {
+            if (!_isRecording && !_isTranscribing)
+                Shutdown();
+            return;
+        }
+
+        SetReadyState();
     }
 
     private void SetReadyState()

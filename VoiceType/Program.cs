@@ -16,7 +16,7 @@ static class Program
     private const string ExitEventName = MutexName + "_Exit";
     private const string ListenEventName = MutexName + "_Listen";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
@@ -183,9 +183,9 @@ static class Program
                     _exitEvent.WaitOne();
                     trayContext.RequestShutdown();
                 }
-                finally
+                catch (ObjectDisposedException)
                 {
-                    Environment.Exit(0);
+                    // App is already shutting down.
                 }
             })
             { IsBackground = true };
@@ -323,7 +323,7 @@ static class Program
         Console.WriteLine("  --version, -v             Show app version and exit.");
         Console.WriteLine("  --test                    Run microphone/API dry-run test.");
         Console.WriteLine("  --listen                  Trigger dictation (existing instance or fresh start).");
-        Console.WriteLine("  --close                   Signal running instance to close, then exit.");
+        Console.WriteLine("  --close                   Request graceful close (finishes current work first).");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
