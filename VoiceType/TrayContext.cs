@@ -196,7 +196,7 @@ public class TrayContext : ApplicationContext
             StopListeningOverlay();
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
-            ShowOverlay("Processing voice...", Color.CornflowerBlue, 10000);
+            ShowOverlay("Processing voice...", Color.CornflowerBlue, 0);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
 
@@ -229,6 +229,7 @@ public class TrayContext : ApplicationContext
                         return;
                     }
 
+                    ShowOverlay("Preparing to paste...", Color.CornflowerBlue, 0);
                     var pasted = TextInjector.InjectText(text, _autoEnter);
 
                     if (pasted)
@@ -499,7 +500,7 @@ public class TrayContext : ApplicationContext
             _micSpinnerIndex = (_micSpinnerIndex + 1) % MicSpinnerFrames.Length;
 
             ShowOverlay(
-                $"Listening... {elapsedText}\nMic {frame}\nPress {BuildHotkeyHint()} to stop",
+                $"Listening {frame}... {elapsedText}\nPress {BuildHotkeyHint()} to stop",
                 Color.CornflowerBlue,
                 0);
             return;
