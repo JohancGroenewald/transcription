@@ -295,14 +295,14 @@ public class TrayContext : ApplicationContext
         Invoke(Shutdown);
     }
 
-    public void RequestActivation()
+    public void RequestListen()
     {
         if (_overlay.IsDisposed)
             return;
 
         Invoke(() =>
         {
-            Log.Info("Remote activation requested");
+            Log.Info("Remote listen requested");
             OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
         });
     }

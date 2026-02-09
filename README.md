@@ -83,7 +83,7 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 - `--test`: dry-run microphone and transcription test in console mode
 - `--help`, `-h`: show CLI usage text and exit
 - `--version`, `-v`: print app version and exit
-- `--activate`, `--focus`: activate an existing instance and toggle dictation
+- `--listen`: trigger dictation in an existing instance (or start app and begin listening)
 - `--close`: signal an existing VoiceType instance to exit, then quit
 - `--replace-existing`: close running instance and start this one
 - `--pin-to-taskbar`: best-effort pin of current VoiceType executable to Windows taskbar
@@ -91,8 +91,8 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 
 ## Single-Instance Behavior
 
-- Launching VoiceType normally while it is already running activates the existing instance.
-- Use `--activate`/`--focus` to trigger dictation in the running instance.
+- Launching VoiceType normally while it is already running triggers dictation in the existing instance.
+- Use `--listen` to trigger dictation in the running instance.
 - Use `--close` for remote shutdown.
 - Use `--replace-existing` when you explicitly want handoff/restart behavior.
 

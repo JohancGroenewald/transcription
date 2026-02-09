@@ -8,20 +8,20 @@ static class Program
     {
         Default,
         Close,
-        Activate,
+        Listen,
         ReplaceExisting
     }
 
     private const string MutexName = "VoiceType_SingleInstance";
     private const string ExitEventName = MutexName + "_Exit";
-    private const string ActivateEventName = MutexName + "_Activate";
+    private const string ListenEventName = MutexName + "_Listen";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(5);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
     private static EventWaitHandle? _exitEvent;
-    private static EventWaitHandle? _activateEvent;
+    private static EventWaitHandle? _listenEvent;
 
     [DllImport("kernel32.dll")]
     private static extern bool FreeConsole();
@@ -86,14 +86,13 @@ static class Program
         }
 
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
-        var requestActivate = args.Contains("--activate", StringComparer.OrdinalIgnoreCase)
-            || args.Contains("--focus", StringComparer.OrdinalIgnoreCase);
+        var requestListen = args.Contains("--listen", StringComparer.OrdinalIgnoreCase);
         var requestReplaceExisting = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
-        var launchRequest = GetLaunchRequest(requestClose, requestActivate, requestReplaceExisting);
+        var launchRequest = GetLaunchRequest(requestClose, requestListen, requestReplaceExisting);
         if (launchRequest == null)
         {
             EnsureConsoleForCliOutput();
-            Console.Error.WriteLine("Specify only one of: --close, --activate/--focus, --replace-existing.");
+            Console.Error.WriteLine("Specify only one of: --close, --listen, --replace-existing.");
             Environment.ExitCode = 2;
             return;
         }
@@ -109,7 +108,7 @@ static class Program
         }
 
         var request = launchRequest.Value;
-        var activateAfterStartup = request == LaunchRequest.Activate;
+        var listenAfterStartup = request == LaunchRequest.Listen;
 
         // Detach from any parent console so GUI launch returns immediately.
         FreeConsole();
@@ -127,15 +126,15 @@ static class Program
                         _ = WaitForExistingInstanceExit(CloseWaitTimeout);
                     return;
 
-                case LaunchRequest.Activate:
-                    if (SignalExistingInstanceActivate())
+                case LaunchRequest.Listen:
+                    if (SignalExistingInstanceListen())
                         return;
 
-                    // Fallback for older running versions that do not listen for activation signals.
+                    // Fallback for older running versions that do not listen for remote listen signals.
                     if (SignalExistingInstanceExit())
                         _ = WaitForExistingInstanceExit(ReplaceWaitTimeout);
                     ownsMutex = TryTakeOverMutex(mutex);
-                    activateAfterStartup = true;
+                    listenAfterStartup = true;
                     break;
 
                 case LaunchRequest.ReplaceExisting:
@@ -145,8 +144,8 @@ static class Program
                     break;
 
                 default:
-                    // Normal relaunch prefers "activate existing", but fallback keeps compatibility.
-                    if (SignalExistingInstanceActivate())
+                    // Normal relaunch prefers "listen existing", but fallback keeps compatibility.
+                    if (SignalExistingInstanceListen())
                         return;
 
                     if (SignalExistingInstanceExit())
@@ -169,7 +168,7 @@ static class Program
         try
         {
             _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, ExitEventName);
-            _activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
+            _listenEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ListenEventName);
 
             var config = AppConfig.Load();
             Log.Configure(config.EnableDebugLogging);
@@ -192,13 +191,13 @@ static class Program
             { IsBackground = true };
             exitThread.Start();
 
-            var activateThread = new Thread(() =>
+            var listenThread = new Thread(() =>
             {
                 while (true)
                 {
                     try
                     {
-                        _activateEvent.WaitOne();
+                        _listenEvent.WaitOne();
                     }
                     catch (ObjectDisposedException)
                     {
@@ -207,7 +206,7 @@ static class Program
 
                     try
                     {
-                        trayContext.RequestActivation();
+                        trayContext.RequestListen();
                     }
                     catch (ObjectDisposedException)
                     {
@@ -216,17 +215,17 @@ static class Program
                 }
             })
             { IsBackground = true };
-            activateThread.Start();
+            listenThread.Start();
 
-            if (activateAfterStartup)
-                trayContext.RequestActivation();
+            if (listenAfterStartup)
+                trayContext.RequestListen();
 
             Application.Run(trayContext);
         }
         finally
         {
-            _activateEvent?.Dispose();
-            _activateEvent = null;
+            _listenEvent?.Dispose();
+            _listenEvent = null;
             _exitEvent?.Dispose();
             _exitEvent = null;
             mutex.ReleaseMutex();
@@ -248,20 +247,20 @@ static class Program
 
     private static LaunchRequest? GetLaunchRequest(
         bool requestClose,
-        bool requestActivate,
+        bool requestListen,
         bool requestReplaceExisting)
     {
         var explicitRequestCount =
             (requestClose ? 1 : 0) +
-            (requestActivate ? 1 : 0) +
+            (requestListen ? 1 : 0) +
             (requestReplaceExisting ? 1 : 0);
         if (explicitRequestCount > 1)
             return null;
 
         if (requestClose)
             return LaunchRequest.Close;
-        if (requestActivate)
-            return LaunchRequest.Activate;
+        if (requestListen)
+            return LaunchRequest.Listen;
         if (requestReplaceExisting)
             return LaunchRequest.ReplaceExisting;
         return LaunchRequest.Default;
@@ -279,9 +278,9 @@ static class Program
         return false;
     }
 
-    private static bool SignalExistingInstanceActivate()
+    private static bool SignalExistingInstanceListen()
     {
-        if (EventWaitHandle.TryOpenExisting(ActivateEventName, out var evt))
+        if (EventWaitHandle.TryOpenExisting(ListenEventName, out var evt))
         {
             evt.Set();
             evt.Dispose();
@@ -323,14 +322,14 @@ static class Program
         Console.WriteLine("  --help, -h                Show this help text and exit.");
         Console.WriteLine("  --version, -v             Show app version and exit.");
         Console.WriteLine("  --test                    Run microphone/API dry-run test.");
-        Console.WriteLine("  --activate, --focus       Activate existing instance and toggle dictation.");
+        Console.WriteLine("  --listen                  Trigger dictation (existing instance or fresh start).");
         Console.WriteLine("  --close                   Signal running instance to close, then exit.");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
         Console.WriteLine();
         Console.WriteLine("Default behavior:");
-        Console.WriteLine("  Launching without options starts VoiceType, or activates existing instance.");
+        Console.WriteLine("  Launching without options starts VoiceType, or triggers dictation in existing instance.");
     }
 
     private static void EnsureConsoleForCliOutput()
