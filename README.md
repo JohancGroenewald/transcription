@@ -41,6 +41,18 @@ dotnet run --project VoiceType/VoiceType.csproj
 
 4. Use dictation by pressing `Ctrl+Shift+Space` to start recording, then pressing it again to stop and transcribe.
 
+### Standalone Release Build
+
+Publish a self-contained Windows x64 release (single-file):
+
+```powershell
+dotnet publish VoiceType/VoiceType.csproj -c Release
+```
+
+Publish output:
+
+- `VoiceType/bin/Release/net9.0-windows/win-x64/publish/VoiceType.exe`
+
 ## Settings
 
 VoiceType settings are stored at:
