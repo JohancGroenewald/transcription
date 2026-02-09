@@ -54,7 +54,10 @@ try {
     $updated = [Regex]::Replace(
         $content,
         "(<Version>\s*)([^<]+)(\s*</Version>)",
-        "`$1$newVersion`$3",
+        {
+            param($match)
+            "$($match.Groups[1].Value)$newVersion$($match.Groups[3].Value)"
+        },
         1)
 
     if ($updated -ne $content) {
