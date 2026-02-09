@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace VoiceType;
 
 public class OverlayForm : Form
@@ -5,9 +7,32 @@ public class OverlayForm : Form
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_SHOWWINDOW = 0x0040;
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
     private readonly Label _label;
     private readonly System.Windows.Forms.Timer _hideTimer;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     public OverlayForm()
     {
@@ -57,10 +82,23 @@ public class OverlayForm : Form
 
     private void PositionOnScreen()
     {
-        var screen = Screen.PrimaryScreen!.WorkingArea;
+        var screen = GetTargetScreen().WorkingArea;
         Location = new Point(
             screen.Right - Width - 16,
             screen.Bottom - Height - 16);
+    }
+
+    private static Screen GetTargetScreen()
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground != IntPtr.Zero && GetWindowRect(foreground, out var rect))
+        {
+            var bounds = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
+            if (!bounds.IsEmpty)
+                return Screen.FromRectangle(bounds);
+        }
+
+        return Screen.FromPoint(Cursor.Position);
     }
 
     public void ShowMessage(string text, Color? color = null, int durationMs = 3000)
@@ -85,7 +123,12 @@ public class OverlayForm : Form
         _hideTimer.Interval = durationMs;
         _hideTimer.Start();
 
-        if (!Visible) Show();
-        else Refresh();
+        if (!Visible)
+            Show();
+        else
+            Refresh();
+
+        // Reassert topmost without activating so notifications stay visible.
+        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 }

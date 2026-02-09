@@ -11,6 +11,9 @@ public class AppConfig
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = DefaultModel;
     public bool AutoEnter { get; set; }
+    public bool EnableDebugLogging { get; set; }
+    public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
+    public bool EnableExitAppVoiceCommand { get; set; } = true;
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -25,6 +28,9 @@ public class AppConfig
         public string? ApiKey { get; set; } // Legacy plaintext fallback
         public string Model { get; set; } = DefaultModel;
         public bool AutoEnter { get; set; }
+        public bool EnableDebugLogging { get; set; }
+        public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
+        public bool EnableExitAppVoiceCommand { get; set; } = true;
     }
 
     public static AppConfig Load()
@@ -43,7 +49,10 @@ public class AppConfig
             {
                 ApiKey = LoadApiKey(configFile),
                 Model = string.IsNullOrWhiteSpace(configFile.Model) ? DefaultModel : configFile.Model,
-                AutoEnter = configFile.AutoEnter
+                AutoEnter = configFile.AutoEnter,
+                EnableDebugLogging = configFile.EnableDebugLogging,
+                EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
+                EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -62,7 +71,10 @@ public class AppConfig
             {
                 ProtectedApiKey = ProtectApiKey(ApiKey),
                 Model = string.IsNullOrWhiteSpace(Model) ? DefaultModel : Model,
-                AutoEnter = AutoEnter
+                AutoEnter = AutoEnter,
+                EnableDebugLogging = EnableDebugLogging,
+                EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,
+                EnableExitAppVoiceCommand = EnableExitAppVoiceCommand
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);

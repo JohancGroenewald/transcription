@@ -6,17 +6,28 @@ public class SettingsForm : Form
     private readonly ComboBox _modelBox;
     private readonly CheckBox _showKeyCheck;
     private readonly CheckBox _autoEnterCheck;
+    private readonly CheckBox _debugLoggingCheck;
+    private readonly CheckBox _openSettingsVoiceCommandCheck;
+    private readonly CheckBox _exitAppVoiceCommandCheck;
+    private readonly Icon _formIcon;
 
     public SettingsForm()
     {
+        var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        _formIcon = extractedIcon != null
+            ? (Icon)extractedIcon.Clone()
+            : (Icon)SystemIcons.Application.Clone();
+        extractedIcon?.Dispose();
+
         Text = "VoiceType Settings";
+        Icon = _formIcon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
         Font = new Font("Segoe UI", 9f);
         Padding = new Padding(16);
-        ClientSize = new Size(400, 300);
+        ClientSize = new Size(400, 366);
 
         // --- API Key section ---
         var grpApi = new GroupBox
@@ -57,7 +68,7 @@ public class SettingsForm : Form
         {
             Text = "Options",
             Location = new Point(16, 126),
-            Size = new Size(368, 90),
+            Size = new Size(368, 160),
             Padding = new Padding(12, 8, 12, 8)
         };
 
@@ -83,7 +94,35 @@ public class SettingsForm : Form
             AutoSize = true
         };
 
-        grpOptions.Controls.AddRange([lblModel, _modelBox, _autoEnterCheck]);
+        _debugLoggingCheck = new CheckBox
+        {
+            Text = "Enable file logging (debug only)",
+            Location = new Point(14, 80),
+            AutoSize = true
+        };
+
+        _openSettingsVoiceCommandCheck = new CheckBox
+        {
+            Text = "Voice command: \"open settings\"",
+            Location = new Point(14, 104),
+            AutoSize = true
+        };
+
+        _exitAppVoiceCommandCheck = new CheckBox
+        {
+            Text = "Voice command: \"exit app\"",
+            Location = new Point(14, 128),
+            AutoSize = true
+        };
+
+        grpOptions.Controls.AddRange([
+            lblModel,
+            _modelBox,
+            _autoEnterCheck,
+            _debugLoggingCheck,
+            _openSettingsVoiceCommandCheck,
+            _exitAppVoiceCommandCheck
+        ]);
 
         // --- Buttons ---
         var btnExit = new Button
@@ -132,6 +171,9 @@ public class SettingsForm : Form
         _modelBox.SelectedItem = config.Model;
         if (_modelBox.SelectedIndex < 0) _modelBox.SelectedIndex = 0;
         _autoEnterCheck.Checked = config.AutoEnter;
+        _debugLoggingCheck.Checked = config.EnableDebugLogging;
+        _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
+        _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
     }
 
     private void OnSave(object? sender, EventArgs e)
@@ -142,7 +184,10 @@ public class SettingsForm : Form
         {
             ApiKey = _apiKeyBox.Text.Trim(),
             Model = _modelBox.SelectedItem?.ToString() ?? "whisper-1",
-            AutoEnter = _autoEnterCheck.Checked
+            AutoEnter = _autoEnterCheck.Checked,
+            EnableDebugLogging = _debugLoggingCheck.Checked,
+            EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
+            EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked
         };
 
         try
@@ -160,5 +205,13 @@ public class SettingsForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _formIcon.Dispose();
+
+        base.Dispose(disposing);
     }
 }

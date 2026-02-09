@@ -5,6 +5,7 @@ namespace VoiceType;
 static class Program
 {
     private const string MutexName = "VoiceType_SingleInstance";
+    private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static EventWaitHandle? _exitEvent;
 
     [DllImport("kernel32.dll")]
@@ -13,9 +14,14 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        var requestReplace = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
+        var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
+
         // --test flag: dry-run to verify mic capture works (needs console)
         if (args.Contains("--test", StringComparer.OrdinalIgnoreCase))
         {
+            var testConfig = AppConfig.Load();
+            Log.Configure(testConfig.EnableDebugLogging);
             RunTest().GetAwaiter().GetResult();
             return;
         }
@@ -23,34 +29,77 @@ static class Program
         // Detach from any parent console so the terminal returns immediately
         FreeConsole();
 
-        // If already running, close the existing instance and exit
         using var mutex = new Mutex(true, MutexName, out bool isNew);
-        if (!isNew)
+        var ownsMutex = isNew;
+
+        // If already running, explicit modes can signal it to exit.
+        if (!ownsMutex)
         {
-            if (EventWaitHandle.TryOpenExisting(MutexName + "_Exit", out var evt))
-            {
-                evt.Set();
-                evt.Dispose();
-            }
+            if (requestClose || requestReplace)
+                SignalExistingInstanceExit();
+
+            if (requestReplace)
+                ownsMutex = TryTakeOverMutex(mutex);
+        }
+
+        if (!ownsMutex)
+            return;
+
+        // `--close` is intended to close an already-running instance, not start a new one.
+        if (requestClose)
+        {
+            mutex.ReleaseMutex();
             return;
         }
 
-        // Create a named event so other instances can signal us to exit
-        _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, MutexName + "_Exit");
-
-        // Watch for the exit signal on a background thread
-        var exitThread = new Thread(() =>
+        try
         {
-            _exitEvent.WaitOne();
-            Application.Exit();
-        })
-        { IsBackground = true };
-        exitThread.Start();
+            // Create a named event so other instances can signal us to exit
+            _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, MutexName + "_Exit");
 
-        ApplicationConfiguration.Initialize();
-        Application.Run(new TrayContext());
+            var config = AppConfig.Load();
+            Log.Configure(config.EnableDebugLogging);
 
-        _exitEvent.Dispose();
+            // Watch for the exit signal on a background thread
+            var exitThread = new Thread(() =>
+            {
+                _exitEvent.WaitOne();
+                Application.Exit();
+            })
+            { IsBackground = true };
+            exitThread.Start();
+
+            ApplicationConfiguration.Initialize();
+            Application.Run(new TrayContext());
+        }
+        finally
+        {
+            _exitEvent?.Dispose();
+            _exitEvent = null;
+            mutex.ReleaseMutex();
+        }
+    }
+
+    private static bool TryTakeOverMutex(Mutex mutex)
+    {
+        try
+        {
+            return mutex.WaitOne(ReplaceWaitTimeout);
+        }
+        catch (AbandonedMutexException)
+        {
+            // Previous instance died unexpectedly; we can continue.
+            return true;
+        }
+    }
+
+    private static void SignalExistingInstanceExit()
+    {
+        if (EventWaitHandle.TryOpenExisting(MutexName + "_Exit", out var evt))
+        {
+            evt.Set();
+            evt.Dispose();
+        }
     }
 
     static async Task RunTest()

@@ -15,14 +15,35 @@ public class TrayContext : ApplicationContext
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_RESTORE = 9;
+
     private readonly NotifyIcon _trayIcon;
     private readonly HotkeyWindow _hotkeyWindow;
     private readonly AudioRecorder _recorder;
     private readonly OverlayForm _overlay;
+    private readonly Icon _appIcon;
     private TranscriptionService? _transcriptionService;
     private bool _autoEnter;
+    private bool _enableOpenSettingsVoiceCommand;
+    private bool _enableExitAppVoiceCommand;
     private bool _isRecording;
     private bool _isTranscribing;
+    private bool _eventsHooked;
 
     public TrayContext()
     {
@@ -30,15 +51,21 @@ public class TrayContext : ApplicationContext
 
         _recorder = new AudioRecorder();
         _overlay = new OverlayForm();
+        var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        _appIcon = extractedIcon != null
+            ? (Icon)extractedIcon.Clone()
+            : (Icon)SystemIcons.Application.Clone();
+        extractedIcon?.Dispose();
         LoadTranscriptionService();
 
         _trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _appIcon,
             Text = "VoiceType - Ctrl+Shift+Space to dictate",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
+        HookShutdownEvents();
 
         _hotkeyWindow = new HotkeyWindow();
         _hotkeyWindow.HotkeyPressed += OnHotkeyPressed;
@@ -71,7 +98,10 @@ public class TrayContext : ApplicationContext
     private void LoadTranscriptionService()
     {
         var config = AppConfig.Load();
+        Log.Configure(config.EnableDebugLogging);
         _autoEnter = config.AutoEnter;
+        _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
+        _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
         else
@@ -105,7 +135,7 @@ public class TrayContext : ApplicationContext
         {
             // Stop recording and transcribe
             _isRecording = false;
-            _trayIcon.Icon = SystemIcons.Information;
+            _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
             _overlay.ShowMessage("Processing voice...", Color.CornflowerBlue, 10000);
             Log.Info("Recording stopped, starting transcription...");
@@ -166,7 +196,7 @@ public class TrayContext : ApplicationContext
             {
                 _recorder.Start();
                 _isRecording = true;
-                _trayIcon.Icon = SystemIcons.Exclamation;
+                _trayIcon.Icon = _appIcon;
                 _trayIcon.Text = "VoiceType - Recording... (Ctrl+Shift+Space to stop)";
                 _overlay.ShowMessage("Listening... speak now!", Color.CornflowerBlue, 30000);
                 Log.Info("Recording started");
@@ -183,41 +213,58 @@ public class TrayContext : ApplicationContext
 
     private void OnSettings(object? sender, EventArgs e)
     {
+        if (_overlay.InvokeRequired)
+        {
+            _overlay.Invoke(new Action(() => OnSettings(sender, e)));
+            return;
+        }
+
+        var previousForegroundWindow = GetForegroundWindow();
+        _overlay.Hide();
+
         using var dlg = new SettingsForm();
+        dlg.Shown += (_, _) =>
+        {
+            dlg.BeginInvoke(new Action(() =>
+            {
+                dlg.TopMost = true;
+                dlg.Activate();
+                dlg.BringToFront();
+                SetForegroundWindow(dlg.Handle);
+                dlg.TopMost = false;
+            }));
+        };
         dlg.ShowDialog();
         LoadTranscriptionService();
+        SetReadyState();
+        RestorePreviousFocus(previousForegroundWindow, dlg.Handle);
     }
 
     private void OnExit(object? sender, EventArgs e) => Shutdown();
 
     private void Shutdown()
     {
-        _trayIcon.Visible = false;
+        EnsureTrayIconHidden();
         Application.Exit();
     }
 
     private void SetReadyState()
     {
-        _trayIcon.Icon = SystemIcons.Application;
+        _trayIcon.Icon = _appIcon;
         _trayIcon.Text = "VoiceType - Ready (Ctrl+Shift+Space)";
     }
 
-    private static string? ParseVoiceCommand(string text)
+    private string? ParseVoiceCommand(string text)
     {
         var normalized = text.Trim().TrimEnd('.', '!', ',', '?').ToLowerInvariant();
-        return normalized switch
-        {
-            "exit me" or "goodbye" or
-            "exit app" or "exit voice type" or "exit voicetype" or
-            "close app" or "close voice type" or "close voicetype" or
-            "quit app" or "quit voice type" or "quit voicetype"
-                => "exit",
 
-            "open settings" or "settings" or "open preferences" or "preferences"
-                => "settings",
+        if (_enableExitAppVoiceCommand && normalized == "exit app")
+            return "exit";
 
-            _ => null
-        };
+        if (_enableOpenSettingsVoiceCommand && normalized == "open settings")
+            return "settings";
+
+        return null;
     }
 
     private void HandleVoiceCommand(string command)
@@ -243,15 +290,79 @@ public class TrayContext : ApplicationContext
             action();
     }
 
+    private void HookShutdownEvents()
+    {
+        if (_eventsHooked)
+            return;
+
+        _eventsHooked = true;
+        Application.ApplicationExit += OnApplicationExit;
+        Application.ThreadException += OnThreadException;
+        AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+    }
+
+    private void UnhookShutdownEvents()
+    {
+        if (!_eventsHooked)
+            return;
+
+        _eventsHooked = false;
+        Application.ApplicationExit -= OnApplicationExit;
+        Application.ThreadException -= OnThreadException;
+        AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
+        AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
+    }
+
+    private void OnApplicationExit(object? sender, EventArgs e) => EnsureTrayIconHidden();
+
+    private void OnThreadException(object sender, ThreadExceptionEventArgs e) => EnsureTrayIconHidden();
+
+    private void OnProcessExit(object? sender, EventArgs e) => EnsureTrayIconHidden();
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e) => EnsureTrayIconHidden();
+
+    private void EnsureTrayIconHidden()
+    {
+        try
+        {
+            _trayIcon.Visible = false;
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
+    }
+
+    private static void RestorePreviousFocus(IntPtr previousWindow, IntPtr settingsWindow)
+    {
+        if (previousWindow == IntPtr.Zero)
+            return;
+
+        if (previousWindow == settingsWindow)
+            return;
+
+        if (!IsWindow(previousWindow))
+            return;
+
+        if (IsIconic(previousWindow))
+            _ = ShowWindow(previousWindow, SW_RESTORE);
+
+        _ = SetForegroundWindow(previousWindow);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            UnhookShutdownEvents();
+            EnsureTrayIconHidden();
             UnregisterHotKey(_hotkeyWindow.Handle, HOTKEY_ID);
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
             _overlay.Dispose();
             _recorder.Dispose();
+            _appIcon.Dispose();
         }
         base.Dispose(disposing);
     }
