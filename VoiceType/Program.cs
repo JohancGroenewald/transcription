@@ -7,20 +7,50 @@ static class Program
     private const string MutexName = "VoiceType_SingleInstance";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(5);
+    private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
     private static EventWaitHandle? _exitEvent;
 
     [DllImport("kernel32.dll")]
     private static extern bool FreeConsole();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(uint dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AllocConsole();
 
     [STAThread]
     static void Main(string[] args)
     {
         AppInfo.Initialize();
 
+        var requestHelp = args.Contains("--help", StringComparer.OrdinalIgnoreCase)
+            || args.Contains("-h", StringComparer.OrdinalIgnoreCase);
+        var requestVersion = args.Contains("--version", StringComparer.OrdinalIgnoreCase)
+            || args.Contains("-v", StringComparer.OrdinalIgnoreCase);
+        if (requestHelp || requestVersion)
+        {
+            EnsureConsoleForCliOutput();
+
+            if (requestVersion)
+                PrintVersion();
+
+            if (requestHelp)
+            {
+                if (requestVersion)
+                    Console.WriteLine();
+                PrintHelp();
+            }
+
+            return;
+        }
+
         var requestPinToTaskbar = args.Contains("--pin-to-taskbar", StringComparer.OrdinalIgnoreCase);
         var requestUnpinFromTaskbar = args.Contains("--unpin-from-taskbar", StringComparer.OrdinalIgnoreCase);
         if (requestPinToTaskbar || requestUnpinFromTaskbar)
         {
+            EnsureConsoleForCliOutput();
+
             if (requestPinToTaskbar && requestUnpinFromTaskbar)
             {
                 Console.Error.WriteLine("Specify only one taskbar command at a time.");
@@ -45,6 +75,7 @@ static class Program
         // --test flag: dry-run to verify mic capture works (needs console)
         if (args.Contains("--test", StringComparer.OrdinalIgnoreCase))
         {
+            EnsureConsoleForCliOutput();
             var testConfig = AppConfig.Load();
             Log.Configure(testConfig.EnableDebugLogging);
             RunTest().GetAwaiter().GetResult();
@@ -155,6 +186,47 @@ static class Program
         catch (AbandonedMutexException)
         {
             return true;
+        }
+    }
+
+    private static void PrintVersion()
+    {
+        Console.WriteLine($"VoiceType {AppInfo.Version}");
+    }
+
+    private static void PrintHelp()
+    {
+        Console.WriteLine("VoiceType");
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  VoiceType.exe [options]");
+        Console.WriteLine();
+        Console.WriteLine("Options:");
+        Console.WriteLine("  --help, -h                Show this help text and exit.");
+        Console.WriteLine("  --version, -v             Show app version and exit.");
+        Console.WriteLine("  --test                    Run microphone/API dry-run test.");
+        Console.WriteLine("  --close                   Signal running instance to close, then exit.");
+        Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
+        Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
+        Console.WriteLine();
+        Console.WriteLine("Default behavior:");
+        Console.WriteLine("  Launching without options starts VoiceType, replacing any running instance.");
+    }
+
+    private static void EnsureConsoleForCliOutput()
+    {
+        try
+        {
+            if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole())
+            {
+                var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+                var stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
+                Console.SetOut(stdout);
+                Console.SetError(stderr);
+            }
+        }
+        catch
+        {
+            // Best effort only
         }
     }
 

@@ -63,6 +63,8 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 ## CLI Flags
 
 - `--test`: dry-run microphone and transcription test in console mode
+- `--help`, `-h`: show CLI usage text and exit
+- `--version`, `-v`: print app version and exit
 - `--close`: signal an existing VoiceType instance to exit, then quit
 - `--pin-to-taskbar`: best-effort pin of current VoiceType executable to Windows taskbar
 - `--unpin-from-taskbar`: best-effort unpin of current VoiceType executable from Windows taskbar
