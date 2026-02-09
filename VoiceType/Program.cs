@@ -15,6 +15,8 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        AppInfo.Initialize();
+
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
         var requestReplace = !requestClose;
 

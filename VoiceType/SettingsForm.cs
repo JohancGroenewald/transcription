@@ -12,6 +12,10 @@ public class SettingsForm : Form
     private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
     private readonly TextBox _voiceCommandValidationInput;
     private readonly Label _voiceCommandValidationResult;
+    private readonly Label _versionValueLabel;
+    private readonly Label _startedAtValueLabel;
+    private readonly Label _uptimeValueLabel;
+    private readonly System.Windows.Forms.Timer _uptimeTimer;
     private readonly Icon _formIcon;
 
     public SettingsForm()
@@ -31,8 +35,8 @@ public class SettingsForm : Form
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
         Padding = new Padding(12);
-        MinimumSize = new Size(560, 540);
-        ClientSize = new Size(620, 620);
+        MinimumSize = new Size(560, 580);
+        ClientSize = new Size(620, 660);
 
         var rootLayout = new TableLayoutPanel
         {
@@ -59,11 +63,12 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -326,6 +331,85 @@ public class SettingsForm : Form
         voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 5);
         grpVoiceCommands.Controls.Add(voiceLayout);
 
+        var grpAppInfo = new GroupBox
+        {
+            Text = "App Info",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(12, 10, 12, 12),
+            Margin = new Padding(0, 10, 0, 0)
+        };
+
+        var appInfoLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2,
+            RowCount = 3,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        appInfoLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        appInfoLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        appInfoLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        appInfoLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        appInfoLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var lblVersion = new Label
+        {
+            Text = "Version",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 3, 10, 3)
+        };
+        _versionValueLabel = new Label
+        {
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Text = AppInfo.Version
+        };
+
+        var lblStartedAt = new Label
+        {
+            Text = "Started",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 3, 10, 3)
+        };
+        _startedAtValueLabel = new Label
+        {
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Text = AppInfo.StartedAtLocal.ToString("yyyy-MM-dd HH:mm:ss")
+        };
+
+        var lblUptime = new Label
+        {
+            Text = "Uptime",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 3, 10, 3)
+        };
+        _uptimeValueLabel = new Label
+        {
+            AutoSize = true,
+            Anchor = AnchorStyles.Left
+        };
+
+        appInfoLayout.Controls.Add(lblVersion, 0, 0);
+        appInfoLayout.Controls.Add(_versionValueLabel, 1, 0);
+        appInfoLayout.Controls.Add(lblStartedAt, 0, 1);
+        appInfoLayout.Controls.Add(_startedAtValueLabel, 1, 1);
+        appInfoLayout.Controls.Add(lblUptime, 0, 2);
+        appInfoLayout.Controls.Add(_uptimeValueLabel, 1, 2);
+        grpAppInfo.Controls.Add(appInfoLayout);
+
+        _uptimeTimer = new System.Windows.Forms.Timer { Interval = 1000, Enabled = true };
+        _uptimeTimer.Tick += (_, _) => UpdateAppInfo();
+        UpdateAppInfo();
+
         var btnExit = new Button
         {
             Text = "Exit VoiceType",
@@ -389,6 +473,7 @@ public class SettingsForm : Form
         contentLayout.Controls.Add(grpApi, 0, 0);
         contentLayout.Controls.Add(grpBehavior, 0, 1);
         contentLayout.Controls.Add(grpVoiceCommands, 0, 2);
+        contentLayout.Controls.Add(grpAppInfo, 0, 3);
         contentPanel.Controls.Add(contentLayout);
 
         rootLayout.Controls.Add(contentPanel, 0, 0);
@@ -483,10 +568,21 @@ public class SettingsForm : Form
         _voiceCommandValidationResult.Text = "No command match.";
     }
 
+    private void UpdateAppInfo()
+    {
+        _versionValueLabel.Text = AppInfo.Version;
+        _startedAtValueLabel.Text = AppInfo.StartedAtLocal.ToString("yyyy-MM-dd HH:mm:ss");
+        _uptimeValueLabel.Text = AppInfo.FormatUptime(AppInfo.Uptime);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
+            _uptimeTimer.Stop();
+            _uptimeTimer.Dispose();
             _formIcon.Dispose();
+        }
 
         base.Dispose(disposing);
     }

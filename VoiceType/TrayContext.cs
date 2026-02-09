@@ -47,6 +47,9 @@ public class TrayContext : ApplicationContext
     private readonly AudioRecorder _recorder;
     private readonly OverlayForm _overlay;
     private readonly Icon _appIcon;
+    private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
+    private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
+    private readonly ToolStripMenuItem _uptimeMenuItem = new() { Enabled = false };
     private TranscriptionService? _transcriptionService;
     private bool _autoEnter;
     private bool _enableOpenSettingsVoiceCommand;
@@ -123,10 +126,23 @@ public class TrayContext : ApplicationContext
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
+        UpdateRuntimeMenuItems();
+        menu.Opening += (_, _) => UpdateRuntimeMenuItems();
+        menu.Items.Add(_versionMenuItem);
+        menu.Items.Add(_startedAtMenuItem);
+        menu.Items.Add(_uptimeMenuItem);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Settings...", null, OnSettings);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, OnExit);
         return menu;
+    }
+
+    private void UpdateRuntimeMenuItems()
+    {
+        _versionMenuItem.Text = $"Version: {AppInfo.Version}";
+        _startedAtMenuItem.Text = $"Started: {AppInfo.StartedAtLocal:yyyy-MM-dd HH:mm:ss}";
+        _uptimeMenuItem.Text = $"Uptime: {AppInfo.FormatUptime(AppInfo.Uptime)}";
     }
 
     private async void OnHotkeyPressed(object? sender, EventArgs e)

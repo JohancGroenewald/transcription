@@ -12,6 +12,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`
 - Single-instance behavior with remote close/replace flags
 - Settings UI with API key, model, logging, and voice command toggles
+- Version and uptime display (tray menu + settings)
 - API key protection at rest via Windows DPAPI (`CurrentUser`)
 - Debug file logging toggle (off by default)
 
@@ -55,6 +56,7 @@ Available settings:
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
 - `Voice commands: "enable/disable auto-enter"` (enable/disable)
+- `App Info`: version, process start time, and live uptime
 
 Voice commands are matched as exact phrases after trimming punctuation and case normalization.
 
