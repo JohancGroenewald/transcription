@@ -7,11 +7,16 @@ namespace VoiceType;
 public class AppConfig
 {
     private const string DefaultModel = "whisper-1";
+    public const int DefaultOverlayDurationMs = 3000;
+    public const int MinOverlayDurationMs = 500;
+    public const int MaxOverlayDurationMs = 60000;
 
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = DefaultModel;
     public bool AutoEnter { get; set; }
     public bool EnableDebugLogging { get; set; }
+    public bool EnableOverlayPopups { get; set; } = true;
+    public int OverlayDurationMs { get; set; } = DefaultOverlayDurationMs;
     public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
     public bool EnableExitAppVoiceCommand { get; set; } = true;
     public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
@@ -30,6 +35,8 @@ public class AppConfig
         public string Model { get; set; } = DefaultModel;
         public bool AutoEnter { get; set; }
         public bool EnableDebugLogging { get; set; }
+        public bool EnableOverlayPopups { get; set; } = true;
+        public int OverlayDurationMs { get; set; } = DefaultOverlayDurationMs;
         public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
         public bool EnableExitAppVoiceCommand { get; set; } = true;
         public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
@@ -53,6 +60,8 @@ public class AppConfig
                 Model = string.IsNullOrWhiteSpace(configFile.Model) ? DefaultModel : configFile.Model,
                 AutoEnter = configFile.AutoEnter,
                 EnableDebugLogging = configFile.EnableDebugLogging,
+                EnableOverlayPopups = configFile.EnableOverlayPopups,
+                OverlayDurationMs = NormalizeOverlayDuration(configFile.OverlayDurationMs),
                 EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
                 EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
                 EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand
@@ -76,6 +85,8 @@ public class AppConfig
                 Model = string.IsNullOrWhiteSpace(Model) ? DefaultModel : Model,
                 AutoEnter = AutoEnter,
                 EnableDebugLogging = EnableDebugLogging,
+                EnableOverlayPopups = EnableOverlayPopups,
+                OverlayDurationMs = NormalizeOverlayDuration(OverlayDurationMs),
                 EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,
                 EnableExitAppVoiceCommand = EnableExitAppVoiceCommand,
                 EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand
@@ -125,5 +136,14 @@ public class AppConfig
         var protectedBytes = Convert.FromBase64String(protectedApiKey);
         var plainBytes = ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
         return Encoding.UTF8.GetString(plainBytes).Trim();
+    }
+
+    public static int NormalizeOverlayDuration(int durationMs)
+    {
+        if (durationMs < MinOverlayDurationMs)
+            return MinOverlayDurationMs;
+        if (durationMs > MaxOverlayDurationMs)
+            return MaxOverlayDurationMs;
+        return durationMs;
     }
 }

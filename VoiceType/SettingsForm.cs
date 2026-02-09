@@ -7,6 +7,8 @@ public class SettingsForm : Form
     private readonly CheckBox _showKeyCheck;
     private readonly CheckBox _autoEnterCheck;
     private readonly CheckBox _debugLoggingCheck;
+    private readonly CheckBox _enableOverlayPopupsCheck;
+    private readonly NumericUpDown _overlayDurationMsInput;
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
     private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
@@ -157,12 +159,14 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 3,
+            RowCount = 5,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -198,12 +202,43 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 0, 0)
         };
 
+        _enableOverlayPopupsCheck = new CheckBox
+        {
+            Text = "Show popup notifications",
+            AutoSize = true,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+        _enableOverlayPopupsCheck.CheckedChanged += (_, _) => UpdateOverlaySettingsState();
+
+        var lblOverlayDuration = new Label
+        {
+            Text = "Popup duration (ms)",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _overlayDurationMsInput = new NumericUpDown
+        {
+            Dock = DockStyle.Left,
+            Width = 120,
+            Minimum = AppConfig.MinOverlayDurationMs,
+            Maximum = AppConfig.MaxOverlayDurationMs,
+            Increment = 250,
+            ThousandsSeparator = true,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+
         behaviorLayout.Controls.Add(lblModel, 0, 0);
         behaviorLayout.Controls.Add(_modelBox, 1, 0);
         behaviorLayout.Controls.Add(_autoEnterCheck, 0, 1);
         behaviorLayout.SetColumnSpan(_autoEnterCheck, 2);
         behaviorLayout.Controls.Add(_debugLoggingCheck, 0, 2);
         behaviorLayout.SetColumnSpan(_debugLoggingCheck, 2);
+        behaviorLayout.Controls.Add(_enableOverlayPopupsCheck, 0, 3);
+        behaviorLayout.SetColumnSpan(_enableOverlayPopupsCheck, 2);
+        behaviorLayout.Controls.Add(lblOverlayDuration, 0, 4);
+        behaviorLayout.Controls.Add(_overlayDurationMsInput, 1, 4);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new GroupBox
@@ -492,9 +527,12 @@ public class SettingsForm : Form
 
         _autoEnterCheck.Checked = config.AutoEnter;
         _debugLoggingCheck.Checked = config.EnableDebugLogging;
+        _enableOverlayPopupsCheck.Checked = config.EnableOverlayPopups;
+        _overlayDurationMsInput.Value = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
         _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
+        UpdateOverlaySettingsState();
         ValidateVoiceCommandInput();
         WrapWindowToContent(contentPanel, buttonsLayout);
     }
@@ -509,6 +547,8 @@ public class SettingsForm : Form
             Model = _modelBox.SelectedItem?.ToString() ?? "whisper-1",
             AutoEnter = _autoEnterCheck.Checked,
             EnableDebugLogging = _debugLoggingCheck.Checked,
+            EnableOverlayPopups = _enableOverlayPopupsCheck.Checked,
+            OverlayDurationMs = AppConfig.NormalizeOverlayDuration((int)_overlayDurationMsInput.Value),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
             EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked,
             EnableToggleAutoEnterVoiceCommand = _toggleAutoEnterVoiceCommandCheck.Checked
@@ -571,6 +611,11 @@ public class SettingsForm : Form
 
         _voiceCommandValidationResult.ForeColor = Color.DimGray;
         _voiceCommandValidationResult.Text = "No command match.";
+    }
+
+    private void UpdateOverlaySettingsState()
+    {
+        _overlayDurationMsInput.Enabled = _enableOverlayPopupsCheck.Checked;
     }
 
     private void UpdateAppInfo()

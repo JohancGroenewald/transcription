@@ -53,6 +53,8 @@ Available settings:
 - `Transcription model`: `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`
 - `Press Enter after pasting text`
 - `Enable file logging (debug only)`
+- `Show popup notifications` (enable/disable)
+- `Popup duration (ms)` (500-60000)
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
 - `Voice commands: "enable/disable auto-enter"` (enable/disable)

@@ -52,6 +52,8 @@ public class TrayContext : ApplicationContext
     private readonly ToolStripMenuItem _uptimeMenuItem = new() { Enabled = false };
     private TranscriptionService? _transcriptionService;
     private bool _autoEnter;
+    private bool _enableOverlayPopups = true;
+    private int _overlayDurationMs = AppConfig.DefaultOverlayDurationMs;
     private bool _enableOpenSettingsVoiceCommand;
     private bool _enableExitAppVoiceCommand;
     private bool _enableToggleAutoEnterVoiceCommand;
@@ -99,11 +101,11 @@ public class TrayContext : ApplicationContext
         if (_transcriptionService == null)
         {
             Log.Info("No API key configured");
-            _overlay.ShowMessage("No API key — right-click tray icon > Settings", Color.Orange, 5000);
+            ShowOverlay("No API key — right-click tray icon > Settings", Color.Orange, 5000);
         }
         else
         {
-            _overlay.ShowMessage("VoiceType ready — Ctrl+Shift+Space to dictate", Color.LightGreen, 2000);
+            ShowOverlay("VoiceType ready — Ctrl+Shift+Space to dictate", Color.LightGreen, 2000);
         }
 
         Log.Info("VoiceType started successfully");
@@ -114,6 +116,8 @@ public class TrayContext : ApplicationContext
         var config = AppConfig.Load();
         Log.Configure(config.EnableDebugLogging);
         _autoEnter = config.AutoEnter;
+        _enableOverlayPopups = config.EnableOverlayPopups;
+        _overlayDurationMs = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
@@ -149,13 +153,13 @@ public class TrayContext : ApplicationContext
     {
         if (_isTranscribing)
         {
-            _overlay.ShowMessage("Still processing previous dictation...", Color.CornflowerBlue, 2000);
+            ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
             return;
         }
 
         if (_transcriptionService == null)
         {
-            _overlay.ShowMessage("No API key configured — check Settings", Color.Orange);
+            ShowOverlay("No API key configured — check Settings", Color.Orange);
             return;
         }
 
@@ -165,7 +169,7 @@ public class TrayContext : ApplicationContext
             _isRecording = false;
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
-            _overlay.ShowMessage("Processing voice...", Color.CornflowerBlue, 10000);
+            ShowOverlay("Processing voice...", Color.CornflowerBlue, 10000);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
 
@@ -180,7 +184,7 @@ public class TrayContext : ApplicationContext
                 if (metrics.IsLikelySilence)
                 {
                     Log.Info("Skipping transcription because captured audio appears to be silence/noise.");
-                    _overlay.ShowMessage("No speech detected", Color.Gray, 2000);
+                    ShowOverlay("No speech detected", Color.Gray, 2000);
                     return;
                 }
 
@@ -203,23 +207,23 @@ public class TrayContext : ApplicationContext
                     if (pasted)
                     {
                         Log.Info("Text injected via clipboard");
-                        _overlay.ShowMessage(text, Color.LightGreen, 4000);
+                        ShowOverlay(text, Color.LightGreen, 4000);
                     }
                     else
                     {
                         Log.Info("No paste target, text on clipboard");
-                        _overlay.ShowMessage(text + "\n(copied to clipboard — Ctrl+V to paste)", Color.Gold, 5000);
+                        ShowOverlay(text + "\n(copied to clipboard — Ctrl+V to paste)", Color.Gold, 5000);
                     }
                 }
                 else
                 {
-                    _overlay.ShowMessage("No speech detected", Color.Gray, 2000);
+                    ShowOverlay("No speech detected", Color.Gray, 2000);
                 }
             }
             catch (Exception ex)
             {
                 Log.Error("Transcription failed", ex);
-                _overlay.ShowMessage("Error: " + ex.Message, Color.Salmon, 4000);
+                ShowOverlay("Error: " + ex.Message, Color.Salmon, 4000);
             }
             finally
             {
@@ -236,14 +240,14 @@ public class TrayContext : ApplicationContext
                 _isRecording = true;
                 _trayIcon.Icon = _appIcon;
                 _trayIcon.Text = "VoiceType - Recording... (Ctrl+Shift+Space to stop)";
-                _overlay.ShowMessage("Listening... speak now!", Color.CornflowerBlue, 30000);
+                ShowOverlay("Listening... speak now!", Color.CornflowerBlue, 30000);
                 Log.Info("Recording started");
             }
             catch (Exception ex)
             {
                 _isRecording = false;
                 Log.Error("Failed to start recording", ex);
-                _overlay.ShowMessage("Microphone error: " + ex.Message, Color.Salmon, 4000);
+                ShowOverlay("Microphone error: " + ex.Message, Color.Salmon, 4000);
                 SetReadyState();
             }
         }
@@ -294,6 +298,15 @@ public class TrayContext : ApplicationContext
         _trayIcon.Text = "VoiceType - Ready (Ctrl+Shift+Space)";
     }
 
+    private void ShowOverlay(string text, Color? color = null, int durationMs = 3000)
+    {
+        if (!_enableOverlayPopups)
+            return;
+
+        _ = durationMs;
+        _overlay.ShowMessage(text, color, _overlayDurationMs);
+    }
+
     private string? ParseVoiceCommand(string text)
     {
         return VoiceCommandParser.Parse(
@@ -308,11 +321,11 @@ public class TrayContext : ApplicationContext
         switch (command)
         {
             case VoiceCommandParser.Exit:
-                _overlay.ShowMessage("Goodbye!", Color.LightGreen, 1000);
+                ShowOverlay("Goodbye!", Color.LightGreen, 1000);
                 _ = Task.Delay(800).ContinueWith(_ => Invoke(Shutdown));
                 break;
             case VoiceCommandParser.Settings:
-                _overlay.ShowMessage("Opening settings...", Color.CornflowerBlue, 1000);
+                ShowOverlay("Opening settings...", Color.CornflowerBlue, 1000);
                 OnSettings(null, EventArgs.Empty);
                 break;
             case VoiceCommandParser.EnableAutoEnter:
@@ -329,7 +342,7 @@ public class TrayContext : ApplicationContext
         if (_autoEnter == enabled)
         {
             var existingStateLabel = enabled ? "enabled" : "disabled";
-            _overlay.ShowMessage($"Auto-enter already {existingStateLabel}", Color.Gray, 1200);
+            ShowOverlay($"Auto-enter already {existingStateLabel}", Color.Gray, 1200);
             return;
         }
 
@@ -341,13 +354,13 @@ public class TrayContext : ApplicationContext
             _autoEnter = enabled;
 
             var stateLabel = enabled ? "enabled" : "disabled";
-            _overlay.ShowMessage($"Auto-enter {stateLabel}", Color.LightGreen, 1500);
+            ShowOverlay($"Auto-enter {stateLabel}", Color.LightGreen, 1500);
             Log.Info($"Auto-enter set via voice command ({stateLabel})");
         }
         catch (Exception ex)
         {
             Log.Error("Failed to update auto-enter setting via voice command", ex);
-            _overlay.ShowMessage("Failed to update auto-enter setting", Color.Salmon, 2000);
+            ShowOverlay("Failed to update auto-enter setting", Color.Salmon, 2000);
         }
     }
 
@@ -483,3 +496,4 @@ internal class HotkeyWindow : NativeWindow, IDisposable
         DestroyHandle();
     }
 }
+
