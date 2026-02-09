@@ -62,13 +62,13 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 
 - `--test`: dry-run microphone and transcription test in console mode
 - `--close`: signal an existing VoiceType instance to exit, then quit
-- `--replace-existing`: signal existing instance to exit, wait for takeover, then run new instance
+- `--replace-existing`: legacy alias for normal launch behavior (replace running instance)
 
 ## Single-Instance Behavior
 
-- Launching VoiceType normally while it is already running does not start a second copy.
+- Launching VoiceType normally while it is already running closes the existing instance and starts the new one.
 - Use `--close` for remote shutdown.
-- Use `--replace-existing` during upgrades/restarts to hand off to the new process.
+- Normal launch already performs replace handoff, so upgrades/restarts can just launch the new app.
 
 ## Data and Security Notes
 

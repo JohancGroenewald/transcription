@@ -15,8 +15,8 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
-        var requestReplace = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
+        var requestReplace = !requestClose;
 
         // --test flag: dry-run to verify mic capture works (needs console)
         if (args.Contains("--test", StringComparer.OrdinalIgnoreCase))
@@ -33,7 +33,7 @@ static class Program
         using var mutex = new Mutex(true, MutexName, out bool isNew);
         var ownsMutex = isNew;
 
-        // If already running, explicit modes can signal it to exit.
+        // If already running, default behavior is to close old and take over.
         if (!ownsMutex)
         {
             if (requestClose || requestReplace)
@@ -69,7 +69,14 @@ static class Program
             var exitThread = new Thread(() =>
             {
                 _exitEvent.WaitOne();
-                Application.Exit();
+                try
+                {
+                    Application.Exit();
+                }
+                finally
+                {
+                    Environment.Exit(0);
+                }
             })
             { IsBackground = true };
             exitThread.Start();
