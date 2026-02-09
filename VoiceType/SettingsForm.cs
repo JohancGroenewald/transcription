@@ -24,31 +24,54 @@ public class SettingsForm : Form
 
         Text = "VoiceType Settings";
         Icon = _formIcon;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
         Font = new Font("Segoe UI", 9f);
+        AutoScaleMode = AutoScaleMode.Dpi;
         Padding = new Padding(12);
-        ClientSize = new Size(500, 520);
+        MinimumSize = new Size(560, 540);
+        ClientSize = new Size(620, 620);
 
         var rootLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        // --- API Key section ---
+        var contentPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+
+        var contentLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 3,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
         var grpApi = new GroupBox
         {
             Text = "OpenAI API",
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
@@ -59,26 +82,40 @@ public class SettingsForm : Form
         {
             Dock = DockStyle.Top,
             AutoSize = true,
-            ColumnCount = 2,
-            RowCount = 2
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
+        apiLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         apiLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         apiLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         apiLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         apiLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
+        var lblKeyHelp = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Text = "Stored encrypted for this Windows user account.",
+            Margin = new Padding(0, 0, 0, 8)
+        };
+
         var lblKey = new Label
         {
-            Text = "API Key",
+            Text = "API key",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 6)
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 3, 8, 3)
         };
 
         _apiKeyBox = new TextBox
         {
             Dock = DockStyle.Fill,
             UseSystemPasswordChar = true,
-            Margin = new Padding(0, 0, 8, 0)
+            Margin = new Padding(0, 0, 8, 0),
+            PlaceholderText = "sk-..."
         };
 
         _showKeyCheck = new CheckBox
@@ -87,38 +124,41 @@ public class SettingsForm : Form
             AutoSize = true,
             Anchor = AnchorStyles.Left
         };
-        _showKeyCheck.CheckedChanged += (s, e) =>
+        _showKeyCheck.CheckedChanged += (_, _) =>
             _apiKeyBox.UseSystemPasswordChar = !_showKeyCheck.Checked;
 
-        apiLayout.Controls.Add(lblKey, 0, 0);
-        apiLayout.SetColumnSpan(lblKey, 2);
-        apiLayout.Controls.Add(_apiKeyBox, 0, 1);
-        apiLayout.Controls.Add(_showKeyCheck, 1, 1);
+        apiLayout.Controls.Add(lblKeyHelp, 0, 0);
+        apiLayout.SetColumnSpan(lblKeyHelp, 3);
+        apiLayout.Controls.Add(lblKey, 0, 1);
+        apiLayout.Controls.Add(_apiKeyBox, 1, 1);
+        apiLayout.Controls.Add(_showKeyCheck, 2, 1);
         grpApi.Controls.Add(apiLayout);
 
-        // --- Options section ---
-        var grpOptions = new GroupBox
+        var grpBehavior = new GroupBox
         {
-            Text = "Options",
-            Dock = DockStyle.Fill,
+            Text = "Behavior",
+            Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
             Margin = new Padding(0, 0, 0, 10)
         };
 
-        var optionsLayout = new TableLayoutPanel
+        var behaviorLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 3
+            RowCount = 3,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
-        optionsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        optionsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        optionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        optionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        optionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var lblModel = new Label
         {
@@ -131,7 +171,8 @@ public class SettingsForm : Form
         _modelBox = new ComboBox
         {
             Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 0, 0, 4)
         };
         _modelBox.Items.AddRange(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
 
@@ -139,7 +180,7 @@ public class SettingsForm : Form
         {
             Text = "Press Enter after pasting text",
             AutoSize = true,
-            Margin = new Padding(0, 8, 0, 0)
+            Margin = new Padding(0, 4, 0, 0)
         };
 
         _debugLoggingCheck = new CheckBox
@@ -149,26 +190,27 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 0, 0)
         };
 
-        optionsLayout.Controls.Add(lblModel, 0, 0);
-        optionsLayout.Controls.Add(_modelBox, 1, 0);
-        optionsLayout.Controls.Add(_autoEnterCheck, 0, 1);
-        optionsLayout.SetColumnSpan(_autoEnterCheck, 2);
-        optionsLayout.Controls.Add(_debugLoggingCheck, 0, 2);
-        optionsLayout.SetColumnSpan(_debugLoggingCheck, 2);
-        grpOptions.Controls.Add(optionsLayout);
+        behaviorLayout.Controls.Add(lblModel, 0, 0);
+        behaviorLayout.Controls.Add(_modelBox, 1, 0);
+        behaviorLayout.Controls.Add(_autoEnterCheck, 0, 1);
+        behaviorLayout.SetColumnSpan(_autoEnterCheck, 2);
+        behaviorLayout.Controls.Add(_debugLoggingCheck, 0, 2);
+        behaviorLayout.SetColumnSpan(_debugLoggingCheck, 2);
+        grpBehavior.Controls.Add(behaviorLayout);
 
-        // --- Voice Commands section ---
         var grpVoiceCommands = new GroupBox
         {
             Text = "Voice Commands",
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
-            Margin = new Padding(0, 0, 0, 8)
+            Margin = new Padding(0, 0, 0, 0)
         };
 
-        var voiceCommandsLayout = new TableLayoutPanel
+        var voiceLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
@@ -176,13 +218,21 @@ public class SettingsForm : Form
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
-        voiceCommandsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        voiceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var voiceHelp = new Label
+        {
+            Text = "Commands are matched exactly (optional 'please' before or after).",
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 0, 0, 8)
+        };
 
         _openSettingsVoiceCommandCheck = new CheckBox
         {
@@ -221,7 +271,8 @@ public class SettingsForm : Form
         {
             Text = "Validate phrase",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = new Padding(0, 0, 0, 4),
+            Font = new Font(Font, FontStyle.Bold)
         };
 
         _voiceCommandValidationInput = new TextBox
@@ -231,7 +282,7 @@ public class SettingsForm : Form
             PlaceholderText = "e.g. disable auto enter"
         };
         _voiceCommandValidationInput.TextChanged += (_, _) => ValidateVoiceCommandInput();
-        _voiceCommandValidationInput.KeyDown += (s, e) =>
+        _voiceCommandValidationInput.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Enter)
             {
@@ -254,6 +305,7 @@ public class SettingsForm : Form
             AutoSize = true,
             ForeColor = Color.DimGray,
             Margin = new Padding(0, 6, 0, 0),
+            MaximumSize = new Size(520, 0),
             Text = "Type a phrase to test command recognition."
         };
 
@@ -266,14 +318,14 @@ public class SettingsForm : Form
         _exitAppVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
         _toggleAutoEnterVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
 
-        voiceCommandsLayout.Controls.Add(_openSettingsVoiceCommandCheck, 0, 0);
-        voiceCommandsLayout.Controls.Add(_exitAppVoiceCommandCheck, 0, 1);
-        voiceCommandsLayout.Controls.Add(_toggleAutoEnterVoiceCommandCheck, 0, 2);
-        voiceCommandsLayout.Controls.Add(validatorPanel, 0, 3);
-        voiceCommandsLayout.Controls.Add(_voiceCommandValidationResult, 0, 4);
-        grpVoiceCommands.Controls.Add(voiceCommandsLayout);
+        voiceLayout.Controls.Add(voiceHelp, 0, 0);
+        voiceLayout.Controls.Add(_openSettingsVoiceCommandCheck, 0, 1);
+        voiceLayout.Controls.Add(_exitAppVoiceCommandCheck, 0, 2);
+        voiceLayout.Controls.Add(_toggleAutoEnterVoiceCommandCheck, 0, 3);
+        voiceLayout.Controls.Add(validatorPanel, 0, 4);
+        voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 5);
+        grpVoiceCommands.Controls.Add(voiceLayout);
 
-        // --- Buttons ---
         var btnExit = new Button
         {
             Text = "Exit VoiceType",
@@ -281,7 +333,7 @@ public class SettingsForm : Form
             MinimumSize = new Size(110, 32),
             Anchor = AnchorStyles.Left
         };
-        btnExit.Click += (s, e) =>
+        btnExit.Click += (_, _) =>
         {
             Close();
             Application.Exit();
@@ -309,7 +361,7 @@ public class SettingsForm : Form
             AutoSize = true,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Dock = DockStyle.None,
+            Dock = DockStyle.Fill,
             Anchor = AnchorStyles.Right,
             Margin = new Padding(0)
         };
@@ -321,7 +373,7 @@ public class SettingsForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 3,
             RowCount = 1,
-            AutoSize = false,
+            AutoSize = true,
             Margin = new Padding(0)
         };
         buttonsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -334,17 +386,21 @@ public class SettingsForm : Form
         AcceptButton = btnSave;
         CancelButton = btnCancel;
 
-        rootLayout.Controls.Add(grpApi, 0, 0);
-        rootLayout.Controls.Add(grpOptions, 0, 1);
-        rootLayout.Controls.Add(grpVoiceCommands, 0, 2);
-        rootLayout.Controls.Add(buttonsLayout, 0, 3);
+        contentLayout.Controls.Add(grpApi, 0, 0);
+        contentLayout.Controls.Add(grpBehavior, 0, 1);
+        contentLayout.Controls.Add(grpVoiceCommands, 0, 2);
+        contentPanel.Controls.Add(contentLayout);
+
+        rootLayout.Controls.Add(contentPanel, 0, 0);
+        rootLayout.Controls.Add(buttonsLayout, 0, 1);
         Controls.Add(rootLayout);
 
-        // Load existing config
         var config = AppConfig.Load();
         _apiKeyBox.Text = config.ApiKey;
         _modelBox.SelectedItem = config.Model;
-        if (_modelBox.SelectedIndex < 0) _modelBox.SelectedIndex = 0;
+        if (_modelBox.SelectedIndex < 0)
+            _modelBox.SelectedIndex = 0;
+
         _autoEnterCheck.Checked = config.AutoEnter;
         _debugLoggingCheck.Checked = config.EnableDebugLogging;
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
