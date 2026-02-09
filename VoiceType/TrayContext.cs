@@ -114,6 +114,10 @@ public class TrayContext : ApplicationContext
         _autoEnter = config.AutoEnter;
         _enableOverlayPopups = config.EnableOverlayPopups;
         _overlayDurationMs = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
+        _overlay.ApplyHudSettings(
+            config.OverlayOpacityPercent,
+            config.OverlayWidthPercent,
+            config.OverlayFontSizePt);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;

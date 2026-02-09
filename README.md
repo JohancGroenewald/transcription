@@ -68,6 +68,9 @@ Available settings:
 - `Enable file logging (debug only)`
 - `Show popup notifications` (enable/disable)
 - `Popup duration (ms)` (500-60000)
+- `HUD opacity (%)` (50-100)
+- `HUD width (%)` (35-90)
+- `HUD font size (pt)` (9-22)
 - `Enable Surface Pen hotkey` (enable/disable)
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
 - `Pen button validator` (shows last detected pen key while Settings is focused)

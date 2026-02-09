@@ -32,6 +32,8 @@ public class OverlayForm : Form
 
     private readonly Label _label;
     private readonly System.Windows.Forms.Timer _hideTimer;
+    private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
+    private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -58,7 +60,7 @@ public class OverlayForm : Form
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            Font = new Font("Consolas", 12f, FontStyle.Bold),
+            Font = new Font("Consolas", AppConfig.DefaultOverlayFontSizePt, FontStyle.Bold),
             ForeColor = DefaultTextColor,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false
@@ -73,6 +75,10 @@ public class OverlayForm : Form
         };
 
         Paint += OnOverlayPaint;
+        ApplyHudSettings(
+            AppConfig.DefaultOverlayOpacityPercent,
+            AppConfig.DefaultOverlayWidthPercent,
+            AppConfig.DefaultOverlayFontSizePt);
 
         // Position: bottom-center, above taskbar
         PositionOnScreen();
@@ -128,7 +134,10 @@ public class OverlayForm : Form
         _label.ForeColor = color ?? DefaultTextColor;
 
         var workingArea = GetTargetScreen().WorkingArea;
-        var preferredWidth = Math.Clamp((int)(workingArea.Width * 0.62), MinOverlayWidth, MaxOverlayWidth);
+        var preferredWidth = Math.Clamp(
+            (int)(workingArea.Width * (_overlayWidthPercent / 100.0)),
+            MinOverlayWidth,
+            MaxOverlayWidth);
         var width = Math.Min(preferredWidth, workingArea.Width - HorizontalMargin * 2);
         if (width < 260)
             width = Math.Max(220, workingArea.Width - 12);
@@ -154,6 +163,26 @@ public class OverlayForm : Form
 
         // Reassert topmost without activating so notifications stay visible.
         _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
+    public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt)
+    {
+        if (InvokeRequired)
+        {
+            Invoke(() => ApplyHudSettings(opacityPercent, widthPercent, fontSizePt));
+            return;
+        }
+
+        _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
+        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(fontSizePt);
+        Opacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
+
+        var oldFont = _label.Font;
+        _label.Font = new Font("Consolas", _overlayFontSizePt, FontStyle.Bold);
+        oldFont.Dispose();
+
+        if (Visible)
+            ShowMessage(_label.Text, _label.ForeColor, _hideTimer.Interval);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)

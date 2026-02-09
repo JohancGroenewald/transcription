@@ -11,6 +11,15 @@ public class AppConfig
     public const int DefaultOverlayDurationMs = 3000;
     public const int MinOverlayDurationMs = 500;
     public const int MaxOverlayDurationMs = 60000;
+    public const int DefaultOverlayOpacityPercent = 94;
+    public const int MinOverlayOpacityPercent = 50;
+    public const int MaxOverlayOpacityPercent = 100;
+    public const int DefaultOverlayWidthPercent = 62;
+    public const int MinOverlayWidthPercent = 35;
+    public const int MaxOverlayWidthPercent = 90;
+    public const int DefaultOverlayFontSizePt = 12;
+    public const int MinOverlayFontSizePt = 9;
+    public const int MaxOverlayFontSizePt = 22;
     private static readonly string[] SupportedPenHotkeys =
     [
         "F13",
@@ -53,6 +62,9 @@ public class AppConfig
     public bool EnableDebugLogging { get; set; }
     public bool EnableOverlayPopups { get; set; } = true;
     public int OverlayDurationMs { get; set; } = DefaultOverlayDurationMs;
+    public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
+    public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
+    public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
     public bool EnablePenHotkey { get; set; }
     public string PenHotkey { get; set; } = DefaultPenHotkey;
     public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
@@ -76,6 +88,9 @@ public class AppConfig
         public bool EnableDebugLogging { get; set; }
         public bool EnableOverlayPopups { get; set; } = true;
         public int OverlayDurationMs { get; set; } = DefaultOverlayDurationMs;
+        public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
+        public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
+        public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
         public bool EnablePenHotkey { get; set; }
         public string PenHotkey { get; set; } = DefaultPenHotkey;
         public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
@@ -104,6 +119,9 @@ public class AppConfig
                 EnableDebugLogging = configFile.EnableDebugLogging,
                 EnableOverlayPopups = configFile.EnableOverlayPopups,
                 OverlayDurationMs = NormalizeOverlayDuration(configFile.OverlayDurationMs),
+                OverlayOpacityPercent = NormalizeOverlayOpacityPercent(configFile.OverlayOpacityPercent),
+                OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
+                OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
                 EnablePenHotkey = configFile.EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
                 EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
@@ -132,6 +150,9 @@ public class AppConfig
                 EnableDebugLogging = EnableDebugLogging,
                 EnableOverlayPopups = EnableOverlayPopups,
                 OverlayDurationMs = NormalizeOverlayDuration(OverlayDurationMs),
+                OverlayOpacityPercent = NormalizeOverlayOpacityPercent(OverlayOpacityPercent),
+                OverlayWidthPercent = NormalizeOverlayWidthPercent(OverlayWidthPercent),
+                OverlayFontSizePt = NormalizeOverlayFontSizePt(OverlayFontSizePt),
                 EnablePenHotkey = EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(PenHotkey),
                 EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,
@@ -193,6 +214,33 @@ public class AppConfig
         if (durationMs > MaxOverlayDurationMs)
             return MaxOverlayDurationMs;
         return durationMs;
+    }
+
+    public static int NormalizeOverlayOpacityPercent(int opacityPercent)
+    {
+        if (opacityPercent < MinOverlayOpacityPercent)
+            return MinOverlayOpacityPercent;
+        if (opacityPercent > MaxOverlayOpacityPercent)
+            return MaxOverlayOpacityPercent;
+        return opacityPercent;
+    }
+
+    public static int NormalizeOverlayWidthPercent(int widthPercent)
+    {
+        if (widthPercent < MinOverlayWidthPercent)
+            return MinOverlayWidthPercent;
+        if (widthPercent > MaxOverlayWidthPercent)
+            return MaxOverlayWidthPercent;
+        return widthPercent;
+    }
+
+    public static int NormalizeOverlayFontSizePt(int fontSizePt)
+    {
+        if (fontSizePt < MinOverlayFontSizePt)
+            return MinOverlayFontSizePt;
+        if (fontSizePt > MaxOverlayFontSizePt)
+            return MaxOverlayFontSizePt;
+        return fontSizePt;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()

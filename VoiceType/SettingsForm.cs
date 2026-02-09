@@ -13,6 +13,12 @@ public class SettingsForm : Form
     private readonly CheckBox _debugLoggingCheck;
     private readonly CheckBox _enableOverlayPopupsCheck;
     private readonly NumericUpDown _overlayDurationMsInput;
+    private readonly Label _overlayOpacityLabel;
+    private readonly NumericUpDown _overlayOpacityInput;
+    private readonly Label _overlayWidthLabel;
+    private readonly NumericUpDown _overlayWidthInput;
+    private readonly Label _overlayFontSizeLabel;
+    private readonly NumericUpDown _overlayFontSizeInput;
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
     private readonly Label _penHotkeyLabel;
@@ -170,12 +176,15 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 9,
+            RowCount = 12,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -244,6 +253,63 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 0, 0)
         };
 
+        _overlayOpacityLabel = new Label
+        {
+            Text = "HUD opacity (%)",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _overlayOpacityInput = new NumericUpDown
+        {
+            Dock = DockStyle.Left,
+            Width = 120,
+            Minimum = AppConfig.MinOverlayOpacityPercent,
+            Maximum = AppConfig.MaxOverlayOpacityPercent,
+            Increment = 1,
+            ThousandsSeparator = false,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+
+        _overlayWidthLabel = new Label
+        {
+            Text = "HUD width (%)",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _overlayWidthInput = new NumericUpDown
+        {
+            Dock = DockStyle.Left,
+            Width = 120,
+            Minimum = AppConfig.MinOverlayWidthPercent,
+            Maximum = AppConfig.MaxOverlayWidthPercent,
+            Increment = 1,
+            ThousandsSeparator = false,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+
+        _overlayFontSizeLabel = new Label
+        {
+            Text = "HUD font size (pt)",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _overlayFontSizeInput = new NumericUpDown
+        {
+            Dock = DockStyle.Left,
+            Width = 120,
+            Minimum = AppConfig.MinOverlayFontSizePt,
+            Maximum = AppConfig.MaxOverlayFontSizePt,
+            Increment = 1,
+            ThousandsSeparator = false,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+
         _enablePenHotkeyCheck = new CheckBox
         {
             Text = "Enable Surface Pen hotkey",
@@ -296,13 +362,19 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_enableOverlayPopupsCheck, 2);
         behaviorLayout.Controls.Add(lblOverlayDuration, 0, 4);
         behaviorLayout.Controls.Add(_overlayDurationMsInput, 1, 4);
-        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 5);
+        behaviorLayout.Controls.Add(_overlayOpacityLabel, 0, 5);
+        behaviorLayout.Controls.Add(_overlayOpacityInput, 1, 5);
+        behaviorLayout.Controls.Add(_overlayWidthLabel, 0, 6);
+        behaviorLayout.Controls.Add(_overlayWidthInput, 1, 6);
+        behaviorLayout.Controls.Add(_overlayFontSizeLabel, 0, 7);
+        behaviorLayout.Controls.Add(_overlayFontSizeInput, 1, 7);
+        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 8);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
-        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 6);
-        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 6);
-        behaviorLayout.Controls.Add(penValidationLabel, 0, 7);
+        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 9);
+        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 9);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 10);
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
-        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 8);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 11);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
@@ -603,6 +675,9 @@ public class SettingsForm : Form
         _debugLoggingCheck.Checked = config.EnableDebugLogging;
         _enableOverlayPopupsCheck.Checked = config.EnableOverlayPopups;
         _overlayDurationMsInput.Value = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
+        _overlayOpacityInput.Value = AppConfig.NormalizeOverlayOpacityPercent(config.OverlayOpacityPercent);
+        _overlayWidthInput.Value = AppConfig.NormalizeOverlayWidthPercent(config.OverlayWidthPercent);
+        _overlayFontSizeInput.Value = AppConfig.NormalizeOverlayFontSizePt(config.OverlayFontSizePt);
         _enablePenHotkeyCheck.Checked = config.EnablePenHotkey;
         _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
         if (_penHotkeyBox.SelectedIndex < 0)
@@ -629,6 +704,9 @@ public class SettingsForm : Form
             EnableDebugLogging = _debugLoggingCheck.Checked,
             EnableOverlayPopups = _enableOverlayPopupsCheck.Checked,
             OverlayDurationMs = AppConfig.NormalizeOverlayDuration((int)_overlayDurationMsInput.Value),
+            OverlayOpacityPercent = AppConfig.NormalizeOverlayOpacityPercent((int)_overlayOpacityInput.Value),
+            OverlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent((int)_overlayWidthInput.Value),
+            OverlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt((int)_overlayFontSizeInput.Value),
             EnablePenHotkey = _enablePenHotkeyCheck.Checked,
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
@@ -700,7 +778,14 @@ public class SettingsForm : Form
 
     private void UpdateOverlaySettingsState()
     {
-        _overlayDurationMsInput.Enabled = _enableOverlayPopupsCheck.Checked;
+        var enabled = _enableOverlayPopupsCheck.Checked;
+        _overlayDurationMsInput.Enabled = enabled;
+        _overlayOpacityLabel.Enabled = enabled;
+        _overlayOpacityInput.Enabled = enabled;
+        _overlayWidthLabel.Enabled = enabled;
+        _overlayWidthInput.Enabled = enabled;
+        _overlayFontSizeLabel.Enabled = enabled;
+        _overlayFontSizeInput.Enabled = enabled;
     }
 
     private void UpdatePenHotkeySettingsState()
