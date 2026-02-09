@@ -17,6 +17,28 @@ static class Program
     {
         AppInfo.Initialize();
 
+        var requestPinToTaskbar = args.Contains("--pin-to-taskbar", StringComparer.OrdinalIgnoreCase);
+        var requestUnpinFromTaskbar = args.Contains("--unpin-from-taskbar", StringComparer.OrdinalIgnoreCase);
+        if (requestPinToTaskbar || requestUnpinFromTaskbar)
+        {
+            if (requestPinToTaskbar && requestUnpinFromTaskbar)
+            {
+                Console.Error.WriteLine("Specify only one taskbar command at a time.");
+                Environment.ExitCode = 2;
+                return;
+            }
+
+            var pin = requestPinToTaskbar;
+            var succeeded = TaskbarPinManager.TrySetCurrentExecutablePinned(pin, out var message);
+            if (succeeded)
+                Console.WriteLine(message);
+            else
+                Console.Error.WriteLine(message);
+
+            Environment.ExitCode = succeeded ? 0 : 1;
+            return;
+        }
+
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
         var requestReplace = !requestClose;
 
