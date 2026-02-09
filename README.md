@@ -70,6 +70,7 @@ Available settings:
 - `Popup duration (ms)` (500-60000)
 - `Enable Surface Pen hotkey` (enable/disable)
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
+- `Pen button validator` (shows last detected pen key while Settings is focused)
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
 - `Voice commands: "enable/disable auto-enter"` (enable/disable)

@@ -2,6 +2,10 @@ namespace VoiceType;
 
 public class SettingsForm : Form
 {
+    private const int WM_APPCOMMAND = 0x0319;
+    private const int APPCOMMAND_LAUNCH_APP1 = 17;
+    private const int APPCOMMAND_LAUNCH_APP2 = 18;
+
     private readonly TextBox _apiKeyBox;
     private readonly ComboBox _modelBox;
     private readonly CheckBox _showKeyCheck;
@@ -12,6 +16,7 @@ public class SettingsForm : Form
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
     private readonly Label _penHotkeyLabel;
+    private readonly Label _penHotkeyValidationResult;
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
     private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
@@ -39,8 +44,10 @@ public class SettingsForm : Form
         MinimizeBox = false;
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
+        KeyPreview = true;
         Padding = new Padding(12);
         MinimumSize = new Size(620, 520);
+        KeyDown += OnSettingsKeyDown;
 
         var rootLayout = new TableLayoutPanel
         {
@@ -162,12 +169,14 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 7,
+            RowCount = 9,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -259,6 +268,23 @@ public class SettingsForm : Form
         };
         _penHotkeyBox.Items.AddRange(AppConfig.GetSupportedPenHotkeys().Cast<object>().ToArray());
 
+        var penValidationLabel = new Label
+        {
+            Text = "Pen button validator",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 8, 10, 2)
+        };
+
+        _penHotkeyValidationResult = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 2, 0, 0),
+            MaximumSize = new Size(520, 0),
+            Text = "Press a pen button while this window is focused."
+        };
+
         behaviorLayout.Controls.Add(lblModel, 0, 0);
         behaviorLayout.Controls.Add(_modelBox, 1, 0);
         behaviorLayout.Controls.Add(_autoEnterCheck, 0, 1);
@@ -273,6 +299,10 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
         behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 6);
         behaviorLayout.Controls.Add(_penHotkeyBox, 1, 6);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 7);
+        behaviorLayout.SetColumnSpan(penValidationLabel, 2);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 8);
+        behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new GroupBox
@@ -666,6 +696,50 @@ public class SettingsForm : Form
         _penHotkeyBox.Enabled = enabled;
     }
 
+    private void OnSettingsKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!TryMapPenHotkey(e.KeyCode, out var detectedHotkey))
+            return;
+
+        UpdatePenHotkeyValidationResult(detectedHotkey, "key event");
+        e.Handled = true;
+        e.SuppressKeyPress = true;
+    }
+
+    private void UpdatePenHotkeyValidationResult(string detectedHotkey, string source)
+    {
+        var selectedHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString());
+        var matchesSelected = string.Equals(detectedHotkey, selectedHotkey, StringComparison.OrdinalIgnoreCase);
+        _penHotkeyValidationResult.ForeColor = matchesSelected ? Color.ForestGreen : Color.DarkOrange;
+        _penHotkeyValidationResult.Text = matchesSelected
+            ? $"Last detected: {detectedHotkey} ({source}, matches selected key)."
+            : $"Last detected: {detectedHotkey} ({source}, selected key is {selectedHotkey}).";
+    }
+
+    private static bool TryMapPenHotkey(Keys keyCode, out string hotkey)
+    {
+        hotkey = keyCode switch
+        {
+            Keys.F13 => "F13",
+            Keys.F14 => "F14",
+            Keys.F15 => "F15",
+            Keys.F16 => "F16",
+            Keys.F17 => "F17",
+            Keys.F18 => "F18",
+            Keys.F19 => "F19",
+            Keys.F20 => "F20",
+            Keys.F21 => "F21",
+            Keys.F22 => "F22",
+            Keys.F23 => "F23",
+            Keys.F24 => "F24",
+            Keys.LaunchApplication1 => "LaunchApp1",
+            Keys.LaunchApplication2 => "LaunchApp2",
+            _ => string.Empty
+        };
+
+        return hotkey.Length > 0;
+    }
+
     private void UpdateAppInfo()
     {
         _versionValueLabel.Text = AppInfo.Version;
@@ -690,6 +764,25 @@ public class SettingsForm : Form
         ClientSize = new Size(
             Math.Max(MinimumSize.Width - (Width - ClientSize.Width), clampedWidth),
             Math.Max(MinimumSize.Height - (Height - ClientSize.Height), clampedHeight));
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_APPCOMMAND)
+        {
+            var appCommand = (int)(((long)m.LParam >> 16) & 0x7FF);
+            var mappedHotkey = appCommand switch
+            {
+                APPCOMMAND_LAUNCH_APP1 => "LaunchApp1",
+                APPCOMMAND_LAUNCH_APP2 => "LaunchApp2",
+                _ => null
+            };
+
+            if (mappedHotkey != null)
+                UpdatePenHotkeyValidationResult(mappedHotkey, "app command");
+        }
+
+        base.WndProc(ref m);
     }
 
     protected override void Dispose(bool disposing)
