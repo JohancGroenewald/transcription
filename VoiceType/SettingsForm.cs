@@ -9,6 +9,9 @@ public class SettingsForm : Form
     private readonly CheckBox _debugLoggingCheck;
     private readonly CheckBox _enableOverlayPopupsCheck;
     private readonly NumericUpDown _overlayDurationMsInput;
+    private readonly CheckBox _enablePenHotkeyCheck;
+    private readonly ComboBox _penHotkeyBox;
+    private readonly Label _penHotkeyLabel;
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
     private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
@@ -159,12 +162,14 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 5,
+            RowCount = 7,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -229,6 +234,31 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 0, 0)
         };
 
+        _enablePenHotkeyCheck = new CheckBox
+        {
+            Text = "Enable Surface Pen hotkey",
+            AutoSize = true,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        _enablePenHotkeyCheck.CheckedChanged += (_, _) => UpdatePenHotkeySettingsState();
+
+        _penHotkeyLabel = new Label
+        {
+            Text = "Surface Pen key",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _penHotkeyBox = new ComboBox
+        {
+            Dock = DockStyle.Left,
+            Width = 160,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+        _penHotkeyBox.Items.AddRange(AppConfig.GetSupportedPenHotkeys().Cast<object>().ToArray());
+
         behaviorLayout.Controls.Add(lblModel, 0, 0);
         behaviorLayout.Controls.Add(_modelBox, 1, 0);
         behaviorLayout.Controls.Add(_autoEnterCheck, 0, 1);
@@ -239,6 +269,10 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_enableOverlayPopupsCheck, 2);
         behaviorLayout.Controls.Add(lblOverlayDuration, 0, 4);
         behaviorLayout.Controls.Add(_overlayDurationMsInput, 1, 4);
+        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 5);
+        behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
+        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 6);
+        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 6);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new GroupBox
@@ -529,10 +563,15 @@ public class SettingsForm : Form
         _debugLoggingCheck.Checked = config.EnableDebugLogging;
         _enableOverlayPopupsCheck.Checked = config.EnableOverlayPopups;
         _overlayDurationMsInput.Value = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
+        _enablePenHotkeyCheck.Checked = config.EnablePenHotkey;
+        _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
+        if (_penHotkeyBox.SelectedIndex < 0)
+            _penHotkeyBox.SelectedItem = AppConfig.DefaultPenHotkey;
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
         _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
         UpdateOverlaySettingsState();
+        UpdatePenHotkeySettingsState();
         ValidateVoiceCommandInput();
         WrapWindowToContent(contentPanel, buttonsLayout);
     }
@@ -549,6 +588,8 @@ public class SettingsForm : Form
             EnableDebugLogging = _debugLoggingCheck.Checked,
             EnableOverlayPopups = _enableOverlayPopupsCheck.Checked,
             OverlayDurationMs = AppConfig.NormalizeOverlayDuration((int)_overlayDurationMsInput.Value),
+            EnablePenHotkey = _enablePenHotkeyCheck.Checked,
+            PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
             EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked,
             EnableToggleAutoEnterVoiceCommand = _toggleAutoEnterVoiceCommandCheck.Checked
@@ -616,6 +657,13 @@ public class SettingsForm : Form
     private void UpdateOverlaySettingsState()
     {
         _overlayDurationMsInput.Enabled = _enableOverlayPopupsCheck.Checked;
+    }
+
+    private void UpdatePenHotkeySettingsState()
+    {
+        var enabled = _enablePenHotkeyCheck.Checked;
+        _penHotkeyLabel.Enabled = enabled;
+        _penHotkeyBox.Enabled = enabled;
     }
 
     private void UpdateAppInfo()

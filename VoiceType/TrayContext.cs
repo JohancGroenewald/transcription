@@ -5,10 +5,13 @@ namespace VoiceType;
 
 public class TrayContext : ApplicationContext
 {
-    private const int HOTKEY_ID = 1;
+    private const int PRIMARY_HOTKEY_ID = 1;
+    private const int PEN_HOTKEY_ID = 2;
+    private const int MOD_NONE = 0x0000;
     private const int MOD_CTRL = 0x0002;
     private const int MOD_SHIFT = 0x0004;
     private const int VK_SPACE = 0x20;
+    private const string PrimaryHotkeyDisplayName = "Ctrl+Shift+Space";
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -54,6 +57,9 @@ public class TrayContext : ApplicationContext
     private bool _autoEnter;
     private bool _enableOverlayPopups = true;
     private int _overlayDurationMs = AppConfig.DefaultOverlayDurationMs;
+    private bool _enablePenHotkey;
+    private string _penHotkey = AppConfig.DefaultPenHotkey;
+    private bool _penHotkeyRegistered;
     private bool _enableOpenSettingsVoiceCommand;
     private bool _enableExitAppVoiceCommand;
     private bool _enableToggleAutoEnterVoiceCommand;
@@ -77,7 +83,7 @@ public class TrayContext : ApplicationContext
         _trayIcon = new NotifyIcon
         {
             Icon = _appIcon,
-            Text = "VoiceType - Ctrl+Shift+Space to dictate",
+            Text = "VoiceType - Ready",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
@@ -85,18 +91,7 @@ public class TrayContext : ApplicationContext
 
         _hotkeyWindow = new HotkeyWindow();
         _hotkeyWindow.HotkeyPressed += OnHotkeyPressed;
-
-        if (!RegisterHotKey(_hotkeyWindow.Handle, HOTKEY_ID, MOD_CTRL | MOD_SHIFT, VK_SPACE))
-        {
-            Log.Error("Failed to register hotkey Ctrl+Shift+Space");
-            MessageBox.Show(
-                "Failed to register hotkey Ctrl+Shift+Space.\nAnother app may be using it.",
-                "VoiceType", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-        else
-        {
-            Log.Info("Hotkey registered: Ctrl+Shift+Space");
-        }
+        RefreshHotkeyRegistration();
 
         if (_transcriptionService == null)
         {
@@ -105,7 +100,7 @@ public class TrayContext : ApplicationContext
         }
         else
         {
-            ShowOverlay("VoiceType ready — Ctrl+Shift+Space to dictate", Color.LightGreen, 2000);
+            ShowOverlay($"VoiceType ready — {BuildHotkeyHint()} to dictate", Color.LightGreen, 2000);
         }
 
         Log.Info("VoiceType started successfully");
@@ -118,6 +113,8 @@ public class TrayContext : ApplicationContext
         _autoEnter = config.AutoEnter;
         _enableOverlayPopups = config.EnableOverlayPopups;
         _overlayDurationMs = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
+        _enablePenHotkey = config.EnablePenHotkey;
+        _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
@@ -149,8 +146,11 @@ public class TrayContext : ApplicationContext
         _uptimeMenuItem.Text = $"Uptime: {AppInfo.FormatUptime(AppInfo.Uptime)}";
     }
 
-    private async void OnHotkeyPressed(object? sender, EventArgs e)
+    private async void OnHotkeyPressed(object? sender, HotkeyPressedEventArgs e)
     {
+        if (e.HotkeyId is not PRIMARY_HOTKEY_ID and not PEN_HOTKEY_ID)
+            return;
+
         if (_isTranscribing)
         {
             ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
@@ -239,7 +239,7 @@ public class TrayContext : ApplicationContext
                 _recorder.Start();
                 _isRecording = true;
                 _trayIcon.Icon = _appIcon;
-                _trayIcon.Text = "VoiceType - Recording... (Ctrl+Shift+Space to stop)";
+                _trayIcon.Text = $"VoiceType - Recording... ({BuildHotkeyHint()} to stop)";
                 ShowOverlay("Listening... speak now!", Color.CornflowerBlue, 30000);
                 Log.Info("Recording started");
             }
@@ -280,6 +280,7 @@ public class TrayContext : ApplicationContext
         };
         dlg.ShowDialog();
         LoadTranscriptionService();
+        RefreshHotkeyRegistration();
         SetReadyState();
         RestorePreviousFocus(previousForegroundWindow, settingsWindow);
     }
@@ -295,7 +296,61 @@ public class TrayContext : ApplicationContext
     private void SetReadyState()
     {
         _trayIcon.Icon = _appIcon;
-        _trayIcon.Text = "VoiceType - Ready (Ctrl+Shift+Space)";
+        _trayIcon.Text = $"VoiceType - Ready ({BuildHotkeyHint()})";
+    }
+
+    private string BuildHotkeyHint()
+    {
+        if (_penHotkeyRegistered)
+            return $"{PrimaryHotkeyDisplayName} or {_penHotkey}";
+
+        return PrimaryHotkeyDisplayName;
+    }
+
+    private void RefreshHotkeyRegistration()
+    {
+        UnregisterHotkeys();
+
+        if (!RegisterHotKey(_hotkeyWindow.Handle, PRIMARY_HOTKEY_ID, MOD_CTRL | MOD_SHIFT, VK_SPACE))
+        {
+            Log.Error($"Failed to register hotkey {PrimaryHotkeyDisplayName}");
+            MessageBox.Show(
+                $"Failed to register hotkey {PrimaryHotkeyDisplayName}.\nAnother app may be using it.",
+                "VoiceType",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        else
+        {
+            Log.Info($"Hotkey registered: {PrimaryHotkeyDisplayName}");
+        }
+
+        _penHotkeyRegistered = false;
+        if (_enablePenHotkey && AppConfig.TryGetVirtualKeyForPenHotkey(_penHotkey, out var penVk))
+        {
+            if (RegisterHotKey(_hotkeyWindow.Handle, PEN_HOTKEY_ID, MOD_NONE, penVk))
+            {
+                _penHotkeyRegistered = true;
+                Log.Info($"Surface Pen hotkey registered: {_penHotkey}");
+            }
+            else
+            {
+                Log.Info($"Surface Pen hotkey unavailable: {_penHotkey}");
+                ShowOverlay(
+                    $"Could not register Surface Pen hotkey ({_penHotkey})",
+                    Color.Orange,
+                    3000);
+            }
+        }
+
+        SetReadyState();
+    }
+
+    private void UnregisterHotkeys()
+    {
+        _ = UnregisterHotKey(_hotkeyWindow.Handle, PRIMARY_HOTKEY_ID);
+        _ = UnregisterHotKey(_hotkeyWindow.Handle, PEN_HOTKEY_ID);
+        _penHotkeyRegistered = false;
     }
 
     private void ShowOverlay(string text, Color? color = null, int durationMs = 3000)
@@ -458,7 +513,7 @@ public class TrayContext : ApplicationContext
         {
             UnhookShutdownEvents();
             EnsureTrayIconHidden();
-            UnregisterHotKey(_hotkeyWindow.Handle, HOTKEY_ID);
+            UnregisterHotkeys();
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
             _overlay.Dispose();
@@ -475,7 +530,7 @@ public class TrayContext : ApplicationContext
 internal class HotkeyWindow : NativeWindow, IDisposable
 {
     private const int WM_HOTKEY = 0x0312;
-    public event EventHandler? HotkeyPressed;
+    public event EventHandler<HotkeyPressedEventArgs>? HotkeyPressed;
 
     public HotkeyWindow()
     {
@@ -486,7 +541,7 @@ internal class HotkeyWindow : NativeWindow, IDisposable
     {
         if (m.Msg == WM_HOTKEY)
         {
-            HotkeyPressed?.Invoke(this, EventArgs.Empty);
+            HotkeyPressed?.Invoke(this, new HotkeyPressedEventArgs(m.WParam.ToInt32()));
         }
         base.WndProc(ref m);
     }
@@ -495,5 +550,15 @@ internal class HotkeyWindow : NativeWindow, IDisposable
     {
         DestroyHandle();
     }
+}
+
+internal sealed class HotkeyPressedEventArgs : EventArgs
+{
+    public HotkeyPressedEventArgs(int hotkeyId)
+    {
+        HotkeyId = hotkeyId;
+    }
+
+    public int HotkeyId { get; }
 }
 

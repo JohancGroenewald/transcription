@@ -10,6 +10,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 - Tray app UX with status overlay notifications
 - Clipboard-based text injection with optional auto-Enter
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`
+- Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
 - Single-instance behavior with remote close/replace flags
 - Settings UI with API key, model, logging, and voice command toggles
 - Version and uptime display (tray menu + settings)
@@ -67,6 +68,8 @@ Available settings:
 - `Enable file logging (debug only)`
 - `Show popup notifications` (enable/disable)
 - `Popup duration (ms)` (500-60000)
+- `Enable Surface Pen hotkey` (enable/disable)
+- `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
 - `Voice commands: "enable/disable auto-enter"` (enable/disable)
