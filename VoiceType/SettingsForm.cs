@@ -34,13 +34,12 @@ public class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5
+            RowCount = 4
         };
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         // --- API Key section ---
@@ -223,15 +222,16 @@ public class SettingsForm : Form
             AutoSize = true,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Dock = DockStyle.Fill,
-            Anchor = AnchorStyles.Right
+            Dock = DockStyle.None,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0)
         };
         rightButtonsPanel.Controls.Add(btnSave);
         rightButtonsPanel.Controls.Add(btnCancel);
 
         var buttonsLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             ColumnCount = 3,
             RowCount = 1,
             AutoSize = true,
@@ -250,7 +250,7 @@ public class SettingsForm : Form
         rootLayout.Controls.Add(grpApi, 0, 0);
         rootLayout.Controls.Add(grpOptions, 0, 1);
         rootLayout.Controls.Add(grpVoiceCommands, 0, 2);
-        rootLayout.Controls.Add(buttonsLayout, 0, 4);
+        rootLayout.Controls.Add(buttonsLayout, 0, 3);
         Controls.Add(rootLayout);
 
         // Load existing config
