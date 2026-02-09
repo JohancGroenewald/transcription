@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace VoiceType;
 
@@ -21,6 +22,9 @@ public class TrayContext : ApplicationContext
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
 
@@ -29,6 +33,12 @@ public class TrayContext : ApplicationContext
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetShellWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDesktopWindow();
 
     private const int SW_RESTORE = 9;
 
@@ -224,11 +234,13 @@ public class TrayContext : ApplicationContext
         var previousForegroundWindow = GetForegroundWindow();
         _overlay.Hide();
 
+        IntPtr settingsWindow = IntPtr.Zero;
         using var dlg = new SettingsForm();
         dlg.Shown += (_, _) =>
         {
             dlg.BeginInvoke(new Action(() =>
             {
+                settingsWindow = dlg.Handle;
                 dlg.TopMost = true;
                 dlg.Activate();
                 dlg.BringToFront();
@@ -239,7 +251,7 @@ public class TrayContext : ApplicationContext
         dlg.ShowDialog();
         LoadTranscriptionService();
         SetReadyState();
-        RestorePreviousFocus(previousForegroundWindow, dlg.Handle);
+        RestorePreviousFocus(previousForegroundWindow, settingsWindow);
     }
 
     private void OnExit(object? sender, EventArgs e) => Shutdown();
@@ -363,7 +375,7 @@ public class TrayContext : ApplicationContext
         }
     }
 
-    private static void RestorePreviousFocus(IntPtr previousWindow, IntPtr settingsWindow)
+    private void RestorePreviousFocus(IntPtr previousWindow, IntPtr settingsWindow)
     {
         if (previousWindow == IntPtr.Zero)
             return;
@@ -372,6 +384,25 @@ public class TrayContext : ApplicationContext
             return;
 
         if (!IsWindow(previousWindow))
+            return;
+
+        if (previousWindow == GetDesktopWindow() || previousWindow == GetShellWindow())
+            return;
+
+        if (previousWindow == _hotkeyWindow.Handle || previousWindow == _overlay.Handle)
+            return;
+
+        var classNameBuilder = new StringBuilder(256);
+        GetClassName(previousWindow, classNameBuilder, classNameBuilder.Capacity);
+        var className = classNameBuilder.ToString();
+        if (className is "Progman" or "WorkerW" or "Shell_TrayWnd")
+            return;
+
+        // If focus has already moved elsewhere, do not force it back.
+        var currentForeground = GetForegroundWindow();
+        if (currentForeground != IntPtr.Zero &&
+            currentForeground != settingsWindow &&
+            currentForeground != _hotkeyWindow.Handle)
             return;
 
         if (IsIconic(previousWindow))
