@@ -9,7 +9,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 - Global hotkey dictation: `Ctrl+Shift+Space`
 - Tray app UX with status overlay notifications
 - Clipboard-based text injection with optional auto-Enter
-- Voice commands (optional, per-command toggle): `open settings`, `exit app`
+- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `toggle auto enter`
 - Single-instance behavior with remote close/replace flags
 - Settings UI with API key, model, logging, and voice command toggles
 - API key protection at rest via Windows DPAPI (`CurrentUser`)
@@ -54,6 +54,7 @@ Available settings:
 - `Enable file logging (debug only)`
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
+- `Voice command: "toggle auto enter"` (enable/disable)
 
 Voice commands are matched as exact phrases after trimming punctuation and case normalization.
 

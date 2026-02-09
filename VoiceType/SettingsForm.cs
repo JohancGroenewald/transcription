@@ -9,6 +9,7 @@ public class SettingsForm : Form
     private readonly CheckBox _debugLoggingCheck;
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
+    private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
     private readonly Icon _formIcon;
 
     public SettingsForm()
@@ -27,7 +28,7 @@ public class SettingsForm : Form
         MinimizeBox = false;
         Font = new Font("Segoe UI", 9f);
         Padding = new Padding(16);
-        ClientSize = new Size(400, 366);
+        ClientSize = new Size(400, 390);
 
         // --- API Key section ---
         var grpApi = new GroupBox
@@ -68,7 +69,7 @@ public class SettingsForm : Form
         {
             Text = "Options",
             Location = new Point(16, 126),
-            Size = new Size(368, 160),
+            Size = new Size(368, 184),
             Padding = new Padding(12, 8, 12, 8)
         };
 
@@ -115,13 +116,21 @@ public class SettingsForm : Form
             AutoSize = true
         };
 
+        _toggleAutoEnterVoiceCommandCheck = new CheckBox
+        {
+            Text = "Voice command: \"toggle auto enter\"",
+            Location = new Point(14, 152),
+            AutoSize = true
+        };
+
         grpOptions.Controls.AddRange([
             lblModel,
             _modelBox,
             _autoEnterCheck,
             _debugLoggingCheck,
             _openSettingsVoiceCommandCheck,
-            _exitAppVoiceCommandCheck
+            _exitAppVoiceCommandCheck,
+            _toggleAutoEnterVoiceCommandCheck
         ]);
 
         // --- Buttons ---
@@ -174,6 +183,7 @@ public class SettingsForm : Form
         _debugLoggingCheck.Checked = config.EnableDebugLogging;
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
+        _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
     }
 
     private void OnSave(object? sender, EventArgs e)
@@ -187,7 +197,8 @@ public class SettingsForm : Form
             AutoEnter = _autoEnterCheck.Checked,
             EnableDebugLogging = _debugLoggingCheck.Checked,
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
-            EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked
+            EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked,
+            EnableToggleAutoEnterVoiceCommand = _toggleAutoEnterVoiceCommandCheck.Checked
         };
 
         try

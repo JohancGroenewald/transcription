@@ -14,6 +14,7 @@ public class AppConfig
     public bool EnableDebugLogging { get; set; }
     public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
     public bool EnableExitAppVoiceCommand { get; set; } = true;
+    public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -31,6 +32,7 @@ public class AppConfig
         public bool EnableDebugLogging { get; set; }
         public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
         public bool EnableExitAppVoiceCommand { get; set; } = true;
+        public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
     }
 
     public static AppConfig Load()
@@ -52,7 +54,8 @@ public class AppConfig
                 AutoEnter = configFile.AutoEnter,
                 EnableDebugLogging = configFile.EnableDebugLogging,
                 EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
-                EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand
+                EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
+                EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -74,7 +77,8 @@ public class AppConfig
                 AutoEnter = AutoEnter,
                 EnableDebugLogging = EnableDebugLogging,
                 EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,
-                EnableExitAppVoiceCommand = EnableExitAppVoiceCommand
+                EnableExitAppVoiceCommand = EnableExitAppVoiceCommand,
+                EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);

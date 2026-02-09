@@ -41,6 +41,7 @@ public class TrayContext : ApplicationContext
     private bool _autoEnter;
     private bool _enableOpenSettingsVoiceCommand;
     private bool _enableExitAppVoiceCommand;
+    private bool _enableToggleAutoEnterVoiceCommand;
     private bool _isRecording;
     private bool _isTranscribing;
     private bool _eventsHooked;
@@ -102,6 +103,7 @@ public class TrayContext : ApplicationContext
         _autoEnter = config.AutoEnter;
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
+        _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
         else
@@ -264,6 +266,9 @@ public class TrayContext : ApplicationContext
         if (_enableOpenSettingsVoiceCommand && normalized == "open settings")
             return "settings";
 
+        if (_enableToggleAutoEnterVoiceCommand && normalized == "toggle auto enter")
+            return "toggle_auto_enter";
+
         return null;
     }
 
@@ -279,6 +284,30 @@ public class TrayContext : ApplicationContext
                 _overlay.ShowMessage("Opening settings...", Color.CornflowerBlue, 1000);
                 OnSettings(null, EventArgs.Empty);
                 break;
+            case "toggle_auto_enter":
+                ToggleAutoEnter();
+                break;
+        }
+    }
+
+    private void ToggleAutoEnter()
+    {
+        var newValue = !_autoEnter;
+        try
+        {
+            var config = AppConfig.Load();
+            config.AutoEnter = newValue;
+            config.Save();
+            _autoEnter = newValue;
+
+            var stateLabel = newValue ? "enabled" : "disabled";
+            _overlay.ShowMessage($"Auto-enter {stateLabel}", Color.LightGreen, 1500);
+            Log.Info($"Auto-enter toggled via voice command ({stateLabel})");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to toggle auto-enter setting", ex);
+            _overlay.ShowMessage("Failed to update auto-enter setting", Color.Salmon, 2000);
         }
     }
 
