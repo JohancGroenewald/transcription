@@ -35,8 +35,7 @@ public class SettingsForm : Form
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
         Padding = new Padding(12);
-        MinimumSize = new Size(560, 580);
-        ClientSize = new Size(620, 660);
+        MinimumSize = new Size(520, 420);
 
         var rootLayout = new TableLayoutPanel
         {
@@ -47,13 +46,15 @@ public class SettingsForm : Form
             Padding = new Padding(0)
         };
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var contentPanel = new Panel
         {
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            AutoScroll = false,
             Margin = new Padding(0, 0, 0, 8)
         };
 
@@ -120,7 +121,8 @@ public class SettingsForm : Form
             Dock = DockStyle.Fill,
             UseSystemPasswordChar = true,
             Margin = new Padding(0, 0, 8, 0),
-            PlaceholderText = "sk-..."
+            PlaceholderText = "sk-...",
+            MinimumSize = new Size(340, 0)
         };
 
         _showKeyCheck = new CheckBox
@@ -177,7 +179,8 @@ public class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = new Padding(0, 0, 0, 4),
+            MinimumSize = new Size(260, 0)
         };
         _modelBox.Items.AddRange(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
 
@@ -284,7 +287,8 @@ public class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 8, 0),
-            PlaceholderText = "e.g. disable auto enter"
+            PlaceholderText = "e.g. disable auto enter",
+            MinimumSize = new Size(260, 0)
         };
         _voiceCommandValidationInput.TextChanged += (_, _) => ValidateVoiceCommandInput();
         _voiceCommandValidationInput.KeyDown += (_, e) =>
@@ -492,6 +496,7 @@ public class SettingsForm : Form
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
         _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
         ValidateVoiceCommandInput();
+        WrapWindowToContent(contentPanel, buttonsLayout);
     }
 
     private void OnSave(object? sender, EventArgs e)
@@ -573,6 +578,25 @@ public class SettingsForm : Form
         _versionValueLabel.Text = AppInfo.Version;
         _startedAtValueLabel.Text = AppInfo.StartedAtLocal.ToString("yyyy-MM-dd HH:mm:ss");
         _uptimeValueLabel.Text = AppInfo.FormatUptime(AppInfo.Uptime);
+    }
+
+    private void WrapWindowToContent(Control contentPanel, Control buttonsLayout)
+    {
+        contentPanel.PerformLayout();
+        buttonsLayout.PerformLayout();
+
+        var contentSize = contentPanel.GetPreferredSize(Size.Empty);
+        var buttonsSize = buttonsLayout.GetPreferredSize(Size.Empty);
+        var desiredWidth = Math.Max(contentSize.Width, buttonsSize.Width) + Padding.Horizontal + 6;
+        var desiredHeight = contentSize.Height + buttonsSize.Height + Padding.Vertical + 10;
+
+        var workingArea = Screen.FromControl(this).WorkingArea;
+        var clampedWidth = Math.Min(desiredWidth, workingArea.Width - 80);
+        var clampedHeight = Math.Min(desiredHeight, workingArea.Height - 80);
+
+        ClientSize = new Size(
+            Math.Max(MinimumSize.Width - (Width - ClientSize.Width), clampedWidth),
+            Math.Max(MinimumSize.Height - (Height - ClientSize.Height), clampedHeight));
     }
 
     protected override void Dispose(bool disposing)
