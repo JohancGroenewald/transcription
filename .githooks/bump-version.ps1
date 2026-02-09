@@ -1,0 +1,74 @@
+$ErrorActionPreference = "Stop"
+
+function Write-Info([string]$message) {
+    Write-Host "[pre-commit] $message"
+}
+
+try {
+    if ($env:SKIP_VERSION_BUMP -eq "1") {
+        Write-Info "Skipping version bump because SKIP_VERSION_BUMP=1."
+        exit 0
+    }
+
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+    $projectPath = Join-Path $repoRoot "VoiceType/VoiceType.csproj"
+    if (-not (Test-Path $projectPath)) {
+        Write-Info "Project file not found at $projectPath. Skipping."
+        exit 0
+    }
+
+    $content = Get-Content -Raw -Path $projectPath
+    $newline = if ($content -match "`r`n") { "`r`n" } else { "`n" }
+
+    $currentVersion = $null
+    $versionMatch = [Regex]::Match($content, "<Version>\s*(?<value>[^<]+)\s*</Version>")
+    if ($versionMatch.Success) {
+        $currentVersion = $versionMatch.Groups["value"].Value.Trim()
+    }
+    else {
+        $currentVersion = "1.0.0"
+        $insertedVersionLine = "    <Version>$currentVersion</Version>$newline"
+        $content = [Regex]::Replace(
+            $content,
+            "</PropertyGroup>",
+            "$insertedVersionLine  </PropertyGroup>",
+            1)
+    }
+
+    $semverMatch = [Regex]::Match(
+        $currentVersion,
+        "^\s*(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.\d+)?\s*$")
+
+    if ($semverMatch.Success) {
+        $major = [int]$semverMatch.Groups["major"].Value
+        $minor = [int]$semverMatch.Groups["minor"].Value
+        $patch = [int]$semverMatch.Groups["patch"].Value
+    }
+    else {
+        $major = 1
+        $minor = 0
+        $patch = 0
+    }
+
+    $newVersion = "{0}.{1}.{2}" -f $major, $minor, ($patch + 1)
+    $updated = [Regex]::Replace(
+        $content,
+        "(<Version>\s*)([^<]+)(\s*</Version>)",
+        "`$1$newVersion`$3",
+        1)
+
+    if ($updated -ne $content) {
+        Set-Content -Path $projectPath -Value $updated -Encoding UTF8
+        git add -- "VoiceType/VoiceType.csproj" | Out-Null
+        Write-Info "Version bumped: $currentVersion -> $newVersion"
+    }
+    else {
+        Write-Info "Version unchanged."
+    }
+}
+catch {
+    Write-Error "[pre-commit] Failed to bump version: $($_.Exception.Message)"
+    exit 1
+}
+
+exit 0
