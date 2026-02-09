@@ -118,7 +118,7 @@ public class SettingsForm : Form
 
         _toggleAutoEnterVoiceCommandCheck = new CheckBox
         {
-            Text = "Voice command: \"toggle auto enter\"",
+            Text = "Voice commands: \"enable/disable auto-enter\"",
             Location = new Point(14, 152),
             AutoSize = true
         };

@@ -278,8 +278,13 @@ public class TrayContext : ApplicationContext
         if (_enableOpenSettingsVoiceCommand && normalized == "open settings")
             return "settings";
 
-        if (_enableToggleAutoEnterVoiceCommand && normalized == "toggle auto enter")
-            return "toggle_auto_enter";
+        if (_enableToggleAutoEnterVoiceCommand &&
+            (normalized == "enable auto-enter" || normalized == "enable auto enter"))
+            return "enable_auto_enter";
+
+        if (_enableToggleAutoEnterVoiceCommand &&
+            (normalized == "disable auto-enter" || normalized == "disable auto enter"))
+            return "disable_auto_enter";
 
         return null;
     }
@@ -296,29 +301,38 @@ public class TrayContext : ApplicationContext
                 _overlay.ShowMessage("Opening settings...", Color.CornflowerBlue, 1000);
                 OnSettings(null, EventArgs.Empty);
                 break;
-            case "toggle_auto_enter":
-                ToggleAutoEnter();
+            case "enable_auto_enter":
+                SetAutoEnter(true);
+                break;
+            case "disable_auto_enter":
+                SetAutoEnter(false);
                 break;
         }
     }
 
-    private void ToggleAutoEnter()
+    private void SetAutoEnter(bool enabled)
     {
-        var newValue = !_autoEnter;
+        if (_autoEnter == enabled)
+        {
+            var existingStateLabel = enabled ? "enabled" : "disabled";
+            _overlay.ShowMessage($"Auto-enter already {existingStateLabel}", Color.Gray, 1200);
+            return;
+        }
+
         try
         {
             var config = AppConfig.Load();
-            config.AutoEnter = newValue;
+            config.AutoEnter = enabled;
             config.Save();
-            _autoEnter = newValue;
+            _autoEnter = enabled;
 
-            var stateLabel = newValue ? "enabled" : "disabled";
+            var stateLabel = enabled ? "enabled" : "disabled";
             _overlay.ShowMessage($"Auto-enter {stateLabel}", Color.LightGreen, 1500);
-            Log.Info($"Auto-enter toggled via voice command ({stateLabel})");
+            Log.Info($"Auto-enter set via voice command ({stateLabel})");
         }
         catch (Exception ex)
         {
-            Log.Error("Failed to toggle auto-enter setting", ex);
+            Log.Error("Failed to update auto-enter setting via voice command", ex);
             _overlay.ShowMessage("Failed to update auto-enter setting", Color.Salmon, 2000);
         }
     }
