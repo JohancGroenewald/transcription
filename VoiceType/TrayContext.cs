@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Text;
 
 namespace VoiceType;
@@ -270,23 +271,52 @@ public class TrayContext : ApplicationContext
 
     private string? ParseVoiceCommand(string text)
     {
-        var normalized = text.Trim().TrimEnd('.', '!', ',', '?').ToLowerInvariant();
+        var normalized = NormalizeCommandText(text);
 
-        if (_enableExitAppVoiceCommand && normalized == "exit app")
+        if (_enableExitAppVoiceCommand && MatchesPhrase(normalized, "exit app"))
             return "exit";
 
-        if (_enableOpenSettingsVoiceCommand && normalized == "open settings")
+        if (_enableOpenSettingsVoiceCommand && MatchesPhrase(normalized, "open settings"))
             return "settings";
 
-        if (_enableToggleAutoEnterVoiceCommand &&
-            (normalized == "enable auto-enter" || normalized == "enable auto enter"))
+        if (_enableToggleAutoEnterVoiceCommand && MatchesPhrase(
+            normalized,
+            "enable auto enter",
+            "enable autoenter",
+            "turn on auto enter",
+            "turn on autoenter",
+            "auto enter on",
+            "autoenter on"))
             return "enable_auto_enter";
 
-        if (_enableToggleAutoEnterVoiceCommand &&
-            (normalized == "disable auto-enter" || normalized == "disable auto enter"))
+        if (_enableToggleAutoEnterVoiceCommand && MatchesPhrase(
+            normalized,
+            "disable auto enter",
+            "disable autoenter",
+            "turn off auto enter",
+            "turn off autoenter",
+            "auto enter off",
+            "autoenter off"))
             return "disable_auto_enter";
 
         return null;
+    }
+
+    private static string NormalizeCommandText(string text)
+    {
+        var normalized = Regex.Replace(text.ToLowerInvariant(), @"[^a-z0-9]+", " ");
+        return Regex.Replace(normalized, @"\s+", " ").Trim();
+    }
+
+    private static bool MatchesPhrase(string normalized, params string[] phrases)
+    {
+        foreach (var phrase in phrases)
+        {
+            if (normalized == phrase || normalized.StartsWith(phrase + " ", StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
     }
 
     private void HandleVoiceCommand(string command)
