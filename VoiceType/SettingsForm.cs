@@ -35,7 +35,7 @@ public class SettingsForm : Form
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
         Padding = new Padding(12);
-        MinimumSize = new Size(520, 420);
+        MinimumSize = new Size(620, 520);
 
         var rootLayout = new TableLayoutPanel
         {

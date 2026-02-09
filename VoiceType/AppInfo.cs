@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 
 namespace VoiceType;
@@ -33,14 +34,51 @@ public static class AppInfo
         var informational = _entryAssembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion;
-
-        if (!string.IsNullOrWhiteSpace(informational))
-            return informational.Trim();
-
+        var productVersion = GetProductVersion();
         var assemblyVersion = _entryAssembly.GetName().Version?.ToString();
-        if (!string.IsNullOrWhiteSpace(assemblyVersion))
-            return assemblyVersion;
+
+        var versionCandidates = new[] { informational, productVersion, assemblyVersion };
+        foreach (var candidate in versionCandidates)
+        {
+            var cleaned = CleanVersion(candidate);
+            if (!string.IsNullOrWhiteSpace(cleaned))
+                return cleaned;
+        }
 
         return "unknown";
+    }
+
+    private static string? GetProductVersion()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(processPath))
+                return null;
+
+            return FileVersionInfo.GetVersionInfo(processPath).ProductVersion;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? CleanVersion(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var value = raw.Trim();
+
+        var plusIndex = value.IndexOf('+');
+        if (plusIndex >= 0)
+            value = value[..plusIndex];
+
+        var spaceIndex = value.IndexOf(' ');
+        if (spaceIndex >= 0)
+            value = value[..spaceIndex];
+
+        return value.Trim();
     }
 }
