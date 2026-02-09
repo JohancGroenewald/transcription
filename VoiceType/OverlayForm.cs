@@ -4,6 +4,14 @@ namespace VoiceType;
 
 public class OverlayForm : Form
 {
+    private static readonly Color DefaultTextColor = Color.FromArgb(174, 255, 188);
+    private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
+    private const int BottomOffset = 18;
+    private const int HorizontalMargin = 20;
+    private const int MinOverlayWidth = 460;
+    private const int MaxOverlayWidth = 980;
+    private const int MinOverlayHeight = 58;
+
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -36,23 +44,24 @@ public class OverlayForm : Form
 
     public OverlayForm()
     {
+        DoubleBuffered = true;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        BackColor = Color.FromArgb(30, 30, 30);
-        ForeColor = Color.White;
-        Opacity = 0.9;
-        Size = new Size(350, 50);
-        Padding = new Padding(12, 8, 12, 8);
+        BackColor = Color.FromArgb(12, 24, 18);
+        ForeColor = DefaultTextColor;
+        Opacity = 0.94;
+        Size = new Size(620, MinOverlayHeight);
+        Padding = new Padding(18, 10, 18, 10);
 
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 11f, FontStyle.Regular),
-            ForeColor = Color.White,
-            TextAlign = ContentAlignment.MiddleLeft,
-            AutoEllipsis = true
+            Font = new Font("Consolas", 12f, FontStyle.Bold),
+            ForeColor = DefaultTextColor,
+            TextAlign = ContentAlignment.MiddleCenter,
+            AutoEllipsis = false
         };
         Controls.Add(_label);
 
@@ -63,7 +72,9 @@ public class OverlayForm : Form
             Hide();
         };
 
-        // Position: bottom-right, above taskbar
+        Paint += OnOverlayPaint;
+
+        // Position: bottom-center, above taskbar
         PositionOnScreen();
     }
 
@@ -82,10 +93,14 @@ public class OverlayForm : Form
 
     private void PositionOnScreen()
     {
-        var screen = GetTargetScreen().WorkingArea;
+        PositionOnScreen(GetTargetScreen().WorkingArea);
+    }
+
+    private void PositionOnScreen(Rectangle screen)
+    {
         Location = new Point(
-            screen.Right - Width - 16,
-            screen.Bottom - Height - 16);
+            screen.Left + ((screen.Width - Width) / 2),
+            screen.Bottom - Height - BottomOffset);
     }
 
     private static Screen GetTargetScreen()
@@ -110,14 +125,23 @@ public class OverlayForm : Form
         }
 
         _label.Text = text;
-        _label.ForeColor = color ?? Color.White;
+        _label.ForeColor = color ?? DefaultTextColor;
 
-        // Resize height if text is long
-        using var g = CreateGraphics();
-        var measured = g.MeasureString(text, _label.Font, Width - Padding.Horizontal);
-        var newHeight = Math.Max(50, (int)measured.Height + Padding.Vertical + 8);
-        Size = new Size(350, newHeight);
-        PositionOnScreen();
+        var workingArea = GetTargetScreen().WorkingArea;
+        var preferredWidth = Math.Clamp((int)(workingArea.Width * 0.62), MinOverlayWidth, MaxOverlayWidth);
+        var width = Math.Min(preferredWidth, workingArea.Width - HorizontalMargin * 2);
+        if (width < 260)
+            width = Math.Max(220, workingArea.Width - 12);
+
+        var measured = TextRenderer.MeasureText(
+            text,
+            _label.Font,
+            new Size(width - Padding.Horizontal, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        var height = Math.Max(MinOverlayHeight, measured.Height + Padding.Vertical + 8);
+
+        Size = new Size(width, height);
+        PositionOnScreen(workingArea);
 
         _hideTimer.Stop();
         _hideTimer.Interval = durationMs;
@@ -130,5 +154,12 @@ public class OverlayForm : Form
 
         // Reassert topmost without activating so notifications stay visible.
         _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
+    private void OnOverlayPaint(object? sender, PaintEventArgs e)
+    {
+        using var pen = new Pen(BorderColor, 1.2f);
+        var border = new Rectangle(0, 0, Width - 1, Height - 1);
+        e.Graphics.DrawRectangle(pen, border);
     }
 }
