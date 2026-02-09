@@ -10,6 +10,8 @@ public class SettingsForm : Form
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
     private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
+    private readonly TextBox _voiceCommandValidationInput;
+    private readonly Label _voiceCommandValidationResult;
     private readonly Icon _formIcon;
 
     public SettingsForm()
@@ -28,7 +30,7 @@ public class SettingsForm : Form
         MinimizeBox = false;
         Font = new Font("Segoe UI", 9f);
         Padding = new Padding(12);
-        ClientSize = new Size(500, 455);
+        ClientSize = new Size(500, 520);
 
         var rootLayout = new TableLayoutPanel
         {
@@ -164,26 +166,111 @@ public class SettingsForm : Form
             Margin = new Padding(0, 0, 0, 8)
         };
 
-        var voiceCommandsLayout = new FlowLayoutPanel
+        var voiceCommandsLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            AutoSize = false,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 6,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
+        voiceCommandsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceCommandsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-        _openSettingsVoiceCommandCheck = new CheckBox { Text = "Enable \"open settings\"", AutoSize = true };
-        _exitAppVoiceCommandCheck = new CheckBox { Text = "Enable \"exit app\"", AutoSize = true };
+        _openSettingsVoiceCommandCheck = new CheckBox
+        {
+            Text = "Enable \"open settings\"",
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 4)
+        };
+        _exitAppVoiceCommandCheck = new CheckBox
+        {
+            Text = "Enable \"exit app\"",
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 4)
+        };
         _toggleAutoEnterVoiceCommandCheck = new CheckBox
         {
             Text = "Enable \"enable/disable auto-enter\"",
-            AutoSize = true
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 8)
         };
-        voiceCommandsLayout.Controls.Add(_openSettingsVoiceCommandCheck);
-        voiceCommandsLayout.Controls.Add(_exitAppVoiceCommandCheck);
-        voiceCommandsLayout.Controls.Add(_toggleAutoEnterVoiceCommandCheck);
+
+        var validatorPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2,
+            RowCount = 2,
+            Margin = new Padding(0)
+        };
+        validatorPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        validatorPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        validatorPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        validatorPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var validatorLabel = new Label
+        {
+            Text = "Validate phrase",
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 4)
+        };
+
+        _voiceCommandValidationInput = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 0, 8, 0),
+            PlaceholderText = "e.g. disable auto enter"
+        };
+        _voiceCommandValidationInput.TextChanged += (_, _) => ValidateVoiceCommandInput();
+        _voiceCommandValidationInput.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                ValidateVoiceCommandInput();
+            }
+        };
+
+        var validateButton = new Button
+        {
+            Text = "Validate",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left
+        };
+        validateButton.Click += (_, _) => ValidateVoiceCommandInput();
+
+        _voiceCommandValidationResult = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 6, 0, 0),
+            Text = "Type a phrase to test command recognition."
+        };
+
+        validatorPanel.Controls.Add(validatorLabel, 0, 0);
+        validatorPanel.SetColumnSpan(validatorLabel, 2);
+        validatorPanel.Controls.Add(_voiceCommandValidationInput, 0, 1);
+        validatorPanel.Controls.Add(validateButton, 1, 1);
+
+        _openSettingsVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
+        _exitAppVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
+        _toggleAutoEnterVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
+
+        voiceCommandsLayout.Controls.Add(_openSettingsVoiceCommandCheck, 0, 0);
+        voiceCommandsLayout.Controls.Add(_exitAppVoiceCommandCheck, 0, 1);
+        voiceCommandsLayout.Controls.Add(_toggleAutoEnterVoiceCommandCheck, 0, 2);
+        voiceCommandsLayout.Controls.Add(validatorPanel, 0, 3);
+        voiceCommandsLayout.Controls.Add(_voiceCommandValidationResult, 0, 4);
         grpVoiceCommands.Controls.Add(voiceCommandsLayout);
 
         // --- Buttons ---
@@ -263,6 +350,7 @@ public class SettingsForm : Form
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
         _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
+        ValidateVoiceCommandInput();
     }
 
     private void OnSave(object? sender, EventArgs e)
@@ -295,6 +383,48 @@ public class SettingsForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
+    }
+
+    private void ValidateVoiceCommandInput()
+    {
+        var candidate = _voiceCommandValidationInput.Text.Trim();
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            _voiceCommandValidationResult.ForeColor = Color.DimGray;
+            _voiceCommandValidationResult.Text = "Type a phrase to test command recognition.";
+            return;
+        }
+
+        var matchedEnabledCommand = VoiceCommandParser.Parse(
+            candidate,
+            _openSettingsVoiceCommandCheck.Checked,
+            _exitAppVoiceCommandCheck.Checked,
+            _toggleAutoEnterVoiceCommandCheck.Checked);
+
+        if (matchedEnabledCommand != null)
+        {
+            _voiceCommandValidationResult.ForeColor = Color.ForestGreen;
+            _voiceCommandValidationResult.Text =
+                $"Matches: {VoiceCommandParser.GetDisplayName(matchedEnabledCommand)} (enabled)";
+            return;
+        }
+
+        var matchedAnyCommand = VoiceCommandParser.Parse(
+            candidate,
+            enableOpenSettingsVoiceCommand: true,
+            enableExitAppVoiceCommand: true,
+            enableToggleAutoEnterVoiceCommand: true);
+
+        if (matchedAnyCommand != null)
+        {
+            _voiceCommandValidationResult.ForeColor = Color.DarkOrange;
+            _voiceCommandValidationResult.Text =
+                $"Matches: {VoiceCommandParser.GetDisplayName(matchedAnyCommand)} (currently disabled)";
+            return;
+        }
+
+        _voiceCommandValidationResult.ForeColor = Color.DimGray;
+        _voiceCommandValidationResult.Text = "No command match.";
     }
 
     protected override void Dispose(bool disposing)

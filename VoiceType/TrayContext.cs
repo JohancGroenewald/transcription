@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using System.Text;
 
 namespace VoiceType;
@@ -281,80 +280,29 @@ public class TrayContext : ApplicationContext
 
     private string? ParseVoiceCommand(string text)
     {
-        var normalized = NormalizeCommandText(text);
-
-        if (_enableExitAppVoiceCommand && MatchesPhrase(
-            normalized,
-            "exit app",
-            "close app",
-            "quit app",
-            "close voice type",
-            "exit voice type",
-            "close voicetype",
-            "exit voicetype"))
-            return "exit";
-
-        if (_enableOpenSettingsVoiceCommand && MatchesPhrase(normalized, "open settings"))
-            return "settings";
-
-        if (_enableToggleAutoEnterVoiceCommand && MatchesPhrase(
-            normalized,
-            "enable auto enter",
-            "enable autoenter",
-            "turn on auto enter",
-            "turn on autoenter",
-            "auto enter on",
-            "autoenter on"))
-            return "enable_auto_enter";
-
-        if (_enableToggleAutoEnterVoiceCommand && MatchesPhrase(
-            normalized,
-            "disable auto enter",
-            "disable autoenter",
-            "turn off auto enter",
-            "turn off autoenter",
-            "auto enter off",
-            "autoenter off"))
-            return "disable_auto_enter";
-
-        return null;
-    }
-
-    private static string NormalizeCommandText(string text)
-    {
-        var normalized = Regex.Replace(text.ToLowerInvariant(), @"[^a-z0-9]+", " ");
-        return Regex.Replace(normalized, @"\s+", " ").Trim();
-    }
-
-    private static bool MatchesPhrase(string normalized, params string[] phrases)
-    {
-        foreach (var phrase in phrases)
-        {
-            if (normalized == phrase
-                || normalized == "please " + phrase
-                || normalized == phrase + " please")
-                return true;
-        }
-
-        return false;
+        return VoiceCommandParser.Parse(
+            text,
+            _enableOpenSettingsVoiceCommand,
+            _enableExitAppVoiceCommand,
+            _enableToggleAutoEnterVoiceCommand);
     }
 
     private void HandleVoiceCommand(string command)
     {
         switch (command)
         {
-            case "exit":
+            case VoiceCommandParser.Exit:
                 _overlay.ShowMessage("Goodbye!", Color.LightGreen, 1000);
                 _ = Task.Delay(800).ContinueWith(_ => Invoke(Shutdown));
                 break;
-            case "settings":
+            case VoiceCommandParser.Settings:
                 _overlay.ShowMessage("Opening settings...", Color.CornflowerBlue, 1000);
                 OnSettings(null, EventArgs.Empty);
                 break;
-            case "enable_auto_enter":
+            case VoiceCommandParser.EnableAutoEnter:
                 SetAutoEnter(true);
                 break;
-            case "disable_auto_enter":
+            case VoiceCommandParser.DisableAutoEnter:
                 SetAutoEnter(false);
                 break;
         }
