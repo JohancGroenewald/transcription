@@ -24,6 +24,7 @@ public class AudioRecorder : IDisposable
     private bool _disposed;
 
     public AudioCaptureMetrics LastCaptureMetrics { get; private set; }
+    public event Action<int>? InputLevelChanged;
 
     public void Start()
     {
@@ -123,6 +124,16 @@ public class AudioRecorder : IDisposable
         {
             _audioBuffer?.Write(e.Buffer, 0, e.BytesRecorded);
         }
+
+        var levelPercent = CalculateInputLevelPercent(e.Buffer, e.BytesRecorded);
+        try
+        {
+            InputLevelChanged?.Invoke(levelPercent);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to publish input level update.", ex);
+        }
     }
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
@@ -185,6 +196,40 @@ public class AudioRecorder : IDisposable
         var activeRatio = activeSamples / (double)sampleCount;
 
         return new AudioCaptureMetrics(duration, rms, peakNormalized, activeRatio);
+    }
+
+    private static int CalculateInputLevelPercent(byte[] pcm16Buffer, int bytesRecorded)
+    {
+        if (bytesRecorded < 2)
+            return 0;
+
+        var sampleCount = bytesRecorded / 2;
+        if (sampleCount == 0)
+            return 0;
+
+        long sumSquares = 0;
+        var peak = 0;
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            var offset = i * 2;
+            var sample = (short)(pcm16Buffer[offset] | (pcm16Buffer[offset + 1] << 8));
+            var sampleValue = (int)sample;
+            var abs = Math.Abs(sampleValue);
+
+            if (abs > peak)
+                peak = abs;
+
+            sumSquares += (long)sampleValue * sampleValue;
+        }
+
+        var rms = Math.Sqrt(sumSquares / (double)sampleCount) / short.MaxValue;
+        var peakNormalized = peak / (double)short.MaxValue;
+
+        // Blend peak and RMS to get a responsive but stable meter.
+        var blended = Math.Max(peakNormalized, rms * 2.8);
+        var curved = Math.Pow(Math.Clamp(blended, 0, 1), 0.55);
+        return (int)Math.Round(curved * 100);
     }
 
     private void ThrowIfDisposed()

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace VoiceType;
 
@@ -49,6 +50,7 @@ public class TrayContext : ApplicationContext
     private readonly HotkeyWindow _hotkeyWindow;
     private readonly AudioRecorder _recorder;
     private readonly OverlayForm _overlay;
+    private readonly System.Windows.Forms.Timer _listeningOverlayTimer;
     private readonly Icon _appIcon;
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
@@ -64,6 +66,8 @@ public class TrayContext : ApplicationContext
     private bool _enableExitAppVoiceCommand;
     private bool _enableToggleAutoEnterVoiceCommand;
     private bool _enableSendVoiceCommand;
+    private int _micLevelPercent;
+    private DateTime _recordingStartedAtUtc;
     private bool _isRecording;
     private bool _isTranscribing;
     private bool _eventsHooked;
@@ -73,6 +77,9 @@ public class TrayContext : ApplicationContext
         Log.Info("VoiceType starting...");
 
         _recorder = new AudioRecorder();
+        _recorder.InputLevelChanged += OnRecorderInputLevelChanged;
+        _listeningOverlayTimer = new System.Windows.Forms.Timer { Interval = 120 };
+        _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
         _overlay = new OverlayForm();
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _appIcon = extractedIcon != null
@@ -173,6 +180,7 @@ public class TrayContext : ApplicationContext
         {
             // Stop recording and transcribe
             _isRecording = false;
+            StopListeningOverlay();
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
             ShowOverlay("Processing voice...", Color.CornflowerBlue, 10000);
@@ -244,14 +252,15 @@ public class TrayContext : ApplicationContext
             {
                 _recorder.Start();
                 _isRecording = true;
+                StartListeningOverlay();
                 _trayIcon.Icon = _appIcon;
                 _trayIcon.Text = $"VoiceType - Recording... ({BuildHotkeyHint()} to stop)";
-                ShowOverlay("Listening... speak now!", Color.CornflowerBlue, 30000);
                 Log.Info("Recording started");
             }
             catch (Exception ex)
             {
                 _isRecording = false;
+                StopListeningOverlay();
                 Log.Error("Failed to start recording", ex);
                 ShowOverlay("Microphone error: " + ex.Message, Color.Salmon, 4000);
                 SetReadyState();
@@ -379,13 +388,67 @@ public class TrayContext : ApplicationContext
         _penHotkeyRegistered = false;
     }
 
-    private void ShowOverlay(string text, Color? color = null, int durationMs = 3000)
+    private void ShowOverlay(string text, Color? color = null, int? durationMs = null)
     {
         if (!_enableOverlayPopups)
             return;
 
-        _ = durationMs;
-        _overlay.ShowMessage(text, color, _overlayDurationMs);
+        var effectiveDurationMs = durationMs.HasValue && durationMs.Value <= 0
+            ? 0
+            : _overlayDurationMs;
+
+        _overlay.ShowMessage(text, color, effectiveDurationMs);
+    }
+
+    private void StartListeningOverlay()
+    {
+        if (!_enableOverlayPopups)
+            return;
+
+        _recordingStartedAtUtc = DateTime.UtcNow;
+        Interlocked.Exchange(ref _micLevelPercent, 0);
+        UpdateListeningOverlay();
+        _listeningOverlayTimer.Start();
+    }
+
+    private void StopListeningOverlay()
+    {
+        _listeningOverlayTimer.Stop();
+        Interlocked.Exchange(ref _micLevelPercent, 0);
+    }
+
+    private void OnRecorderInputLevelChanged(int levelPercent)
+    {
+        Interlocked.Exchange(ref _micLevelPercent, Math.Clamp(levelPercent, 0, 100));
+    }
+
+    private void UpdateListeningOverlay()
+    {
+        if (!_isRecording || !_enableOverlayPopups)
+            return;
+
+        var levelPercent = Interlocked.CompareExchange(ref _micLevelPercent, 0, 0);
+        var meter = BuildMicActivityMeter(levelPercent, 18);
+        var elapsed = DateTime.UtcNow - _recordingStartedAtUtc;
+        var elapsedText = elapsed.TotalHours >= 1
+            ? elapsed.ToString(@"hh\:mm\:ss")
+            : elapsed.ToString(@"mm\:ss");
+
+        ShowOverlay(
+            $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildHotkeyHint()} to stop",
+            Color.CornflowerBlue,
+            0);
+    }
+
+    private static string BuildMicActivityMeter(int levelPercent, int segments)
+    {
+        var clampedLevel = Math.Clamp(levelPercent, 0, 100);
+        var clampedSegments = Math.Max(6, segments);
+        var filled = (int)Math.Round((clampedLevel / 100.0) * clampedSegments);
+        if (filled > clampedSegments)
+            filled = clampedSegments;
+
+        return "[" + new string('|', filled) + new string('.', clampedSegments - filled) + "]";
     }
 
     private string? ParseVoiceCommand(string text)
@@ -556,6 +619,9 @@ public class TrayContext : ApplicationContext
             UnhookShutdownEvents();
             EnsureTrayIconHidden();
             UnregisterHotkeys();
+            _listeningOverlayTimer.Stop();
+            _listeningOverlayTimer.Dispose();
+            _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
             _overlay.Dispose();

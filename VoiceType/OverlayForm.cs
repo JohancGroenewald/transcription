@@ -153,8 +153,11 @@ public class OverlayForm : Form
         PositionOnScreen(workingArea);
 
         _hideTimer.Stop();
-        _hideTimer.Interval = durationMs;
-        _hideTimer.Start();
+        if (durationMs > 0)
+        {
+            _hideTimer.Interval = durationMs;
+            _hideTimer.Start();
+        }
 
         if (!Visible)
             Show();

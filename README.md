@@ -8,6 +8,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 
 - Global hotkey dictation: `Ctrl+Shift+Space`
 - Tray app UX with status overlay notifications
+- Listening HUD stays visible while recording and shows live mic activity
 - Clipboard-based text injection with optional auto-Enter
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`, `send`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
