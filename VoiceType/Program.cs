@@ -6,6 +6,7 @@ static class Program
 {
     private const string MutexName = "VoiceType_SingleInstance";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(5);
     private static EventWaitHandle? _exitEvent;
 
     [DllImport("kernel32.dll")]
@@ -36,7 +37,11 @@ static class Program
         if (!ownsMutex)
         {
             if (requestClose || requestReplace)
-                SignalExistingInstanceExit();
+            {
+                var signaled = SignalExistingInstanceExit();
+                if (signaled)
+                    _ = WaitForExistingInstanceExit(requestReplace ? ReplaceWaitTimeout : CloseWaitTimeout);
+            }
 
             if (requestReplace)
                 ownsMutex = TryTakeOverMutex(mutex);
@@ -93,12 +98,32 @@ static class Program
         }
     }
 
-    private static void SignalExistingInstanceExit()
+    private static bool SignalExistingInstanceExit()
     {
         if (EventWaitHandle.TryOpenExisting(MutexName + "_Exit", out var evt))
         {
             evt.Set();
             evt.Dispose();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool WaitForExistingInstanceExit(TimeSpan timeout)
+    {
+        using var probe = new Mutex(false, MutexName);
+        try
+        {
+            if (!probe.WaitOne(timeout))
+                return false;
+
+            probe.ReleaseMutex();
+            return true;
+        }
+        catch (AbandonedMutexException)
+        {
+            return true;
         }
     }
 
@@ -116,7 +141,10 @@ static class Program
             Console.WriteLine("  Recording 3 seconds... speak now!");
             await Task.Delay(3000);
             var audio = recorder.Stop();
-            Console.WriteLine($"  OK - Captured {audio.Length:N0} bytes ({audio.Length / 32000.0:F1}s of audio)");
+            var metrics = recorder.LastCaptureMetrics;
+            Console.WriteLine(
+                $"  OK - Captured {audio.Length:N0} bytes ({metrics.Duration.TotalSeconds:F1}s, " +
+                $"rms {metrics.Rms:F4}, peak {metrics.Peak:F4})");
             Console.WriteLine();
 
             // 2. Test API key config
@@ -134,14 +162,21 @@ static class Program
                 Console.WriteLine($"  OK - API key found (model: {config.Model})");
                 Console.WriteLine();
 
-                // 3. Test transcription
-                Console.WriteLine("[3/3] Sending audio to OpenAI for transcription...");
-                var svc = new TranscriptionService(config.ApiKey, config.Model);
-                var text = await svc.TranscribeAsync(audio);
-                if (string.IsNullOrWhiteSpace(text))
-                    Console.WriteLine("  WARNING - Transcription returned empty text. Did you speak?");
+                if (metrics.IsLikelySilence)
+                {
+                    Console.WriteLine("[3/3] Skipping transcription test (captured audio appears to be silence/noise).");
+                }
                 else
-                    Console.WriteLine($"  OK - Transcribed: \"{text}\"");
+                {
+                    // 3. Test transcription
+                    Console.WriteLine("[3/3] Sending audio to OpenAI for transcription...");
+                    var svc = new TranscriptionService(config.ApiKey, config.Model);
+                    var text = await svc.TranscribeAsync(audio);
+                    if (string.IsNullOrWhiteSpace(text))
+                        Console.WriteLine("  WARNING - Transcription returned empty text. Did you speak?");
+                    else
+                        Console.WriteLine($"  OK - Transcribed: \"{text}\"");
+                }
             }
         }
         catch (Exception ex)

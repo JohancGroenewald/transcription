@@ -157,7 +157,17 @@ public class TrayContext : ApplicationContext
             try
             {
                 var audioData = _recorder.Stop();
-                Log.Info($"Audio captured: {audioData.Length:N0} bytes");
+                var metrics = _recorder.LastCaptureMetrics;
+                Log.Info(
+                    $"Audio captured: {audioData.Length:N0} bytes, duration={metrics.Duration.TotalSeconds:F2}s, " +
+                    $"rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}");
+
+                if (metrics.IsLikelySilence)
+                {
+                    Log.Info("Skipping transcription because captured audio appears to be silence/noise.");
+                    _overlay.ShowMessage("No speech detected", Color.Gray, 2000);
+                    return;
+                }
 
                 var text = await _transcriptionService.TranscribeAsync(audioData);
                 Log.Info($"Transcription completed ({text.Length} chars)");
@@ -273,7 +283,15 @@ public class TrayContext : ApplicationContext
     {
         var normalized = NormalizeCommandText(text);
 
-        if (_enableExitAppVoiceCommand && MatchesPhrase(normalized, "exit app"))
+        if (_enableExitAppVoiceCommand && MatchesPhrase(
+            normalized,
+            "exit app",
+            "close app",
+            "quit app",
+            "close voice type",
+            "exit voice type",
+            "close voicetype",
+            "exit voicetype"))
             return "exit";
 
         if (_enableOpenSettingsVoiceCommand && MatchesPhrase(normalized, "open settings"))
@@ -312,7 +330,9 @@ public class TrayContext : ApplicationContext
     {
         foreach (var phrase in phrases)
         {
-            if (normalized == phrase || normalized.StartsWith(phrase + " ", StringComparison.Ordinal))
+            if (normalized == phrase
+                || normalized == "please " + phrase
+                || normalized == phrase + " please")
                 return true;
         }
 

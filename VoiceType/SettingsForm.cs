@@ -39,8 +39,8 @@ public class SettingsForm : Form
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
         // --- API Key section ---
         var grpApi = new GroupBox
@@ -160,18 +160,18 @@ public class SettingsForm : Form
         {
             Text = "Voice Commands",
             Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
-            Margin = new Padding(0, 0, 0, 10)
+            Margin = new Padding(0, 0, 0, 8)
         };
 
         var voiceCommandsLayout = new FlowLayoutPanel
         {
-            Dock = DockStyle.Top,
-            AutoSize = true,
+            Dock = DockStyle.Fill,
+            AutoSize = false,
             FlowDirection = FlowDirection.TopDown,
-            WrapContents = false
+            WrapContents = false,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
 
         _openSettingsVoiceCommandCheck = new CheckBox { Text = "Enable \"open settings\"", AutoSize = true };
@@ -231,10 +231,10 @@ public class SettingsForm : Form
 
         var buttonsLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             ColumnCount = 3,
             RowCount = 1,
-            AutoSize = true,
+            AutoSize = false,
             Margin = new Padding(0)
         };
         buttonsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));

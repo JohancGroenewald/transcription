@@ -2,6 +2,18 @@ using NAudio.Wave;
 
 namespace VoiceType;
 
+public readonly record struct AudioCaptureMetrics(
+    TimeSpan Duration,
+    double Rms,
+    double Peak,
+    double ActiveSampleRatio)
+{
+    // Conservative silence gate to avoid transcribing pure noise/silence.
+    public bool IsLikelySilence =>
+        Duration < TimeSpan.FromMilliseconds(250)
+        || (Rms < 0.0025 && Peak < 0.012 && ActiveSampleRatio < 0.01);
+}
+
 public class AudioRecorder : IDisposable
 {
     private readonly object _sync = new();
@@ -11,12 +23,15 @@ public class AudioRecorder : IDisposable
     private TaskCompletionSource<bool>? _recordingStopped;
     private bool _disposed;
 
+    public AudioCaptureMetrics LastCaptureMetrics { get; private set; }
+
     public void Start()
     {
         ThrowIfDisposed();
         if (_waveIn != null)
             throw new InvalidOperationException("Already recording.");
 
+        LastCaptureMetrics = default;
         _audioBuffer = new MemoryStream();
         _recordingStopped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -69,6 +84,7 @@ public class AudioRecorder : IDisposable
             rawAudio = _audioBuffer.ToArray();
         }
 
+        LastCaptureMetrics = AnalyzeRawPcm16Mono(rawAudio, waveFormat);
         CleanupRecorder();
 
         // Write a proper WAV file by letting WaveFileWriter handle the header
@@ -131,6 +147,44 @@ public class AudioRecorder : IDisposable
         _audioBuffer = null;
         _waveFormat = null;
         _recordingStopped = null;
+    }
+
+    private static AudioCaptureMetrics AnalyzeRawPcm16Mono(byte[] rawAudio, WaveFormat waveFormat)
+    {
+        if (rawAudio.Length < 2 || waveFormat.SampleRate <= 0)
+            return default;
+
+        var sampleCount = rawAudio.Length / 2;
+        if (sampleCount == 0)
+            return default;
+
+        const int activeThreshold = 512; // ~1.6% of full-scale
+
+        long sumSquares = 0;
+        var peak = 0;
+        var activeSamples = 0;
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            var offset = i * 2;
+            var sample = (short)(rawAudio[offset] | (rawAudio[offset + 1] << 8));
+            var sampleValue = (int)sample;
+            var abs = Math.Abs(sampleValue);
+
+            if (abs > peak)
+                peak = abs;
+            if (abs >= activeThreshold)
+                activeSamples++;
+
+            sumSquares += (long)sampleValue * sampleValue;
+        }
+
+        var duration = TimeSpan.FromSeconds(sampleCount / (double)waveFormat.SampleRate);
+        var rms = Math.Sqrt(sumSquares / (double)sampleCount) / short.MaxValue;
+        var peakNormalized = peak / (double)short.MaxValue;
+        var activeRatio = activeSamples / (double)sampleCount;
+
+        return new AudioCaptureMetrics(duration, rms, peakNormalized, activeRatio);
     }
 
     private void ThrowIfDisposed()
