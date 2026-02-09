@@ -20,6 +20,7 @@ public class SettingsForm : Form
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
     private readonly CheckBox _toggleAutoEnterVoiceCommandCheck;
+    private readonly CheckBox _sendVoiceCommandCheck;
     private readonly TextBox _voiceCommandValidationInput;
     private readonly Label _voiceCommandValidationResult;
     private readonly Label _versionValueLabel;
@@ -321,11 +322,12 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 7,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         voiceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -356,6 +358,12 @@ public class SettingsForm : Form
         _toggleAutoEnterVoiceCommandCheck = new CheckBox
         {
             Text = "Enable \"enable/disable auto-enter\"",
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 4)
+        };
+        _sendVoiceCommandCheck = new CheckBox
+        {
+            Text = "Enable \"send\" (press Enter)",
             AutoSize = true,
             Margin = new Padding(0, 0, 0, 8)
         };
@@ -425,13 +433,15 @@ public class SettingsForm : Form
         _openSettingsVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
         _exitAppVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
         _toggleAutoEnterVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
+        _sendVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
 
         voiceLayout.Controls.Add(voiceHelp, 0, 0);
         voiceLayout.Controls.Add(_openSettingsVoiceCommandCheck, 0, 1);
         voiceLayout.Controls.Add(_exitAppVoiceCommandCheck, 0, 2);
         voiceLayout.Controls.Add(_toggleAutoEnterVoiceCommandCheck, 0, 3);
-        voiceLayout.Controls.Add(validatorPanel, 0, 4);
-        voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 5);
+        voiceLayout.Controls.Add(_sendVoiceCommandCheck, 0, 4);
+        voiceLayout.Controls.Add(validatorPanel, 0, 5);
+        voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 6);
         grpVoiceCommands.Controls.Add(voiceLayout);
 
         var grpAppInfo = new GroupBox
@@ -600,6 +610,7 @@ public class SettingsForm : Form
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
         _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
+        _sendVoiceCommandCheck.Checked = config.EnableSendVoiceCommand;
         UpdateOverlaySettingsState();
         UpdatePenHotkeySettingsState();
         ValidateVoiceCommandInput();
@@ -622,7 +633,8 @@ public class SettingsForm : Form
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
             EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked,
-            EnableToggleAutoEnterVoiceCommand = _toggleAutoEnterVoiceCommandCheck.Checked
+            EnableToggleAutoEnterVoiceCommand = _toggleAutoEnterVoiceCommandCheck.Checked,
+            EnableSendVoiceCommand = _sendVoiceCommandCheck.Checked
         };
 
         try
@@ -656,7 +668,8 @@ public class SettingsForm : Form
             candidate,
             _openSettingsVoiceCommandCheck.Checked,
             _exitAppVoiceCommandCheck.Checked,
-            _toggleAutoEnterVoiceCommandCheck.Checked);
+            _toggleAutoEnterVoiceCommandCheck.Checked,
+            _sendVoiceCommandCheck.Checked);
 
         if (matchedEnabledCommand != null)
         {
@@ -670,7 +683,8 @@ public class SettingsForm : Form
             candidate,
             enableOpenSettingsVoiceCommand: true,
             enableExitAppVoiceCommand: true,
-            enableToggleAutoEnterVoiceCommand: true);
+            enableToggleAutoEnterVoiceCommand: true,
+            enableSendVoiceCommand: true);
 
         if (matchedAnyCommand != null)
         {

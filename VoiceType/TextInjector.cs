@@ -80,4 +80,21 @@ public static class TextInjector
 
         return true;
     }
+
+    /// <summary>
+    /// Simulates pressing Enter in the currently focused application.
+    /// Returns true if sent, false when no suitable target is focused.
+    /// </summary>
+    public static bool SendEnter()
+    {
+        if (!HasPasteTarget())
+        {
+            Log.Info("No suitable target detected for Enter key");
+            return false;
+        }
+
+        keybd_event(VK_RETURN, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        return true;
+    }
 }

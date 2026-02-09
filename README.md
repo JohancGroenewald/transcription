@@ -9,7 +9,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 - Global hotkey dictation: `Ctrl+Shift+Space`
 - Tray app UX with status overlay notifications
 - Clipboard-based text injection with optional auto-Enter
-- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`
+- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`, `send`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
 - Single-instance behavior with remote close/replace flags
 - Settings UI with API key, model, logging, and voice command toggles
@@ -74,6 +74,7 @@ Available settings:
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
 - `Voice commands: "enable/disable auto-enter"` (enable/disable)
+- `Voice command: "send"` (enable/disable; sends Enter key)
 - `App Info`: version, process start time, and live uptime
 
 Voice commands are matched as exact phrases after trimming punctuation and case normalization.

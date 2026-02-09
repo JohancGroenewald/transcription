@@ -63,6 +63,7 @@ public class TrayContext : ApplicationContext
     private bool _enableOpenSettingsVoiceCommand;
     private bool _enableExitAppVoiceCommand;
     private bool _enableToggleAutoEnterVoiceCommand;
+    private bool _enableSendVoiceCommand;
     private bool _isRecording;
     private bool _isTranscribing;
     private bool _eventsHooked;
@@ -118,6 +119,7 @@ public class TrayContext : ApplicationContext
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
+        _enableSendVoiceCommand = config.EnableSendVoiceCommand;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
         else
@@ -388,7 +390,8 @@ public class TrayContext : ApplicationContext
             text,
             _enableOpenSettingsVoiceCommand,
             _enableExitAppVoiceCommand,
-            _enableToggleAutoEnterVoiceCommand);
+            _enableToggleAutoEnterVoiceCommand,
+            _enableSendVoiceCommand);
     }
 
     private void HandleVoiceCommand(string command)
@@ -409,7 +412,22 @@ public class TrayContext : ApplicationContext
             case VoiceCommandParser.DisableAutoEnter:
                 SetAutoEnter(false);
                 break;
+            case VoiceCommandParser.Send:
+                TriggerSend();
+                break;
         }
+    }
+
+    private void TriggerSend()
+    {
+        if (!TextInjector.SendEnter())
+        {
+            ShowOverlay("No target window to send Enter", Color.Gold, 1800);
+            return;
+        }
+
+        ShowOverlay("Sent", Color.LightGreen, 1000);
+        Log.Info("Send voice command triggered Enter key");
     }
 
     private void SetAutoEnter(bool enabled)

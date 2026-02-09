@@ -58,6 +58,7 @@ public class AppConfig
     public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
     public bool EnableExitAppVoiceCommand { get; set; } = true;
     public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
+    public bool EnableSendVoiceCommand { get; set; } = true;
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -80,6 +81,7 @@ public class AppConfig
         public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
         public bool EnableExitAppVoiceCommand { get; set; } = true;
         public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
+        public bool EnableSendVoiceCommand { get; set; } = true;
     }
 
     public static AppConfig Load()
@@ -106,7 +108,8 @@ public class AppConfig
                 PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
                 EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
                 EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
-                EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand
+                EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand,
+                EnableSendVoiceCommand = configFile.EnableSendVoiceCommand
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -133,7 +136,8 @@ public class AppConfig
                 PenHotkey = NormalizePenHotkey(PenHotkey),
                 EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,
                 EnableExitAppVoiceCommand = EnableExitAppVoiceCommand,
-                EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand
+                EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand,
+                EnableSendVoiceCommand = EnableSendVoiceCommand
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);

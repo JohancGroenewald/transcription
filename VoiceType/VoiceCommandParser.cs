@@ -8,12 +8,14 @@ public static class VoiceCommandParser
     public const string Settings = "settings";
     public const string EnableAutoEnter = "enable_auto_enter";
     public const string DisableAutoEnter = "disable_auto_enter";
+    public const string Send = "send";
 
     public static string? Parse(
         string text,
         bool enableOpenSettingsVoiceCommand,
         bool enableExitAppVoiceCommand,
-        bool enableToggleAutoEnterVoiceCommand)
+        bool enableToggleAutoEnterVoiceCommand,
+        bool enableSendVoiceCommand)
     {
         var normalized = NormalizeCommandText(text);
         if (string.IsNullOrEmpty(normalized))
@@ -53,6 +55,15 @@ public static class VoiceCommandParser
             "autoenter off"))
             return DisableAutoEnter;
 
+        if (enableSendVoiceCommand && MatchesPhrase(
+            normalized,
+            "send",
+            "send message",
+            "send command",
+            "submit",
+            "press enter"))
+            return Send;
+
         return null;
     }
 
@@ -64,6 +75,7 @@ public static class VoiceCommandParser
             Settings => "Open Settings",
             EnableAutoEnter => "Enable Auto-Enter",
             DisableAutoEnter => "Disable Auto-Enter",
+            Send => "Send (Press Enter)",
             _ => command
         };
     }
