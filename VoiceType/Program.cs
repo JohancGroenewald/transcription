@@ -8,6 +8,8 @@ static class Program
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(5);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
+    private const int STD_OUTPUT_HANDLE = -11;
+    private const int STD_ERROR_HANDLE = -12;
     private static EventWaitHandle? _exitEvent;
 
     [DllImport("kernel32.dll")]
@@ -18,6 +20,9 @@ static class Program
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AllocConsole();
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
 
     [STAThread]
     static void Main(string[] args)
@@ -216,18 +221,45 @@ static class Program
     {
         try
         {
-            if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole())
+            var hasOutputHandle = HasValidStdHandle(STD_OUTPUT_HANDLE) || HasValidStdHandle(STD_ERROR_HANDLE);
+            if (!hasOutputHandle)
             {
-                var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
-                var stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
-                Console.SetOut(stdout);
-                Console.SetError(stderr);
+                var hasConsole = AttachConsole(ATTACH_PARENT_PROCESS);
+                if (!hasConsole)
+                {
+                    var errorCode = Marshal.GetLastWin32Error();
+                    if (errorCode == 5) // ERROR_ACCESS_DENIED => already attached
+                        hasConsole = true;
+                    else
+                        hasConsole = AllocConsole();
+                }
             }
         }
         catch
         {
             // Best effort only
         }
+
+        try
+        {
+            var standardOutput = Console.OpenStandardOutput();
+            if (standardOutput != Stream.Null)
+                Console.SetOut(new StreamWriter(standardOutput) { AutoFlush = true });
+
+            var standardError = Console.OpenStandardError();
+            if (standardError != Stream.Null)
+                Console.SetError(new StreamWriter(standardError) { AutoFlush = true });
+        }
+        catch
+        {
+            // Best effort only
+        }
+    }
+
+    private static bool HasValidStdHandle(int handleType)
+    {
+        var handle = GetStdHandle(handleType);
+        return handle != IntPtr.Zero && handle != new IntPtr(-1);
     }
 
     static async Task RunTest()
