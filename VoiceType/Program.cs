@@ -4,13 +4,24 @@ namespace VoiceType;
 
 static class Program
 {
+    private enum LaunchRequest
+    {
+        Default,
+        Close,
+        Activate,
+        ReplaceExisting
+    }
+
     private const string MutexName = "VoiceType_SingleInstance";
+    private const string ExitEventName = MutexName + "_Exit";
+    private const string ActivateEventName = MutexName + "_Activate";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(5);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
     private static EventWaitHandle? _exitEvent;
+    private static EventWaitHandle? _activateEvent;
 
     [DllImport("kernel32.dll")]
     private static extern bool FreeConsole();
@@ -75,7 +86,17 @@ static class Program
         }
 
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
-        var requestReplace = !requestClose;
+        var requestActivate = args.Contains("--activate", StringComparer.OrdinalIgnoreCase)
+            || args.Contains("--focus", StringComparer.OrdinalIgnoreCase);
+        var requestReplaceExisting = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
+        var launchRequest = GetLaunchRequest(requestClose, requestActivate, requestReplaceExisting);
+        if (launchRequest == null)
+        {
+            EnsureConsoleForCliOutput();
+            Console.Error.WriteLine("Specify only one of: --close, --activate/--focus, --replace-existing.");
+            Environment.ExitCode = 2;
+            return;
+        }
 
         // --test flag: dry-run to verify mic capture works (needs console)
         if (args.Contains("--test", StringComparer.OrdinalIgnoreCase))
@@ -87,31 +108,59 @@ static class Program
             return;
         }
 
-        // Detach from any parent console so the terminal returns immediately
+        var request = launchRequest.Value;
+        var activateAfterStartup = request == LaunchRequest.Activate;
+
+        // Detach from any parent console so GUI launch returns immediately.
         FreeConsole();
 
         using var mutex = new Mutex(true, MutexName, out bool isNew);
         var ownsMutex = isNew;
 
-        // If already running, default behavior is to close old and take over.
+        // If already running, route request to the existing process.
         if (!ownsMutex)
         {
-            if (requestClose || requestReplace)
+            switch (request)
             {
-                var signaled = SignalExistingInstanceExit();
-                if (signaled)
-                    _ = WaitForExistingInstanceExit(requestReplace ? ReplaceWaitTimeout : CloseWaitTimeout);
-            }
+                case LaunchRequest.Close:
+                    if (SignalExistingInstanceExit())
+                        _ = WaitForExistingInstanceExit(CloseWaitTimeout);
+                    return;
 
-            if (requestReplace)
-                ownsMutex = TryTakeOverMutex(mutex);
+                case LaunchRequest.Activate:
+                    if (SignalExistingInstanceActivate())
+                        return;
+
+                    // Fallback for older running versions that do not listen for activation signals.
+                    if (SignalExistingInstanceExit())
+                        _ = WaitForExistingInstanceExit(ReplaceWaitTimeout);
+                    ownsMutex = TryTakeOverMutex(mutex);
+                    activateAfterStartup = true;
+                    break;
+
+                case LaunchRequest.ReplaceExisting:
+                    if (SignalExistingInstanceExit())
+                        _ = WaitForExistingInstanceExit(ReplaceWaitTimeout);
+                    ownsMutex = TryTakeOverMutex(mutex);
+                    break;
+
+                default:
+                    // Normal relaunch prefers "activate existing", but fallback keeps compatibility.
+                    if (SignalExistingInstanceActivate())
+                        return;
+
+                    if (SignalExistingInstanceExit())
+                        _ = WaitForExistingInstanceExit(ReplaceWaitTimeout);
+                    ownsMutex = TryTakeOverMutex(mutex);
+                    break;
+            }
         }
 
         if (!ownsMutex)
             return;
 
-        // `--close` is intended to close an already-running instance, not start a new one.
-        if (requestClose)
+        // `--close` targets an already-running instance and should not start a new UI.
+        if (request == LaunchRequest.Close)
         {
             mutex.ReleaseMutex();
             return;
@@ -119,19 +168,21 @@ static class Program
 
         try
         {
-            // Create a named event so other instances can signal us to exit
-            _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, MutexName + "_Exit");
+            _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, ExitEventName);
+            _activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
 
             var config = AppConfig.Load();
             Log.Configure(config.EnableDebugLogging);
 
-            // Watch for the exit signal on a background thread
+            ApplicationConfiguration.Initialize();
+            using var trayContext = new TrayContext();
+
             var exitThread = new Thread(() =>
             {
-                _exitEvent.WaitOne();
                 try
                 {
-                    Application.Exit();
+                    _exitEvent.WaitOne();
+                    trayContext.RequestShutdown();
                 }
                 finally
                 {
@@ -141,11 +192,41 @@ static class Program
             { IsBackground = true };
             exitThread.Start();
 
-            ApplicationConfiguration.Initialize();
-            Application.Run(new TrayContext());
+            var activateThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        _activateEvent.WaitOne();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        trayContext.RequestActivation();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+                }
+            })
+            { IsBackground = true };
+            activateThread.Start();
+
+            if (activateAfterStartup)
+                trayContext.RequestActivation();
+
+            Application.Run(trayContext);
         }
         finally
         {
+            _activateEvent?.Dispose();
+            _activateEvent = null;
             _exitEvent?.Dispose();
             _exitEvent = null;
             mutex.ReleaseMutex();
@@ -165,9 +246,42 @@ static class Program
         }
     }
 
+    private static LaunchRequest? GetLaunchRequest(
+        bool requestClose,
+        bool requestActivate,
+        bool requestReplaceExisting)
+    {
+        var explicitRequestCount =
+            (requestClose ? 1 : 0) +
+            (requestActivate ? 1 : 0) +
+            (requestReplaceExisting ? 1 : 0);
+        if (explicitRequestCount > 1)
+            return null;
+
+        if (requestClose)
+            return LaunchRequest.Close;
+        if (requestActivate)
+            return LaunchRequest.Activate;
+        if (requestReplaceExisting)
+            return LaunchRequest.ReplaceExisting;
+        return LaunchRequest.Default;
+    }
+
     private static bool SignalExistingInstanceExit()
     {
-        if (EventWaitHandle.TryOpenExisting(MutexName + "_Exit", out var evt))
+        if (EventWaitHandle.TryOpenExisting(ExitEventName, out var evt))
+        {
+            evt.Set();
+            evt.Dispose();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool SignalExistingInstanceActivate()
+    {
+        if (EventWaitHandle.TryOpenExisting(ActivateEventName, out var evt))
         {
             evt.Set();
             evt.Dispose();
@@ -209,12 +323,14 @@ static class Program
         Console.WriteLine("  --help, -h                Show this help text and exit.");
         Console.WriteLine("  --version, -v             Show app version and exit.");
         Console.WriteLine("  --test                    Run microphone/API dry-run test.");
+        Console.WriteLine("  --activate, --focus       Activate existing instance and toggle dictation.");
         Console.WriteLine("  --close                   Signal running instance to close, then exit.");
+        Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
         Console.WriteLine();
         Console.WriteLine("Default behavior:");
-        Console.WriteLine("  Launching without options starts VoiceType, replacing any running instance.");
+        Console.WriteLine("  Launching without options starts VoiceType, or activates existing instance.");
     }
 
     private static void EnsureConsoleForCliOutput()

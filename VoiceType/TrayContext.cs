@@ -285,7 +285,27 @@ public class TrayContext : ApplicationContext
         RestorePreviousFocus(previousForegroundWindow, settingsWindow);
     }
 
-    private void OnExit(object? sender, EventArgs e) => Shutdown();
+    private void OnExit(object? sender, EventArgs e) => RequestShutdown();
+
+    public void RequestShutdown()
+    {
+        if (_overlay.IsDisposed)
+            return;
+
+        Invoke(Shutdown);
+    }
+
+    public void RequestActivation()
+    {
+        if (_overlay.IsDisposed)
+            return;
+
+        Invoke(() =>
+        {
+            Log.Info("Remote activation requested");
+            OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+        });
+    }
 
     private void Shutdown()
     {
