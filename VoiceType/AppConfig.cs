@@ -65,6 +65,7 @@ public class AppConfig
     public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
     public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
     public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
+    public bool UseSimpleMicSpinner { get; set; }
     public bool EnablePenHotkey { get; set; }
     public string PenHotkey { get; set; } = DefaultPenHotkey;
     public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
@@ -91,6 +92,7 @@ public class AppConfig
         public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
         public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
         public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
+        public bool UseSimpleMicSpinner { get; set; }
         public bool EnablePenHotkey { get; set; }
         public string PenHotkey { get; set; } = DefaultPenHotkey;
         public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
@@ -122,6 +124,7 @@ public class AppConfig
                 OverlayOpacityPercent = NormalizeOverlayOpacityPercent(configFile.OverlayOpacityPercent),
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
+                UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
                 EnablePenHotkey = configFile.EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
                 EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
@@ -153,6 +156,7 @@ public class AppConfig
                 OverlayOpacityPercent = NormalizeOverlayOpacityPercent(OverlayOpacityPercent),
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(OverlayFontSizePt),
+                UseSimpleMicSpinner = UseSimpleMicSpinner,
                 EnablePenHotkey = EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(PenHotkey),
                 EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,

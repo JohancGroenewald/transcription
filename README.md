@@ -8,7 +8,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 
 - Global hotkey dictation: `Ctrl+Shift+Space`
 - Tray app UX with status overlay notifications
-- Listening HUD stays visible while recording and shows live mic activity
+- Listening HUD stays visible while recording (live mic level meter or simple spinner mode)
 - Clipboard-based text injection with optional auto-Enter
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`, `send`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
@@ -72,6 +72,7 @@ Available settings:
 - `HUD opacity (%)` (50-100)
 - `HUD width (%)` (35-90)
 - `HUD font size (pt)` (9-22)
+- `Use simple mic spinner (instead of level meter)`
 - `Enable Surface Pen hotkey` (enable/disable)
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
 - `Pen button validator` (shows last detected pen key while Settings is focused)

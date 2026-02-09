@@ -6,6 +6,8 @@ namespace VoiceType;
 
 public class TrayContext : ApplicationContext
 {
+    private static readonly string[] MicSpinnerFrames = ["|", "/", "-", "\\"];
+
     private const int PRIMARY_HOTKEY_ID = 1;
     private const int PEN_HOTKEY_ID = 2;
     private const int MOD_NONE = 0x0000;
@@ -66,7 +68,9 @@ public class TrayContext : ApplicationContext
     private bool _enableExitAppVoiceCommand;
     private bool _enableToggleAutoEnterVoiceCommand;
     private bool _enableSendVoiceCommand;
+    private bool _useSimpleMicSpinner;
     private int _micLevelPercent;
+    private int _micSpinnerIndex;
     private DateTime _recordingStartedAtUtc;
     private bool _shutdownRequested;
     private bool _isShuttingDown;
@@ -133,6 +137,7 @@ public class TrayContext : ApplicationContext
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
         _enableSendVoiceCommand = config.EnableSendVoiceCommand;
+        _useSimpleMicSpinner = config.UseSimpleMicSpinner;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
         else
@@ -461,6 +466,7 @@ public class TrayContext : ApplicationContext
 
         _recordingStartedAtUtc = DateTime.UtcNow;
         Interlocked.Exchange(ref _micLevelPercent, 0);
+        _micSpinnerIndex = 0;
         UpdateListeningOverlay();
         _listeningOverlayTimer.Start();
     }
@@ -482,12 +488,24 @@ public class TrayContext : ApplicationContext
             return;
 
         var levelPercent = Interlocked.CompareExchange(ref _micLevelPercent, 0, 0);
-        var meter = BuildMicActivityMeter(levelPercent, 18);
         var elapsed = DateTime.UtcNow - _recordingStartedAtUtc;
         var elapsedText = elapsed.TotalHours >= 1
             ? elapsed.ToString(@"hh\:mm\:ss")
             : elapsed.ToString(@"mm\:ss");
 
+        if (_useSimpleMicSpinner)
+        {
+            var frame = MicSpinnerFrames[_micSpinnerIndex];
+            _micSpinnerIndex = (_micSpinnerIndex + 1) % MicSpinnerFrames.Length;
+
+            ShowOverlay(
+                $"Listening... {elapsedText}\nMic {frame}\nPress {BuildHotkeyHint()} to stop",
+                Color.CornflowerBlue,
+                0);
+            return;
+        }
+
+        var meter = BuildMicActivityMeter(levelPercent, 18);
         ShowOverlay(
             $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildHotkeyHint()} to stop",
             Color.CornflowerBlue,
