@@ -133,16 +133,21 @@ public class OverlayForm : Form
         return Screen.FromPoint(Cursor.Position);
     }
 
-    public void ShowMessage(string text, Color? color = null, int durationMs = 3000)
+    public void ShowMessage(
+        string text,
+        Color? color = null,
+        int durationMs = 3000,
+        ContentAlignment textAlign = ContentAlignment.MiddleCenter)
     {
         if (InvokeRequired)
         {
-            Invoke(() => ShowMessage(text, color, durationMs));
+            Invoke(() => ShowMessage(text, color, durationMs, textAlign));
             return;
         }
 
         _label.Text = text;
         _label.ForeColor = color ?? DefaultTextColor;
+        _label.TextAlign = textAlign;
 
         var workingArea = GetTargetScreen().WorkingArea;
         var preferredWidth = Math.Clamp(
@@ -197,7 +202,7 @@ public class OverlayForm : Form
         oldFont.Dispose();
 
         if (Visible)
-            ShowMessage(_label.Text, _label.ForeColor, _hideTimer.Interval);
+            ShowMessage(_label.Text, _label.ForeColor, _hideTimer.Interval, _label.TextAlign);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
