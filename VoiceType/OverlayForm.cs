@@ -13,6 +13,8 @@ public class OverlayForm : Form
     private const int MaxOverlayWidth = 980;
     private const int MinOverlayHeight = 58;
     private const int CornerRadius = 14;
+    private const int FadeTickIntervalMs = 40;
+    private const int FadeDurationMs = 520;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -34,9 +36,12 @@ public class OverlayForm : Form
 
     private readonly Label _label;
     private readonly System.Windows.Forms.Timer _hideTimer;
+    private readonly System.Windows.Forms.Timer _fadeTimer;
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
     private bool _showOverlayBorder = true;
+    private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
+    private int _lastDurationMs = 3000;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastCenterTextBlock;
 
@@ -58,7 +63,7 @@ public class OverlayForm : Form
         StartPosition = FormStartPosition.Manual;
         BackColor = Color.FromArgb(12, 24, 18);
         ForeColor = DefaultTextColor;
-        Opacity = 0.94;
+        Opacity = _baseOpacity;
         Size = new Size(620, MinOverlayHeight);
         Padding = new Padding(18, 10, 18, 10);
 
@@ -76,8 +81,10 @@ public class OverlayForm : Form
         _hideTimer.Tick += (s, e) =>
         {
             _hideTimer.Stop();
-            Hide();
+            BeginFadeOut();
         };
+        _fadeTimer = new System.Windows.Forms.Timer { Interval = FadeTickIntervalMs };
+        _fadeTimer.Tick += (s, e) => OnFadeTick();
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -108,6 +115,17 @@ public class OverlayForm : Form
     {
         base.OnSizeChanged(e);
         UpdateRoundedRegion();
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (!Visible)
+        {
+            _hideTimer.Stop();
+            _fadeTimer.Stop();
+            Opacity = _baseOpacity;
+        }
     }
 
     private void PositionOnScreen()
@@ -150,6 +168,7 @@ public class OverlayForm : Form
 
         _label.Text = text;
         _label.ForeColor = color ?? DefaultTextColor;
+        _lastDurationMs = durationMs;
         _lastTextAlign = textAlign;
         _lastCenterTextBlock = centerTextBlock;
 
@@ -173,7 +192,9 @@ public class OverlayForm : Form
         ConfigureLabelLayout(measured, textAlign, centerTextBlock);
         PositionOnScreen(workingArea);
 
+        _fadeTimer.Stop();
         _hideTimer.Stop();
+        Opacity = _baseOpacity;
         if (durationMs > 0)
         {
             _hideTimer.Interval = durationMs;
@@ -200,14 +221,15 @@ public class OverlayForm : Form
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
         _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(fontSizePt);
         _showOverlayBorder = showBorder;
-        Opacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
+        _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
+        Opacity = _baseOpacity;
 
         var oldFont = _label.Font;
         _label.Font = new Font("Consolas", _overlayFontSizePt, FontStyle.Bold);
         oldFont.Dispose();
 
         if (Visible)
-            ShowMessage(_label.Text, _label.ForeColor, _hideTimer.Interval, _lastTextAlign, _lastCenterTextBlock);
+            ShowMessage(_label.Text, _label.ForeColor, _lastDurationMs, _lastTextAlign, _lastCenterTextBlock);
     }
 
     private void ConfigureLabelLayout(Size measuredTextSize, ContentAlignment textAlign, bool centerTextBlock)
@@ -251,6 +273,29 @@ public class OverlayForm : Form
         var oldRegion = Region;
         Region = new Region(path);
         oldRegion?.Dispose();
+    }
+
+    private void BeginFadeOut()
+    {
+        if (!Visible)
+            return;
+
+        _fadeTimer.Stop();
+        _fadeTimer.Start();
+    }
+
+    private void OnFadeTick()
+    {
+        var steps = Math.Max(1, FadeDurationMs / FadeTickIntervalMs);
+        var nextOpacity = Opacity - (_baseOpacity / steps);
+        if (nextOpacity <= 0.02)
+        {
+            _fadeTimer.Stop();
+            Hide();
+            return;
+        }
+
+        Opacity = nextOpacity;
     }
 
     private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)

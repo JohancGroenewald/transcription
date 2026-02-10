@@ -614,7 +614,7 @@ public class TrayContext : ApplicationContext
         }
 
         ShowOverlay(
-            "Voice commands:\n- " + string.Join("\n- ", commands),
+            "Voice commands\n- " + string.Join("\n- ", commands),
             Color.CornflowerBlue,
             4500,
             ContentAlignment.TopLeft,
