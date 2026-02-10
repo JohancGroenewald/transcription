@@ -10,7 +10,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 - Tray app UX with status overlay notifications
 - Listening HUD stays visible while recording (live mic level meter or simple spinner mode)
 - Clipboard-based text injection with optional auto-Enter
-- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`, `send`
+- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send yes`, `auto-send no`, `send`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
 - Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
 - Single-instance behavior with remote close/replace flags
@@ -80,7 +80,7 @@ Available settings:
 - `Pen button validator` (shows last detected pen key while Settings is focused)
 - `Voice command: "open settings"` (enable/disable)
 - `Voice command: "exit app"` (enable/disable)
-- `Voice commands: "enable/disable auto-enter"` (enable/disable)
+- `Voice commands: "auto-send yes/no"` (enable/disable)
 - `Voice command: "send"` (enable/disable; sends Enter key)
 - `App Info`: version, process start time, and live uptime
 
