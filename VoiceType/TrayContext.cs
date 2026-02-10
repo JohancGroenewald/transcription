@@ -78,6 +78,7 @@ public class TrayContext : ApplicationContext
     private bool _isRecording;
     private bool _isTranscribing;
     private bool _eventsHooked;
+    private bool _promptedForApiKeyOnStartup;
 
     public TrayContext()
     {
@@ -112,6 +113,7 @@ public class TrayContext : ApplicationContext
         {
             Log.Info("No API key configured");
             ShowOverlay("No API key — right-click tray icon > Settings", Color.Orange, 5000);
+            PromptForApiKeySetupOnStartup();
         }
         else
         {
@@ -255,6 +257,13 @@ public class TrayContext : ApplicationContext
             {
                 Log.Error("Transcription failed", ex);
                 ShowOverlay("Error: " + ex.Message, Color.Salmon, 4000);
+                if (IsLikelyApiKeyError(ex))
+                {
+                    Log.Info("Transcription failed with an authentication-like error. Opening settings for API key update.");
+                    ShowOverlay("API key issue detected — opening settings...", Color.Orange, 1800);
+                    _transcriptionService = null;
+                    OpenSettings(focusApiKey: true, restorePreviousFocus: false);
+                }
             }
             finally
             {
@@ -287,9 +296,14 @@ public class TrayContext : ApplicationContext
 
     private void OnSettings(object? sender, EventArgs e)
     {
+        OpenSettings();
+    }
+
+    private void OpenSettings(bool focusApiKey = false, bool restorePreviousFocus = true)
+    {
         if (_overlay.InvokeRequired)
         {
-            _overlay.Invoke(new Action(() => OnSettings(sender, e)));
+            _overlay.Invoke(new Action(() => OpenSettings(focusApiKey, restorePreviousFocus)));
             return;
         }
 
@@ -307,6 +321,8 @@ public class TrayContext : ApplicationContext
                 dlg.Activate();
                 dlg.BringToFront();
                 SetForegroundWindow(dlg.Handle);
+                if (focusApiKey)
+                    dlg.FocusApiKeyInput();
                 dlg.TopMost = false;
             }));
         };
@@ -314,7 +330,8 @@ public class TrayContext : ApplicationContext
         LoadTranscriptionService();
         RefreshHotkeyRegistration();
         SetReadyState();
-        RestorePreviousFocus(previousForegroundWindow, settingsWindow);
+        if (restorePreviousFocus)
+            RestorePreviousFocus(previousForegroundWindow, settingsWindow);
     }
 
     private void OnExit(object? sender, EventArgs e) => RequestShutdown();
@@ -658,6 +675,38 @@ public class TrayContext : ApplicationContext
             Log.Error("Failed to update auto-send setting via voice command", ex);
             ShowOverlay("Failed to update auto-send setting", Color.Salmon, 2000);
         }
+    }
+
+    private void PromptForApiKeySetupOnStartup()
+    {
+        if (_promptedForApiKeyOnStartup)
+            return;
+
+        _promptedForApiKeyOnStartup = true;
+        Log.Info("Opening settings on startup because API key is missing.");
+        OpenSettings(focusApiKey: true, restorePreviousFocus: false);
+    }
+
+    private static bool IsLikelyApiKeyError(Exception ex)
+    {
+        for (Exception? current = ex; current != null; current = current.InnerException)
+        {
+            var message = current.Message;
+            if (string.IsNullOrWhiteSpace(message))
+                continue;
+
+            if (message.Contains("invalid api key", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("incorrect api key", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("authentication", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("401", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("403", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void Invoke(Action action)

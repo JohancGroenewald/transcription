@@ -770,6 +770,22 @@ public class SettingsForm : Form
         }
     }
 
+    public void FocusApiKeyInput()
+    {
+        if (IsDisposed)
+            return;
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(FocusApiKeyInput));
+            return;
+        }
+
+        _apiKeyBox.Focus();
+        _apiKeyBox.SelectionStart = 0;
+        _apiKeyBox.SelectionLength = _apiKeyBox.TextLength;
+    }
+
     private void ValidateVoiceCommandInput()
     {
         var candidate = _voiceCommandValidationInput.Text.Trim();
