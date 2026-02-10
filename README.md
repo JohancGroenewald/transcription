@@ -152,6 +152,7 @@ Voice commands are matched as exact phrases after trimming punctuation and norma
 Build automation:
 
 - On Windows `.exe` builds, VoiceType auto-creates both `.lnk` files in the output folder.
+- `VoiceTypeLinks.bat` is included in build/publish output to regenerate both links with one command.
 
 ## Hardware Button Linking
 
@@ -164,6 +165,12 @@ You can bind generated `.lnk` files to Surface Pen or any programmable input dev
    - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
 
 1. If links are missing, regenerate from that same folder:
+
+```powershell
+.\VoiceTypeLinks.bat
+```
+
+Or run the flags directly:
 
 ```powershell
 .\VoiceType.exe --create-activate-shortcut

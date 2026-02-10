@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>1.0.35</Version>
+    <Version>1.0.36</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -23,6 +23,13 @@
     <PackageReference Include="OpenAI" Version="2.8.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="VoiceTypeLinks.bat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="CreateVoiceTypeShortcuts" AfterTargets="Build"
           Condition="'$(OS)' == 'Windows_NT' and Exists('$(TargetDir)$(AssemblyName).exe')">
     <PropertyGroup>
@@ -33,6 +40,7 @@
   </Target>
 
 </Project>
+
 
 
 
