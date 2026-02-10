@@ -90,13 +90,13 @@ code --list-extensions | findstr /i markdownlint
 Run markdown lint (CLI):
 
 ```powershell
-npx -y markdownlint-cli README.md transcription.md
+npx -y markdownlint-cli README.md docs/archive/transcription-notes.md
 ```
 
 Auto-fix supported issues:
 
 ```powershell
-npx -y markdownlint-cli --fix README.md transcription.md
+npx -y markdownlint-cli --fix README.md docs/archive/transcription-notes.md
 ```
 
 Notes:
