@@ -32,10 +32,29 @@ dotnet run --project VoiceType/VoiceType.csproj
 
 ### Optional: Enable Repo Git Hooks
 
-This repo includes `.githooks` scripts used by the maintainer workflow (for example auto-version bump and app restart after commit).
+This repo includes versioned hook scripts under `.githooks` (for example
+auto-version bump and app restart after commit).
+
+Important:
+
+- The hook scripts are committed to the repo.
+- Git does not run them by default in a fresh clone.
+- Each clone must opt in by setting `core.hooksPath`.
 
 ```powershell
 git config core.hooksPath .githooks
+```
+
+Verify:
+
+```powershell
+git config --get core.hooksPath
+```
+
+Disable for this clone:
+
+```powershell
+git config --unset core.hooksPath
 ```
 
 ## First Run Setup
