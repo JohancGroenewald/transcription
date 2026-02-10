@@ -2,57 +2,78 @@
 
 VoiceType is a lightweight Windows tray app for push-to-talk dictation using OpenAI speech-to-text.
 
-Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text into the active app.
+Press a hotkey, speak, and VoiceType transcribes your audio and pastes text into the active app.
 
-## Features
+## LLM-Friendly Repo Facts
 
-- Global hotkey dictation: `Ctrl+Shift+Space`
-- Tray app UX with status overlay notifications
-- Listening HUD stays visible while recording (live mic level meter or simple spinner mode)
-- Clipboard-based text injection with optional auto-Enter
-- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send yes`, `auto-send no`, `send`
-- Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
-- Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
-- Single-instance behavior with remote close/replace flags
-- Settings UI with API key, model, logging, and voice command toggles
-- Version and uptime display (tray menu + settings)
-- API key protection at rest via Windows DPAPI (`CurrentUser`)
-- Debug file logging toggle (off by default)
+- Platform: Windows only (`net9.0-windows`, WinForms).
+- Main project: `VoiceType/VoiceType.csproj`.
+- App type: tray app with global hotkeys and single-instance signaling.
+- Default dictation hotkey: `Ctrl+Shift+Space`.
+- Config file: `%LOCALAPPDATA%\VoiceType\config.json`.
+- No API keys are stored in the repository. API keys are entered in Settings and encrypted with DPAPI.
 
 ## Requirements
 
 - Windows 10 or Windows 11
-- .NET 9 SDK (or compatible .NET 9 runtime for published builds)
+- .NET 9 SDK (for build/run from source)
 - Working microphone
 - OpenAI API key
 
-## Quick Start
-
-1. Build:
+## Build From Fresh Clone
 
 ```powershell
-dotnet build VoiceType/VoiceType.csproj
-```
-
-1. Run:
-
-```powershell
+git clone https://github.com/JohancGroenewald/transcription.git
+cd transcription
+dotnet restore VoiceType/VoiceType.csproj
+dotnet build VoiceType/VoiceType.csproj -c Debug
 dotnet run --project VoiceType/VoiceType.csproj
 ```
 
-1. In the tray icon menu, open `Settings...` and configure your API key, model, and optional behavior toggles.
+### Optional: Enable Repo Git Hooks
 
-2. Use dictation by pressing `Ctrl+Shift+Space` to start recording, then pressing it again to stop and transcribe.
+This repo includes `.githooks` scripts used by the maintainer workflow (for example auto-version bump and app restart after commit).
 
-### Standalone Release Build
+```powershell
+git config core.hooksPath .githooks
+```
 
-Publish a self-contained Windows x64 release (single-file):
+## First Run Setup
+
+1. Right-click the VoiceType tray icon and open `Settings...`.
+2. Enter your OpenAI API key.
+3. Choose a transcription model.
+4. Test dictation with `Ctrl+Shift+Space` (press once to start, once to stop).
+
+## Features
+
+- Global hotkey dictation: `Ctrl+Shift+Space`
+- Tray UX with on-screen HUD notifications
+- Listening HUD with mic meter or simple spinner mode
+- Clipboard-based text injection with optional auto-send (Enter)
+- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send yes`, `auto-send no`, `send`
+- Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
+- Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
+- Single-instance behavior with remote close/listen/submit/replace flags
+- Settings UI with API key, model, logging, HUD, and voice-command controls
+- Version and uptime display (tray + settings)
+- API key encryption at rest via DPAPI
+
+## Build and Publish
+
+Debug build:
+
+```powershell
+dotnet build VoiceType/VoiceType.csproj -c Debug
+```
+
+Self-contained Release publish (single file, win-x64):
 
 ```powershell
 dotnet publish VoiceType/VoiceType.csproj -c Release
 ```
 
-Publish output:
+Release output:
 
 - `VoiceType/bin/Release/net9.0-windows/win-x64/publish/VoiceType.exe`
 
@@ -68,98 +89,95 @@ Available settings:
 - `Transcription model`: `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`
 - `Press Enter after pasting text`
 - `Enable file logging (debug only)`
-- `Show popup notifications` (enable/disable)
+- `Show popup notifications`
 - `Popup duration (ms)` (500-60000)
 - `HUD opacity (%)` (50-100)
 - `HUD width (%)` (35-90)
 - `HUD font size (pt)` (9-22)
-- `Show HUD border line` (enable/disable)
+- `Show HUD border line`
 - `Use simple mic spinner (instead of level meter)`
-- `Enable Surface Pen hotkey` (enable/disable)
+- `Enable Surface Pen hotkey`
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
 - `Pen button validator` (shows last detected pen key while Settings is focused)
-- `Voice command: "open settings"` (enable/disable)
-- `Voice command: "exit app"` (enable/disable)
-- `Voice commands: "auto-send yes/no"` (enable/disable)
-- `Voice command: "send"` (enable/disable; sends Enter key)
-- `App Info`: version, process start time, and live uptime
+- `Voice command: "open settings"`
+- `Voice command: "exit app"`
+- `Voice commands: "auto-send yes/no"`
+- `Voice command: "send"` (sends Enter key)
+- `App Info`: version, process start time, and uptime
 
-Voice commands are matched as exact phrases after trimming punctuation and case normalization.
+Voice commands are matched as exact phrases after trimming punctuation and normalizing case.
 
 ## CLI Flags
 
 - `--test`: dry-run microphone and transcription test in console mode
-- `--help`, `-h`: show CLI usage text and exit
+- `--help`, `-h`: show CLI usage and exit
 - `--version`, `-v`: print app version and exit
 - `--listen`: trigger dictation in an existing instance (or start app and begin listening)
-- `--submit`: send Enter key through an existing VoiceType instance
-- `--close`: request graceful shutdown of an existing VoiceType instance
+- `--submit`: send Enter through an existing VoiceType instance
+- `--close`: request graceful shutdown of an existing instance
 - `--replace-existing`: close running instance and start this one
-- `--pin-to-taskbar`: best-effort pin of current VoiceType executable to Windows taskbar
-- `--unpin-from-taskbar`: best-effort unpin of current VoiceType executable from Windows taskbar
-- `--create-activate-shortcut`: create `VoiceTypeActivate.exe.lnk` next to the executable (targets `--listen`)
-- `--create-submit-shortcut`: create `VoiceTypeSubmit.exe.lnk` next to the executable (targets `--submit`)
+- `--pin-to-taskbar`: best-effort pin current executable to taskbar
+- `--unpin-from-taskbar`: best-effort unpin current executable from taskbar
+- `--create-activate-shortcut`: create `VoiceTypeActivate.exe.lnk` next to the executable (`--listen`)
+- `--create-submit-shortcut`: create `VoiceTypeSubmit.exe.lnk` next to the executable (`--submit`)
 
 Build automation:
 
-- On Windows `.exe` builds, VoiceType now auto-creates both `VoiceTypeActivate.exe.lnk` and `VoiceTypeSubmit.exe.lnk` in the output folder.
+- On Windows `.exe` builds, VoiceType auto-creates both `.lnk` files in the output folder.
 
 ## Hardware Button Linking
 
-Use the generated links with Surface Pen or any device that can launch a program/shortcut (mouse buttons, macro keyboards, Stream Deck, foot pedals, etc.).
+You can bind generated `.lnk` files to Surface Pen or any programmable input device (mouse buttons, macro keyboards, Stream Deck, foot pedals, etc.).
 
-1. Build VoiceType (`dotnet build ...`) in the configuration you use (`Debug` or `Release`).
+1. Build VoiceType in your chosen configuration (`Debug` or `Release`).
 2. In that output folder, use:
-
 - `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
 - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
-
-1. If links are missing, regenerate from that same folder:
+3. If links are missing, regenerate from that same folder:
 
 ```powershell
 .\VoiceType.exe --create-activate-shortcut
 .\VoiceType.exe --create-submit-shortcut
 ```
 
-1. Map device buttons to these `.lnk` files:
-
-- Surface Pen: open Windows Pen settings and set shortcut actions to `Open a program`, then choose one of the `.lnk` files.
-- Other devices: in the device software, set the button action to launch the `.lnk` file.
+4. Map device buttons to those `.lnk` files:
+- Surface Pen: in Windows Pen settings, set action to `Open a program` and choose the `.lnk`.
+- Other devices: in device software, set action to launch the `.lnk`.
 
 Recommended mapping:
 
-- Primary button -> `VoiceTypeActivate.exe.lnk` (start/stop listening in running instance)
-- Secondary button -> `VoiceTypeSubmit.exe.lnk` (send Enter via running instance)
+- Primary button -> `VoiceTypeActivate.exe.lnk` (start/stop listening)
+- Secondary button -> `VoiceTypeSubmit.exe.lnk` (send Enter)
 
-Note: `--submit` targets a running VoiceType instance. If VoiceType is not running, no Enter key is sent.
+Note: `--submit` targets a running VoiceType instance. If VoiceType is not running, no Enter is sent.
 
 ## Single-Instance Behavior
 
-- Launching VoiceType normally while it is already running triggers dictation in the existing instance.
-- Use `--listen` to trigger dictation in the running instance.
-- Use `--close` for remote graceful shutdown (finishes in-flight recording/transcription first).
-- Use `--replace-existing` when you explicitly want handoff/restart behavior.
+- Launching VoiceType normally while already running triggers dictation in the existing instance.
+- `--listen` triggers dictation in the running instance.
+- `--close` requests graceful shutdown (finishes in-flight recording/transcription first).
+- `--replace-existing` performs explicit handoff/restart behavior.
 
 ## Data and Security Notes
 
-- API keys are stored encrypted with DPAPI for the current Windows user.
+- API keys are encrypted with Windows DPAPI for the current user account.
 - Transcribed text is not logged by default.
-- Debug logs are written only when enabled, at `%LOCALAPPDATA%\VoiceType\voicetype.log`.
-- Audio is sent to OpenAI for transcription when dictation is submitted.
+- Debug logs are written only when enabled: `%LOCALAPPDATA%\VoiceType\voicetype.log`.
+- Audio is sent to OpenAI when dictation is submitted.
 
 ## Troubleshooting
 
 - Hotkey does not work: another app may already own `Ctrl+Shift+Space`.
-- Text is copied but not pasted: no valid paste target was focused. Use `Ctrl+V` manually.
-- Tray icon appears stuck after crash/force kill: this is a Windows tray refresh artifact. Hovering over the icon usually clears it.
+- Text is copied but not pasted: no valid target had focus. Use `Ctrl+V` manually.
+- Tray icon appears stuck after crash/force kill: this is a Windows tray refresh artifact.
 
 ## Project Layout
 
-- `VoiceType/Program.cs`: app entrypoint, single-instance and CLI flags
-- `VoiceType/TrayContext.cs`: tray app lifecycle, hotkey flow, voice commands
+- `VoiceType/Program.cs`: app entrypoint, single-instance routing, CLI flags
+- `VoiceType/TrayContext.cs`: tray lifecycle, hotkeys, dictation flow, voice commands
 - `VoiceType/AudioRecorder.cs`: microphone capture (NAudio)
 - `VoiceType/TranscriptionService.cs`: OpenAI transcription client
-- `VoiceType/TextInjector.cs`: clipboard/paste injection
+- `VoiceType/TextInjector.cs`: clipboard and paste/send-key injection
 - `VoiceType/SettingsForm.cs`: settings UI
-- `VoiceType/AppConfig.cs`: config load/save and API key protection
-- `VoiceType/OverlayForm.cs`: on-screen status notifications
+- `VoiceType/AppConfig.cs`: config load/save and API-key protection
+- `VoiceType/OverlayForm.cs`: on-screen HUD notifications
