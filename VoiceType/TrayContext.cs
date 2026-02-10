@@ -68,6 +68,7 @@ public class TrayContext : ApplicationContext
     private bool _enableExitAppVoiceCommand;
     private bool _enableToggleAutoEnterVoiceCommand;
     private bool _enableSendVoiceCommand;
+    private bool _enableShowVoiceCommandsVoiceCommand;
     private bool _useSimpleMicSpinner;
     private int _micLevelPercent;
     private int _micSpinnerIndex;
@@ -138,6 +139,7 @@ public class TrayContext : ApplicationContext
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
         _enableSendVoiceCommand = config.EnableSendVoiceCommand;
+        _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
         _useSimpleMicSpinner = config.UseSimpleMicSpinner;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
@@ -555,7 +557,8 @@ public class TrayContext : ApplicationContext
             _enableOpenSettingsVoiceCommand,
             _enableExitAppVoiceCommand,
             _enableToggleAutoEnterVoiceCommand,
-            _enableSendVoiceCommand);
+            _enableSendVoiceCommand,
+            _enableShowVoiceCommandsVoiceCommand);
     }
 
     private void HandleVoiceCommand(string command)
@@ -579,7 +582,36 @@ public class TrayContext : ApplicationContext
             case VoiceCommandParser.Send:
                 TriggerSend();
                 break;
+            case VoiceCommandParser.ShowVoiceCommands:
+                ShowVoiceCommands();
+                break;
         }
+    }
+
+    private void ShowVoiceCommands()
+    {
+        var commands = new List<string>();
+        if (_enableOpenSettingsVoiceCommand)
+            commands.Add("open settings");
+        if (_enableExitAppVoiceCommand)
+            commands.Add("exit app");
+        if (_enableToggleAutoEnterVoiceCommand)
+            commands.Add("auto-send yes / auto-send no");
+        if (_enableSendVoiceCommand)
+            commands.Add("send");
+        if (_enableShowVoiceCommandsVoiceCommand)
+            commands.Add("show voice commands");
+
+        if (commands.Count == 0)
+        {
+            ShowOverlay("Voice commands are all disabled in Settings", Color.Gray, 2500);
+            return;
+        }
+
+        ShowOverlay(
+            "Voice commands:\n- " + string.Join("\n- ", commands),
+            Color.CornflowerBlue,
+            4500);
     }
 
     private void TriggerSend()

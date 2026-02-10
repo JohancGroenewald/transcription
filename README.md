@@ -51,7 +51,7 @@ git config core.hooksPath .githooks
 - Tray UX with on-screen HUD notifications
 - Listening HUD with mic meter or simple spinner mode
 - Clipboard-based text injection with optional auto-send (Enter)
-- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send yes`, `auto-send no`, `send`
+- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send yes`, `auto-send no`, `send`, `show voice commands`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
 - Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
 - Single-instance behavior with remote close/listen/submit/replace flags
@@ -103,6 +103,7 @@ Available settings:
 - `Voice command: "exit app"`
 - `Voice commands: "auto-send yes/no"`
 - `Voice command: "send"` (sends Enter key)
+- `Voice command: "show voice commands"`
 - `App Info`: version, process start time, and uptime
 
 Voice commands are matched as exact phrases after trimming punctuation and normalizing case.

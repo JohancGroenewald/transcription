@@ -9,13 +9,15 @@ public static class VoiceCommandParser
     public const string AutoSendYes = "auto_send_yes";
     public const string AutoSendNo = "auto_send_no";
     public const string Send = "send";
+    public const string ShowVoiceCommands = "show_voice_commands";
 
     public static string? Parse(
         string text,
         bool enableOpenSettingsVoiceCommand,
         bool enableExitAppVoiceCommand,
         bool enableToggleAutoEnterVoiceCommand,
-        bool enableSendVoiceCommand)
+        bool enableSendVoiceCommand,
+        bool enableShowVoiceCommandsVoiceCommand)
     {
         var normalized = NormalizeCommandText(text);
         if (string.IsNullOrEmpty(normalized))
@@ -60,6 +62,13 @@ public static class VoiceCommandParser
             "press enter"))
             return Send;
 
+        if (enableShowVoiceCommandsVoiceCommand && MatchesPhrase(
+            normalized,
+            "show voice commands",
+            "list voice commands",
+            "what are voice commands"))
+            return ShowVoiceCommands;
+
         return null;
     }
 
@@ -72,6 +81,7 @@ public static class VoiceCommandParser
             AutoSendYes => "Auto-Send: Yes",
             AutoSendNo => "Auto-Send: No",
             Send => "Send (Press Enter)",
+            ShowVoiceCommands => "Show Voice Commands",
             _ => command
         };
     }
