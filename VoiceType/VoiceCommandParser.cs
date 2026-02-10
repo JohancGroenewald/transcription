@@ -6,8 +6,8 @@ public static class VoiceCommandParser
 {
     public const string Exit = "exit";
     public const string Settings = "settings";
-    public const string EnableAutoEnter = "enable_auto_enter";
-    public const string DisableAutoEnter = "disable_auto_enter";
+    public const string AutoSendYes = "auto_send_yes";
+    public const string AutoSendNo = "auto_send_no";
     public const string Send = "send";
 
     public static string? Parse(
@@ -37,23 +37,19 @@ public static class VoiceCommandParser
 
         if (enableToggleAutoEnterVoiceCommand && MatchesPhrase(
             normalized,
-            "enable auto enter",
-            "enable autoenter",
-            "turn on auto enter",
-            "turn on autoenter",
-            "auto enter on",
-            "autoenter on"))
-            return EnableAutoEnter;
+            "auto send yes",
+            "autosend yes",
+            "set auto send yes",
+            "set autosend yes"))
+            return AutoSendYes;
 
         if (enableToggleAutoEnterVoiceCommand && MatchesPhrase(
             normalized,
-            "disable auto enter",
-            "disable autoenter",
-            "turn off auto enter",
-            "turn off autoenter",
-            "auto enter off",
-            "autoenter off"))
-            return DisableAutoEnter;
+            "auto send no",
+            "autosend no",
+            "set auto send no",
+            "set autosend no"))
+            return AutoSendNo;
 
         if (enableSendVoiceCommand && MatchesPhrase(
             normalized,
@@ -73,8 +69,8 @@ public static class VoiceCommandParser
         {
             Exit => "Exit App",
             Settings => "Open Settings",
-            EnableAutoEnter => "Enable Auto-Enter",
-            DisableAutoEnter => "Disable Auto-Enter",
+            AutoSendYes => "Auto-Send: Yes",
+            AutoSendNo => "Auto-Send: No",
             Send => "Send (Press Enter)",
             _ => command
         };

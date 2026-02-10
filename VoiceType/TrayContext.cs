@@ -570,11 +570,11 @@ public class TrayContext : ApplicationContext
                 ShowOverlay("Opening settings...", Color.CornflowerBlue, 1000);
                 OnSettings(null, EventArgs.Empty);
                 break;
-            case VoiceCommandParser.EnableAutoEnter:
-                SetAutoEnter(true);
+            case VoiceCommandParser.AutoSendYes:
+                SetAutoSend(true);
                 break;
-            case VoiceCommandParser.DisableAutoEnter:
-                SetAutoEnter(false);
+            case VoiceCommandParser.AutoSendNo:
+                SetAutoSend(false);
                 break;
             case VoiceCommandParser.Send:
                 TriggerSend();
@@ -594,12 +594,12 @@ public class TrayContext : ApplicationContext
         Log.Info("Enter key sent");
     }
 
-    private void SetAutoEnter(bool enabled)
+    private void SetAutoSend(bool enabled)
     {
         if (_autoEnter == enabled)
         {
-            var existingStateLabel = enabled ? "enabled" : "disabled";
-            ShowOverlay($"Auto-enter already {existingStateLabel}", Color.Gray, 1200);
+            var existingStateLabel = enabled ? "yes" : "no";
+            ShowOverlay($"Auto-send already {existingStateLabel}", Color.Gray, 1200);
             return;
         }
 
@@ -610,14 +610,14 @@ public class TrayContext : ApplicationContext
             config.Save();
             _autoEnter = enabled;
 
-            var stateLabel = enabled ? "enabled" : "disabled";
-            ShowOverlay($"Auto-enter {stateLabel}", Color.LightGreen, 1500);
-            Log.Info($"Auto-enter set via voice command ({stateLabel})");
+            var stateLabel = enabled ? "yes" : "no";
+            ShowOverlay($"Auto-send {stateLabel}", Color.LightGreen, 1500);
+            Log.Info($"Auto-send set via voice command ({stateLabel})");
         }
         catch (Exception ex)
         {
-            Log.Error("Failed to update auto-enter setting via voice command", ex);
-            ShowOverlay("Failed to update auto-enter setting", Color.Salmon, 2000);
+            Log.Error("Failed to update auto-send setting via voice command", ex);
+            ShowOverlay("Failed to update auto-send setting", Color.Salmon, 2000);
         }
     }
 

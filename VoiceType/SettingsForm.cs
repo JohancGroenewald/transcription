@@ -451,7 +451,7 @@ public class SettingsForm : Form
         };
         _toggleAutoEnterVoiceCommandCheck = new CheckBox
         {
-            Text = "Enable \"enable/disable auto-enter\"",
+            Text = "Enable \"auto-send yes/no\"",
             AutoSize = true,
             Margin = new Padding(0, 0, 0, 4)
         };
@@ -488,7 +488,7 @@ public class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 8, 0),
-            PlaceholderText = "e.g. disable auto enter",
+            PlaceholderText = "e.g. auto send no",
             MinimumSize = new Size(260, 0)
         };
         _voiceCommandValidationInput.TextChanged += (_, _) => ValidateVoiceCommandInput();
