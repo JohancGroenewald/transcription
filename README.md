@@ -90,6 +90,7 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 - `--help`, `-h`: show CLI usage text and exit
 - `--version`, `-v`: print app version and exit
 - `--listen`: trigger dictation in an existing instance (or start app and begin listening)
+- `--submit`: send Enter key through an existing VoiceType instance
 - `--close`: request graceful shutdown of an existing VoiceType instance
 - `--replace-existing`: close running instance and start this one
 - `--pin-to-taskbar`: best-effort pin of current VoiceType executable to Windows taskbar

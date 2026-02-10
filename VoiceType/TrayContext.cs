@@ -364,6 +364,24 @@ public class TrayContext : ApplicationContext
         });
     }
 
+    public void RequestSubmit()
+    {
+        if (_overlay.IsDisposed)
+            return;
+
+        Invoke(() =>
+        {
+            if (_shutdownRequested || _isShuttingDown)
+            {
+                Log.Info("Ignoring remote submit because shutdown is pending.");
+                return;
+            }
+
+            Log.Info("Remote submit requested");
+            TriggerSend();
+        });
+    }
+
     private void Shutdown()
     {
         if (_isShuttingDown)
@@ -500,7 +518,7 @@ public class TrayContext : ApplicationContext
             _micSpinnerIndex = (_micSpinnerIndex + 1) % MicSpinnerFrames.Length;
 
             ShowOverlay(
-                $"Listening {frame}... {elapsedText}\nPress {BuildHotkeyHint()} to stop",
+                $"Listening {frame} {elapsedText}\nPress {BuildHotkeyHint()} to stop",
                 Color.CornflowerBlue,
                 0);
             return;
@@ -567,7 +585,7 @@ public class TrayContext : ApplicationContext
         }
 
         ShowOverlay("Sent", Color.LightGreen, 1000);
-        Log.Info("Send voice command triggered Enter key");
+        Log.Info("Enter key sent");
     }
 
     private void SetAutoEnter(bool enabled)

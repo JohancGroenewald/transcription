@@ -9,12 +9,14 @@ static class Program
         Default,
         Close,
         Listen,
+        Submit,
         ReplaceExisting
     }
 
     private const string MutexName = "VoiceType_SingleInstance";
     private const string ExitEventName = MutexName + "_Exit";
     private const string ListenEventName = MutexName + "_Listen";
+    private const string SubmitEventName = MutexName + "_Submit";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
@@ -22,6 +24,7 @@ static class Program
     private const int STD_ERROR_HANDLE = -12;
     private static EventWaitHandle? _exitEvent;
     private static EventWaitHandle? _listenEvent;
+    private static EventWaitHandle? _submitEvent;
 
     [DllImport("kernel32.dll")]
     private static extern bool FreeConsole();
@@ -87,12 +90,13 @@ static class Program
 
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
         var requestListen = args.Contains("--listen", StringComparer.OrdinalIgnoreCase);
+        var requestSubmit = args.Contains("--submit", StringComparer.OrdinalIgnoreCase);
         var requestReplaceExisting = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
-        var launchRequest = GetLaunchRequest(requestClose, requestListen, requestReplaceExisting);
+        var launchRequest = GetLaunchRequest(requestClose, requestListen, requestSubmit, requestReplaceExisting);
         if (launchRequest == null)
         {
             EnsureConsoleForCliOutput();
-            Console.Error.WriteLine("Specify only one of: --close, --listen, --replace-existing.");
+            Console.Error.WriteLine("Specify only one of: --close, --listen, --submit, --replace-existing.");
             Environment.ExitCode = 2;
             return;
         }
@@ -137,6 +141,10 @@ static class Program
                     listenAfterStartup = true;
                     break;
 
+                case LaunchRequest.Submit:
+                    _ = SignalExistingInstanceSubmit();
+                    return;
+
                 case LaunchRequest.ReplaceExisting:
                     if (SignalExistingInstanceExit())
                         _ = WaitForExistingInstanceExit(ReplaceWaitTimeout);
@@ -158,8 +166,8 @@ static class Program
         if (!ownsMutex)
             return;
 
-        // `--close` targets an already-running instance and should not start a new UI.
-        if (request == LaunchRequest.Close)
+        // `--close` and `--submit` target an already-running instance and should not start a new UI.
+        if (request is LaunchRequest.Close or LaunchRequest.Submit)
         {
             mutex.ReleaseMutex();
             return;
@@ -169,6 +177,7 @@ static class Program
         {
             _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, ExitEventName);
             _listenEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ListenEventName);
+            _submitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SubmitEventName);
 
             var config = AppConfig.Load();
             Log.Configure(config.EnableDebugLogging);
@@ -217,6 +226,32 @@ static class Program
             { IsBackground = true };
             listenThread.Start();
 
+            var submitThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        _submitEvent.WaitOne();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        trayContext.RequestSubmit();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+                }
+            })
+            { IsBackground = true };
+            submitThread.Start();
+
             if (listenAfterStartup)
                 trayContext.RequestListen();
 
@@ -224,6 +259,8 @@ static class Program
         }
         finally
         {
+            _submitEvent?.Dispose();
+            _submitEvent = null;
             _listenEvent?.Dispose();
             _listenEvent = null;
             _exitEvent?.Dispose();
@@ -248,11 +285,13 @@ static class Program
     private static LaunchRequest? GetLaunchRequest(
         bool requestClose,
         bool requestListen,
+        bool requestSubmit,
         bool requestReplaceExisting)
     {
         var explicitRequestCount =
             (requestClose ? 1 : 0) +
             (requestListen ? 1 : 0) +
+            (requestSubmit ? 1 : 0) +
             (requestReplaceExisting ? 1 : 0);
         if (explicitRequestCount > 1)
             return null;
@@ -261,6 +300,8 @@ static class Program
             return LaunchRequest.Close;
         if (requestListen)
             return LaunchRequest.Listen;
+        if (requestSubmit)
+            return LaunchRequest.Submit;
         if (requestReplaceExisting)
             return LaunchRequest.ReplaceExisting;
         return LaunchRequest.Default;
@@ -281,6 +322,18 @@ static class Program
     private static bool SignalExistingInstanceListen()
     {
         if (EventWaitHandle.TryOpenExisting(ListenEventName, out var evt))
+        {
+            evt.Set();
+            evt.Dispose();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool SignalExistingInstanceSubmit()
+    {
+        if (EventWaitHandle.TryOpenExisting(SubmitEventName, out var evt))
         {
             evt.Set();
             evt.Dispose();
@@ -323,6 +376,7 @@ static class Program
         Console.WriteLine("  --version, -v             Show app version and exit.");
         Console.WriteLine("  --test                    Run microphone/API dry-run test.");
         Console.WriteLine("  --listen                  Trigger dictation (existing instance or fresh start).");
+        Console.WriteLine("  --submit                  Send Enter key via an existing instance.");
         Console.WriteLine("  --close                   Request graceful close (finishes current work first).");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
