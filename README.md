@@ -77,6 +77,33 @@ Release output:
 
 - `VoiceType/bin/Release/net9.0-windows/win-x64/publish/VoiceType.exe`
 
+## Markdown Linting
+
+If `markdownlint` is available in your environment, use it to keep docs consistent.
+
+Check availability (VS Code extension):
+
+```powershell
+code --list-extensions | findstr /i markdownlint
+```
+
+Run markdown lint (CLI):
+
+```powershell
+npx -y markdownlint-cli README.md transcription.md
+```
+
+Auto-fix supported issues:
+
+```powershell
+npx -y markdownlint-cli --fix README.md transcription.md
+```
+
+Notes:
+
+- Repo rules are in `.markdownlint.json`.
+- `MD013` (line length) is intentionally disabled for readability of technical docs.
+
 ## Settings
 
 VoiceType settings are stored at:
