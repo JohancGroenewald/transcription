@@ -34,15 +34,15 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 dotnet build VoiceType/VoiceType.csproj
 ```
 
-2. Run:
+1. Run:
 
 ```powershell
 dotnet run --project VoiceType/VoiceType.csproj
 ```
 
-3. In the tray icon menu, open `Settings...` and configure your API key, model, and optional behavior toggles.
+1. In the tray icon menu, open `Settings...` and configure your API key, model, and optional behavior toggles.
 
-4. Use dictation by pressing `Ctrl+Shift+Space` to start recording, then pressing it again to stop and transcribe.
+2. Use dictation by pressing `Ctrl+Shift+Space` to start recording, then pressing it again to stop and transcribe.
 
 ### Standalone Release Build
 
@@ -110,16 +110,19 @@ Use the generated links with Surface Pen or any device that can launch a program
 
 1. Build VoiceType (`dotnet build ...`) in the configuration you use (`Debug` or `Release`).
 2. In that output folder, use:
+
 - `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
 - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
-3. If links are missing, regenerate from that same folder:
+
+1. If links are missing, regenerate from that same folder:
 
 ```powershell
 .\VoiceType.exe --create-activate-shortcut
 .\VoiceType.exe --create-submit-shortcut
 ```
 
-4. Map device buttons to these `.lnk` files:
+1. Map device buttons to these `.lnk` files:
+
 - Surface Pen: open Windows Pen settings and set shortcut actions to `Open a program`, then choose one of the `.lnk` files.
 - Other devices: in the device software, set the button action to launch the `.lnk` file.
 
