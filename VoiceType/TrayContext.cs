@@ -114,7 +114,7 @@ public class TrayContext : ApplicationContext
         }
         else
         {
-            ShowOverlay($"VoiceType ready — {BuildHotkeyHint()} to dictate", Color.LightGreen, 2000);
+            ShowOverlay($"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate", Color.LightGreen, 2000);
         }
 
         Log.Info("VoiceType started successfully");
@@ -420,6 +420,11 @@ public class TrayContext : ApplicationContext
         return PrimaryHotkeyDisplayName;
     }
 
+    private static string BuildOverlayHotkeyHint()
+    {
+        return PrimaryHotkeyDisplayName;
+    }
+
     private void RefreshHotkeyRegistration()
     {
         UnregisterHotkeys();
@@ -518,7 +523,7 @@ public class TrayContext : ApplicationContext
             _micSpinnerIndex = (_micSpinnerIndex + 1) % MicSpinnerFrames.Length;
 
             ShowOverlay(
-                $"Listening {frame} {elapsedText}\nPress {BuildHotkeyHint()} to stop",
+                $"Listening {frame} {elapsedText}\nPress {BuildOverlayHotkeyHint()} to stop",
                 Color.CornflowerBlue,
                 0);
             return;
@@ -526,7 +531,7 @@ public class TrayContext : ApplicationContext
 
         var meter = BuildMicActivityMeter(levelPercent, 18);
         ShowOverlay(
-            $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildHotkeyHint()} to stop",
+            $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildOverlayHotkeyHint()} to stop",
             Color.CornflowerBlue,
             0);
     }
