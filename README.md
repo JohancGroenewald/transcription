@@ -12,6 +12,7 @@ Press a hotkey, speak, and VoiceType transcribes your audio and pastes the text 
 - Clipboard-based text injection with optional auto-Enter
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `enable auto-enter`, `disable auto-enter`, `send`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
+- Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
 - Single-instance behavior with remote close/replace flags
 - Settings UI with API key, model, logging, and voice command toggles
 - Version and uptime display (tray menu + settings)
@@ -102,6 +103,32 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 Build automation:
 
 - On Windows `.exe` builds, VoiceType now auto-creates both `VoiceTypeActivate.exe.lnk` and `VoiceTypeSubmit.exe.lnk` in the output folder.
+
+## Hardware Button Linking
+
+Use the generated links with Surface Pen or any device that can launch a program/shortcut (mouse buttons, macro keyboards, Stream Deck, foot pedals, etc.).
+
+1. Build VoiceType (`dotnet build ...`) in the configuration you use (`Debug` or `Release`).
+2. In that output folder, use:
+- `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
+- `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
+3. If links are missing, regenerate from that same folder:
+
+```powershell
+.\VoiceType.exe --create-activate-shortcut
+.\VoiceType.exe --create-submit-shortcut
+```
+
+4. Map device buttons to these `.lnk` files:
+- Surface Pen: open Windows Pen settings and set shortcut actions to `Open a program`, then choose one of the `.lnk` files.
+- Other devices: in the device software, set the button action to launch the `.lnk` file.
+
+Recommended mapping:
+
+- Primary button -> `VoiceTypeActivate.exe.lnk` (start/stop listening in running instance)
+- Secondary button -> `VoiceTypeSubmit.exe.lnk` (send Enter via running instance)
+
+Note: `--submit` targets a running VoiceType instance. If VoiceType is not running, no Enter key is sent.
 
 ## Single-Instance Behavior
 
