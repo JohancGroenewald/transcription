@@ -95,6 +95,7 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 - `--replace-existing`: close running instance and start this one
 - `--pin-to-taskbar`: best-effort pin of current VoiceType executable to Windows taskbar
 - `--unpin-from-taskbar`: best-effort unpin of current VoiceType executable from Windows taskbar
+- `--create-activate-shortcut`: create `VoiceTypeActivate.exe.lnk` next to the executable (targets `--listen`)
 
 ## Single-Instance Behavior
 
