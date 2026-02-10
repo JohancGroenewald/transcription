@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Drawing.Drawing2D;
 
 namespace VoiceType;
 
@@ -11,6 +12,7 @@ public class OverlayForm : Form
     private const int MinOverlayWidth = 460;
     private const int MaxOverlayWidth = 980;
     private const int MinOverlayHeight = 58;
+    private const int CornerRadius = 14;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -79,6 +81,7 @@ public class OverlayForm : Form
             AppConfig.DefaultOverlayOpacityPercent,
             AppConfig.DefaultOverlayWidthPercent,
             AppConfig.DefaultOverlayFontSizePt);
+        UpdateRoundedRegion();
 
         // Position: bottom-center, above taskbar
         PositionOnScreen();
@@ -96,6 +99,12 @@ public class OverlayForm : Form
 
     // Prevent the form from stealing focus when shown
     protected override bool ShowWithoutActivation => true;
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        UpdateRoundedRegion();
+    }
 
     private void PositionOnScreen()
     {
@@ -190,8 +199,49 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var pen = new Pen(BorderColor, 1.2f);
         var border = new Rectangle(0, 0, Width - 1, Height - 1);
-        e.Graphics.DrawRectangle(pen, border);
+        using var path = CreateRoundedRectanglePath(border, CornerRadius);
+        e.Graphics.DrawPath(pen, path);
+    }
+
+    private void UpdateRoundedRegion()
+    {
+        if (Width <= 0 || Height <= 0)
+            return;
+
+        using var path = CreateRoundedRectanglePath(new Rectangle(0, 0, Width, Height), CornerRadius);
+        var oldRegion = Region;
+        Region = new Region(path);
+        oldRegion?.Dispose();
+    }
+
+    private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
+    {
+        var path = new GraphicsPath();
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+
+        var diameter = Math.Max(2, Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height)));
+        if (diameter <= 2)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+
+        var arc = new Rectangle(bounds.X, bounds.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 }
