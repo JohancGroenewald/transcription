@@ -12,11 +12,11 @@ public static class VoiceCommandParser
     public const string ShowVoiceCommands = "show_voice_commands";
 
     private static readonly Regex AutoSendEnableRegex = new(
-        @"^(please |can you |could you )?(set |turn )?auto ?send( to)? (yes|on|true|enable|enabled)( please)?$",
+        @"^(please |can you |could you )?(set |turn )?auto( ?send)?( to)? (yes|on|true|enable|enabled)( please)?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex AutoSendDisableRegex = new(
-        @"^(please |can you |could you )?(set |turn )?auto ?send( to)? (no|off|of|false|disable|disabled)( please)?$",
+        @"^(please |can you |could you )?(set |turn )?auto( ?send)?( to)? (no|off|of|false|disable|disabled)( please)?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static string? Parse(
@@ -115,6 +115,7 @@ public static class VoiceCommandParser
                 "set auto send yes",
                 "set autosend yes",
                 "auto send on",
+                "auto on",
                 "autosend on",
                 "set auto send on",
                 "set autosend on",
@@ -132,6 +133,7 @@ public static class VoiceCommandParser
                 "set auto send no",
                 "set autosend no",
                 "auto send off",
+                "auto off",
                 "autosend off",
                 "set auto send off",
                 "set autosend off",

@@ -19,10 +19,10 @@ public class OverlayForm : Form
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
-    private const int WM_SETREDRAW = 0x000B;
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_SHOWWINDOW = 0x0040;
     private static readonly IntPtr HWND_TOPMOST = new(-1);
 
     [DllImport("user32.dll")]
@@ -34,9 +34,6 @@ public class OverlayForm : Form
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
-
     private readonly Label _label;
     private readonly System.Windows.Forms.Timer _hideTimer;
     private readonly System.Windows.Forms.Timer _fadeTimer;
@@ -45,8 +42,6 @@ public class OverlayForm : Form
     private bool _showOverlayBorder = true;
     private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
     private int _lastDurationMs = 3000;
-    private bool _isUpdatingMessage;
-    private bool _isFading;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastCenterTextBlock;
 
@@ -131,7 +126,6 @@ public class OverlayForm : Form
         {
             _hideTimer.Stop();
             _fadeTimer.Stop();
-            _isFading = false;
             Opacity = _baseOpacity;
         }
     }
@@ -175,13 +169,8 @@ public class OverlayForm : Form
         }
 
         SuspendLayout();
-        var freezeRedraw = Visible && IsHandleCreated;
-        if (freezeRedraw)
-            SetRedraw(enabled: false);
         try
         {
-            _isUpdatingMessage = true;
-            _isFading = false;
             _label.Text = text;
             _label.ForeColor = color ?? DefaultTextColor;
             _lastDurationMs = durationMs;
@@ -219,20 +208,19 @@ public class OverlayForm : Form
         }
         finally
         {
-            _isUpdatingMessage = false;
-            if (freezeRedraw)
-                SetRedraw(enabled: true);
             ResumeLayout(performLayout: true);
         }
 
         if (!Visible)
             Show();
-
-        Invalidate(invalidateChildren: true);
-        Update();
+        else
+        {
+            Invalidate(invalidateChildren: true);
+            Update();
+        }
 
         // Reassert topmost without activating so notifications stay visible.
-        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
     public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
@@ -305,43 +293,22 @@ public class OverlayForm : Form
         if (!Visible)
             return;
 
-        _isFading = true;
         _fadeTimer.Stop();
         _fadeTimer.Start();
     }
 
     private void OnFadeTick()
     {
-        if (!_isFading)
-        {
-            _fadeTimer.Stop();
-            return;
-        }
-
-        if (_isUpdatingMessage)
-            return;
-
         var steps = Math.Max(1, FadeDurationMs / FadeTickIntervalMs);
         var nextOpacity = Opacity - (_baseOpacity / steps);
         if (nextOpacity <= 0.02)
         {
-            _isFading = false;
             _fadeTimer.Stop();
             Hide();
             return;
         }
 
         Opacity = nextOpacity;
-    }
-
-    private void SetRedraw(bool enabled)
-    {
-        if (!IsHandleCreated)
-            return;
-
-        _ = SendMessage(Handle, WM_SETREDRAW, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
-        if (_label.IsHandleCreated)
-            _ = SendMessage(_label.Handle, WM_SETREDRAW, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
     }
 
     private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
