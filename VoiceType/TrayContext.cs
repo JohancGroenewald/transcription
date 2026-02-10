@@ -618,7 +618,7 @@ public class TrayContext : ApplicationContext
         if (_enableExitAppVoiceCommand)
             commands.Add("exit app");
         if (_enableToggleAutoEnterVoiceCommand)
-            commands.Add("auto-send yes / auto-send no");
+            commands.Add("auto-send on / auto-send off");
         if (_enableSendVoiceCommand)
             commands.Add("send");
         if (_enableShowVoiceCommandsVoiceCommand)

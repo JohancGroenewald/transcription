@@ -11,6 +11,14 @@ public static class VoiceCommandParser
     public const string Send = "send";
     public const string ShowVoiceCommands = "show_voice_commands";
 
+    private static readonly Regex AutoSendEnableRegex = new(
+        @"^(please |can you |could you )?(set |turn )?auto ?send( to)? (yes|on|true|enable|enabled)( please)?$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex AutoSendDisableRegex = new(
+        @"^(please |can you |could you )?(set |turn )?auto ?send( to)? (no|off|of|false|disable|disabled)( please)?$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     public static string? Parse(
         string text,
         bool enableOpenSettingsVoiceCommand,
@@ -37,20 +45,10 @@ public static class VoiceCommandParser
         if (enableOpenSettingsVoiceCommand && MatchesPhrase(normalized, "open settings"))
             return Settings;
 
-        if (enableToggleAutoEnterVoiceCommand && MatchesPhrase(
-            normalized,
-            "auto send yes",
-            "autosend yes",
-            "set auto send yes",
-            "set autosend yes"))
+        if (enableToggleAutoEnterVoiceCommand && MatchesAutoSendEnabled(normalized))
             return AutoSendYes;
 
-        if (enableToggleAutoEnterVoiceCommand && MatchesPhrase(
-            normalized,
-            "auto send no",
-            "autosend no",
-            "set auto send no",
-            "set autosend no"))
+        if (enableToggleAutoEnterVoiceCommand && MatchesAutoSendDisabled(normalized))
             return AutoSendNo;
 
         if (enableSendVoiceCommand && MatchesPhrase(
@@ -98,10 +96,46 @@ public static class VoiceCommandParser
         {
             if (normalized == phrase
                 || normalized == "please " + phrase
+                || normalized == "can you " + phrase
+                || normalized == "could you " + phrase
                 || normalized == phrase + " please")
                 return true;
         }
 
         return false;
+    }
+
+    private static bool MatchesAutoSendEnabled(string normalized)
+    {
+        return AutoSendEnableRegex.IsMatch(normalized)
+            || MatchesPhrase(
+                normalized,
+                "auto send yes",
+                "autosend yes",
+                "set auto send yes",
+                "set autosend yes",
+                "auto send on",
+                "autosend on",
+                "set auto send on",
+                "set autosend on",
+                "enable auto send",
+                "turn on auto send");
+    }
+
+    private static bool MatchesAutoSendDisabled(string normalized)
+    {
+        return AutoSendDisableRegex.IsMatch(normalized)
+            || MatchesPhrase(
+                normalized,
+                "auto send no",
+                "autosend no",
+                "set auto send no",
+                "set autosend no",
+                "auto send off",
+                "autosend off",
+                "set auto send off",
+                "set autosend off",
+                "disable auto send",
+                "turn off auto send");
     }
 }
