@@ -19,6 +19,7 @@ public class SettingsForm : Form
     private readonly NumericUpDown _overlayWidthInput;
     private readonly Label _overlayFontSizeLabel;
     private readonly NumericUpDown _overlayFontSizeInput;
+    private readonly CheckBox _showOverlayBorderCheck;
     private readonly CheckBox _useSimpleMicSpinnerCheck;
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
@@ -177,12 +178,13 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 13,
+            RowCount = 14,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -312,6 +314,13 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 0, 0)
         };
 
+        _showOverlayBorderCheck = new CheckBox
+        {
+            Text = "Show HUD border line",
+            AutoSize = true,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+
         _useSimpleMicSpinnerCheck = new CheckBox
         {
             Text = "Use simple mic spinner (instead of level meter)",
@@ -377,15 +386,17 @@ public class SettingsForm : Form
         behaviorLayout.Controls.Add(_overlayWidthInput, 1, 6);
         behaviorLayout.Controls.Add(_overlayFontSizeLabel, 0, 7);
         behaviorLayout.Controls.Add(_overlayFontSizeInput, 1, 7);
-        behaviorLayout.Controls.Add(_useSimpleMicSpinnerCheck, 0, 8);
+        behaviorLayout.Controls.Add(_showOverlayBorderCheck, 0, 8);
+        behaviorLayout.SetColumnSpan(_showOverlayBorderCheck, 2);
+        behaviorLayout.Controls.Add(_useSimpleMicSpinnerCheck, 0, 9);
         behaviorLayout.SetColumnSpan(_useSimpleMicSpinnerCheck, 2);
-        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 9);
+        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 10);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
-        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 10);
-        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 10);
-        behaviorLayout.Controls.Add(penValidationLabel, 0, 11);
+        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 11);
+        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 11);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 12);
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
-        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 12);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 13);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
@@ -689,6 +700,7 @@ public class SettingsForm : Form
         _overlayOpacityInput.Value = AppConfig.NormalizeOverlayOpacityPercent(config.OverlayOpacityPercent);
         _overlayWidthInput.Value = AppConfig.NormalizeOverlayWidthPercent(config.OverlayWidthPercent);
         _overlayFontSizeInput.Value = AppConfig.NormalizeOverlayFontSizePt(config.OverlayFontSizePt);
+        _showOverlayBorderCheck.Checked = config.ShowOverlayBorder;
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
         _enablePenHotkeyCheck.Checked = config.EnablePenHotkey;
         _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
@@ -719,6 +731,7 @@ public class SettingsForm : Form
             OverlayOpacityPercent = AppConfig.NormalizeOverlayOpacityPercent((int)_overlayOpacityInput.Value),
             OverlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent((int)_overlayWidthInput.Value),
             OverlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt((int)_overlayFontSizeInput.Value),
+            ShowOverlayBorder = _showOverlayBorderCheck.Checked,
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
             EnablePenHotkey = _enablePenHotkeyCheck.Checked,
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
@@ -799,6 +812,7 @@ public class SettingsForm : Form
         _overlayWidthInput.Enabled = enabled;
         _overlayFontSizeLabel.Enabled = enabled;
         _overlayFontSizeInput.Enabled = enabled;
+        _showOverlayBorderCheck.Enabled = enabled;
         _useSimpleMicSpinnerCheck.Enabled = enabled;
     }
 

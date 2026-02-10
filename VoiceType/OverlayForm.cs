@@ -36,6 +36,7 @@ public class OverlayForm : Form
     private readonly System.Windows.Forms.Timer _hideTimer;
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
+    private bool _showOverlayBorder = true;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -80,7 +81,8 @@ public class OverlayForm : Form
         ApplyHudSettings(
             AppConfig.DefaultOverlayOpacityPercent,
             AppConfig.DefaultOverlayWidthPercent,
-            AppConfig.DefaultOverlayFontSizePt);
+            AppConfig.DefaultOverlayFontSizePt,
+            showBorder: true);
         UpdateRoundedRegion();
 
         // Position: bottom-center, above taskbar
@@ -177,16 +179,17 @@ public class OverlayForm : Form
         _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
-    public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt)
+    public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
     {
         if (InvokeRequired)
         {
-            Invoke(() => ApplyHudSettings(opacityPercent, widthPercent, fontSizePt));
+            Invoke(() => ApplyHudSettings(opacityPercent, widthPercent, fontSizePt, showBorder));
             return;
         }
 
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
         _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(fontSizePt);
+        _showOverlayBorder = showBorder;
         Opacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
 
         var oldFont = _label.Font;
@@ -199,6 +202,9 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
+        if (!_showOverlayBorder)
+            return;
+
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var pen = new Pen(BorderColor, 1.2f);
         var border = new Rectangle(0, 0, Width - 1, Height - 1);

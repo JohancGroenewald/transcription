@@ -65,6 +65,7 @@ public class AppConfig
     public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
     public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
     public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
+    public bool ShowOverlayBorder { get; set; } = true;
     public bool UseSimpleMicSpinner { get; set; }
     public bool EnablePenHotkey { get; set; }
     public string PenHotkey { get; set; } = DefaultPenHotkey;
@@ -92,6 +93,7 @@ public class AppConfig
         public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
         public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
         public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
+        public bool ShowOverlayBorder { get; set; } = true;
         public bool UseSimpleMicSpinner { get; set; }
         public bool EnablePenHotkey { get; set; }
         public string PenHotkey { get; set; } = DefaultPenHotkey;
@@ -124,6 +126,7 @@ public class AppConfig
                 OverlayOpacityPercent = NormalizeOverlayOpacityPercent(configFile.OverlayOpacityPercent),
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
+                ShowOverlayBorder = configFile.ShowOverlayBorder,
                 UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
                 EnablePenHotkey = configFile.EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
@@ -156,6 +159,7 @@ public class AppConfig
                 OverlayOpacityPercent = NormalizeOverlayOpacityPercent(OverlayOpacityPercent),
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(OverlayFontSizePt),
+                ShowOverlayBorder = ShowOverlayBorder,
                 UseSimpleMicSpinner = UseSimpleMicSpinner,
                 EnablePenHotkey = EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(PenHotkey),

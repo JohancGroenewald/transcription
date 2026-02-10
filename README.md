@@ -72,6 +72,7 @@ Available settings:
 - `HUD opacity (%)` (50-100)
 - `HUD width (%)` (35-90)
 - `HUD font size (pt)` (9-22)
+- `Show HUD border line` (enable/disable)
 - `Use simple mic spinner (instead of level meter)`
 - `Enable Surface Pen hotkey` (enable/disable)
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)

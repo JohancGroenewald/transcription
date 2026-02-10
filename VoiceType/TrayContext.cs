@@ -130,7 +130,8 @@ public class TrayContext : ApplicationContext
         _overlay.ApplyHudSettings(
             config.OverlayOpacityPercent,
             config.OverlayWidthPercent,
-            config.OverlayFontSizePt);
+            config.OverlayFontSizePt,
+            config.ShowOverlayBorder);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
