@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>1.0.19</Version>
+    <Version>1.0.20</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -23,7 +23,17 @@
     <PackageReference Include="OpenAI" Version="2.8.0" />
   </ItemGroup>
 
+  <Target Name="CreateVoiceTypeShortcuts" AfterTargets="Build"
+          Condition="'$(OS)' == 'Windows_NT' and Exists('$(TargetDir)$(AssemblyName).exe')">
+    <PropertyGroup>
+      <_VoiceTypeBuildExe>$(TargetDir)$(AssemblyName).exe</_VoiceTypeBuildExe>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_VoiceTypeBuildExe)&quot; --create-activate-shortcut" ContinueOnError="WarnAndContinue" />
+    <Exec Command="&quot;$(_VoiceTypeBuildExe)&quot; --create-submit-shortcut" ContinueOnError="WarnAndContinue" />
+  </Target>
+
 </Project>
+
 
 
 

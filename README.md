@@ -96,6 +96,11 @@ Voice commands are matched as exact phrases after trimming punctuation and case 
 - `--pin-to-taskbar`: best-effort pin of current VoiceType executable to Windows taskbar
 - `--unpin-from-taskbar`: best-effort unpin of current VoiceType executable from Windows taskbar
 - `--create-activate-shortcut`: create `VoiceTypeActivate.exe.lnk` next to the executable (targets `--listen`)
+- `--create-submit-shortcut`: create `VoiceTypeSubmit.exe.lnk` next to the executable (targets `--submit`)
+
+Build automation:
+
+- On Windows `.exe` builds, VoiceType now auto-creates both `VoiceTypeActivate.exe.lnk` and `VoiceTypeSubmit.exe.lnk` in the output folder.
 
 ## Single-Instance Behavior
 

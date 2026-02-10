@@ -67,14 +67,16 @@ static class Program
         var requestPinToTaskbar = args.Contains("--pin-to-taskbar", StringComparer.OrdinalIgnoreCase);
         var requestUnpinFromTaskbar = args.Contains("--unpin-from-taskbar", StringComparer.OrdinalIgnoreCase);
         var requestCreateActivateShortcut = args.Contains("--create-activate-shortcut", StringComparer.OrdinalIgnoreCase);
+        var requestCreateSubmitShortcut = args.Contains("--create-submit-shortcut", StringComparer.OrdinalIgnoreCase);
         var utilityRequestCount =
             (requestPinToTaskbar ? 1 : 0) +
             (requestUnpinFromTaskbar ? 1 : 0) +
-            (requestCreateActivateShortcut ? 1 : 0);
+            (requestCreateActivateShortcut ? 1 : 0) +
+            (requestCreateSubmitShortcut ? 1 : 0);
         if (utilityRequestCount > 1)
         {
             EnsureConsoleForCliOutput();
-            Console.Error.WriteLine("Specify only one of: --pin-to-taskbar, --unpin-from-taskbar, --create-activate-shortcut.");
+            Console.Error.WriteLine("Specify only one of: --pin-to-taskbar, --unpin-from-taskbar, --create-activate-shortcut, --create-submit-shortcut.");
             Environment.ExitCode = 2;
             return;
         }
@@ -101,6 +103,23 @@ static class Program
                 shortcutFileName: "VoiceTypeActivate.exe.lnk",
                 arguments: "--listen",
                 description: "Trigger VoiceType listen mode",
+                out var message);
+            if (succeeded)
+                Console.WriteLine(message);
+            else
+                Console.Error.WriteLine(message);
+
+            Environment.ExitCode = succeeded ? 0 : 1;
+            return;
+        }
+
+        if (requestCreateSubmitShortcut)
+        {
+            EnsureConsoleForCliOutput();
+            var succeeded = ShortcutManager.TryCreateCurrentExecutableShortcut(
+                shortcutFileName: "VoiceTypeSubmit.exe.lnk",
+                arguments: "--submit",
+                description: "Trigger VoiceType submit mode",
                 out var message);
             if (succeeded)
                 Console.WriteLine(message);
@@ -405,6 +424,7 @@ static class Program
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
         Console.WriteLine("  --create-activate-shortcut  Create VoiceTypeActivate.exe.lnk for --listen.");
+        Console.WriteLine("  --create-submit-shortcut  Create VoiceTypeSubmit.exe.lnk for --submit.");
         Console.WriteLine();
         Console.WriteLine("Default behavior:");
         Console.WriteLine("  Launching without options starts VoiceType, or triggers dictation in existing instance.");
