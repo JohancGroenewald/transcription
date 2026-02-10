@@ -478,7 +478,8 @@ public class TrayContext : ApplicationContext
         string text,
         Color? color = null,
         int? durationMs = null,
-        ContentAlignment textAlign = ContentAlignment.MiddleCenter)
+        ContentAlignment textAlign = ContentAlignment.MiddleCenter,
+        bool centerTextBlock = false)
     {
         if (!_enableOverlayPopups)
             return;
@@ -487,7 +488,7 @@ public class TrayContext : ApplicationContext
             ? 0
             : _overlayDurationMs;
 
-        _overlay.ShowMessage(text, color, effectiveDurationMs, textAlign);
+        _overlay.ShowMessage(text, color, effectiveDurationMs, textAlign, centerTextBlock);
     }
 
     private void StartListeningOverlay()
@@ -616,7 +617,8 @@ public class TrayContext : ApplicationContext
             "Voice commands:\n- " + string.Join("\n- ", commands),
             Color.CornflowerBlue,
             4500,
-            ContentAlignment.TopLeft);
+            ContentAlignment.TopLeft,
+            centerTextBlock: true);
     }
 
     private void TriggerSend()

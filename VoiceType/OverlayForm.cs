@@ -37,6 +37,8 @@ public class OverlayForm : Form
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
     private bool _showOverlayBorder = true;
+    private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
+    private bool _lastCenterTextBlock;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -137,17 +139,19 @@ public class OverlayForm : Form
         string text,
         Color? color = null,
         int durationMs = 3000,
-        ContentAlignment textAlign = ContentAlignment.MiddleCenter)
+        ContentAlignment textAlign = ContentAlignment.MiddleCenter,
+        bool centerTextBlock = false)
     {
         if (InvokeRequired)
         {
-            Invoke(() => ShowMessage(text, color, durationMs, textAlign));
+            Invoke(() => ShowMessage(text, color, durationMs, textAlign, centerTextBlock));
             return;
         }
 
         _label.Text = text;
         _label.ForeColor = color ?? DefaultTextColor;
-        _label.TextAlign = textAlign;
+        _lastTextAlign = textAlign;
+        _lastCenterTextBlock = centerTextBlock;
 
         var workingArea = GetTargetScreen().WorkingArea;
         var preferredWidth = Math.Clamp(
@@ -166,6 +170,7 @@ public class OverlayForm : Form
         var height = Math.Max(MinOverlayHeight, measured.Height + Padding.Vertical + 8);
 
         Size = new Size(width, height);
+        ConfigureLabelLayout(measured, textAlign, centerTextBlock);
         PositionOnScreen(workingArea);
 
         _hideTimer.Stop();
@@ -202,7 +207,27 @@ public class OverlayForm : Form
         oldFont.Dispose();
 
         if (Visible)
-            ShowMessage(_label.Text, _label.ForeColor, _hideTimer.Interval, _label.TextAlign);
+            ShowMessage(_label.Text, _label.ForeColor, _hideTimer.Interval, _lastTextAlign, _lastCenterTextBlock);
+    }
+
+    private void ConfigureLabelLayout(Size measuredTextSize, ContentAlignment textAlign, bool centerTextBlock)
+    {
+        if (!centerTextBlock)
+        {
+            _label.Dock = DockStyle.Fill;
+            _label.TextAlign = textAlign;
+            return;
+        }
+
+        _label.Dock = DockStyle.None;
+        var maxLabelWidth = Math.Max(40, ClientSize.Width - Padding.Horizontal);
+        var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical);
+        var labelWidth = Math.Clamp(measuredTextSize.Width, 1, maxLabelWidth);
+        var labelHeight = Math.Clamp(measuredTextSize.Height, 1, maxLabelHeight);
+        var left = Math.Max(Padding.Left, (ClientSize.Width - labelWidth) / 2);
+        var top = Math.Max(Padding.Top, (ClientSize.Height - labelHeight) / 2);
+        _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
+        _label.TextAlign = ContentAlignment.TopLeft;
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
