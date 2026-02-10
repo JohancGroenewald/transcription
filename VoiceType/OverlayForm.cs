@@ -56,6 +56,8 @@ public class OverlayForm : Form
 
     public OverlayForm()
     {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        UpdateStyles();
         DoubleBuffered = true;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -166,45 +168,56 @@ public class OverlayForm : Form
             return;
         }
 
-        _label.Text = text;
-        _label.ForeColor = color ?? DefaultTextColor;
-        _lastDurationMs = durationMs;
-        _lastTextAlign = textAlign;
-        _lastCenterTextBlock = centerTextBlock;
-
-        var workingArea = GetTargetScreen().WorkingArea;
-        var preferredWidth = Math.Clamp(
-            (int)(workingArea.Width * (_overlayWidthPercent / 100.0)),
-            MinOverlayWidth,
-            MaxOverlayWidth);
-        var width = Math.Min(preferredWidth, workingArea.Width - HorizontalMargin * 2);
-        if (width < 260)
-            width = Math.Max(220, workingArea.Width - 12);
-
-        var measured = TextRenderer.MeasureText(
-            text,
-            _label.Font,
-            new Size(width - Padding.Horizontal, int.MaxValue),
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-        var height = Math.Max(MinOverlayHeight, measured.Height + Padding.Vertical + 8);
-
-        Size = new Size(width, height);
-        ConfigureLabelLayout(measured, textAlign, centerTextBlock);
-        PositionOnScreen(workingArea);
-
-        _fadeTimer.Stop();
-        _hideTimer.Stop();
-        Opacity = _baseOpacity;
-        if (durationMs > 0)
+        SuspendLayout();
+        try
         {
-            _hideTimer.Interval = durationMs;
-            _hideTimer.Start();
+            _label.Text = text;
+            _label.ForeColor = color ?? DefaultTextColor;
+            _lastDurationMs = durationMs;
+            _lastTextAlign = textAlign;
+            _lastCenterTextBlock = centerTextBlock;
+
+            var workingArea = GetTargetScreen().WorkingArea;
+            var preferredWidth = Math.Clamp(
+                (int)(workingArea.Width * (_overlayWidthPercent / 100.0)),
+                MinOverlayWidth,
+                MaxOverlayWidth);
+            var width = Math.Min(preferredWidth, workingArea.Width - HorizontalMargin * 2);
+            if (width < 260)
+                width = Math.Max(220, workingArea.Width - 12);
+
+            var measured = TextRenderer.MeasureText(
+                text,
+                _label.Font,
+                new Size(width - Padding.Horizontal, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            var height = Math.Max(MinOverlayHeight, measured.Height + Padding.Vertical + 8);
+
+            Size = new Size(width, height);
+            ConfigureLabelLayout(measured, textAlign, centerTextBlock);
+            PositionOnScreen(workingArea);
+
+            _fadeTimer.Stop();
+            _hideTimer.Stop();
+            Opacity = _baseOpacity;
+            if (durationMs > 0)
+            {
+                _hideTimer.Interval = durationMs;
+                _hideTimer.Start();
+            }
+        }
+        finally
+        {
+            ResumeLayout(performLayout: true);
         }
 
         if (!Visible)
             Show();
         else
-            Refresh();
+        {
+            Invalidate(invalidateChildren: true);
+            Update();
+        }
 
         // Reassert topmost without activating so notifications stay visible.
         _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
