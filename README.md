@@ -131,19 +131,22 @@ Build automation:
 You can bind generated `.lnk` files to Surface Pen or any programmable input device (mouse buttons, macro keyboards, Stream Deck, foot pedals, etc.).
 
 1. Build VoiceType in your chosen configuration (`Debug` or `Release`).
-2. In that output folder, use:
-- `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
-- `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
-3. If links are missing, regenerate from that same folder:
+1. In that output folder, use:
+
+   - `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
+   - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
+
+1. If links are missing, regenerate from that same folder:
 
 ```powershell
 .\VoiceType.exe --create-activate-shortcut
 .\VoiceType.exe --create-submit-shortcut
 ```
 
-4. Map device buttons to those `.lnk` files:
-- Surface Pen: in Windows Pen settings, set action to `Open a program` and choose the `.lnk`.
-- Other devices: in device software, set action to launch the `.lnk`.
+1. Map device buttons to those `.lnk` files:
+
+   - Surface Pen: in Windows Pen settings, set action to `Open a program` and choose the `.lnk`.
+   - Other devices: in device software, set action to launch the `.lnk`.
 
 Recommended mapping:
 
