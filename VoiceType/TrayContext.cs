@@ -623,12 +623,13 @@ public class TrayContext : ApplicationContext
 
         var lines = new List<string>(commandStates.Length);
         var enabledCount = 0;
+        var phraseColumnWidth = commandStates.Max(x => x.Phrase.Length);
         foreach (var (phrase, enabled) in commandStates)
         {
             if (enabled)
                 enabledCount++;
 
-            lines.Add($"{phrase} [{(enabled ? "enabled" : "disabled")}]");
+            lines.Add($"{phrase.PadRight(phraseColumnWidth)}  [{(enabled ? "enabled" : "disabled")}]");
         }
 
         var suffix = enabledCount == 0 ? "\nAll commands are disabled in Settings." : string.Empty;

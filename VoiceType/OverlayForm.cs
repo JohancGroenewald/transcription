@@ -216,16 +216,23 @@ public class OverlayForm : Form
             ResumeLayout(performLayout: true);
         }
 
-        if (!Visible)
-            Show();
-        else
+        var wasVisible = Visible;
+        if (!wasVisible)
         {
-            Invalidate(invalidateChildren: true);
-            Update();
+            // Reveal only after the new frame is painted to avoid stale-buffer flashes.
+            Opacity = 0;
+            Show();
         }
 
-        // Reassert topmost without activating so notifications stay visible.
-        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        Invalidate(invalidateChildren: true);
+        Update();
+
+        if (!wasVisible)
+            Opacity = _baseOpacity;
+
+        // Reassert topmost without activating when newly shown.
+        if (!wasVisible)
+            _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
@@ -330,6 +337,7 @@ public class OverlayForm : Form
         {
             _fadeTimer.Stop();
             _fadeMessageId = 0;
+            _label.Text = string.Empty;
             Hide();
             return;
         }
