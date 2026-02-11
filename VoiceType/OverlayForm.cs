@@ -41,6 +41,7 @@ public class OverlayForm : Form
     private bool _showOverlayBorder = true;
     private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
     private int _lastDurationMs = 3000;
+    // Message IDs prevent stale hide/fade timer ticks from resurfacing previous text.
     private int _activeMessageId;
     private int _hideTimerMessageId;
     private int _fadeMessageId;
