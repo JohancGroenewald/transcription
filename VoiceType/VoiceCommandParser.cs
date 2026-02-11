@@ -63,6 +63,8 @@ public static class VoiceCommandParser
         if (enableShowVoiceCommandsVoiceCommand && MatchesPhrase(
             normalized,
             "show voice commands",
+            "show voice command",
+            "show voice clones",
             "list voice commands",
             "what are voice commands"))
             return ShowVoiceCommands;
