@@ -22,7 +22,6 @@ public class OverlayForm : Form
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOACTIVATE = 0x0010;
-    private const uint SWP_SHOWWINDOW = 0x0040;
     private static readonly IntPtr HWND_TOPMOST = new(-1);
 
     [DllImport("user32.dll")]
@@ -42,6 +41,9 @@ public class OverlayForm : Form
     private bool _showOverlayBorder = true;
     private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
     private int _lastDurationMs = 3000;
+    private int _activeMessageId;
+    private int _hideTimerMessageId;
+    private int _fadeMessageId;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastCenterTextBlock;
 
@@ -80,11 +82,7 @@ public class OverlayForm : Form
         Controls.Add(_label);
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = 3000 };
-        _hideTimer.Tick += (s, e) =>
-        {
-            _hideTimer.Stop();
-            BeginFadeOut();
-        };
+        _hideTimer.Tick += (s, e) => OnHideTimerTick();
         _fadeTimer = new System.Windows.Forms.Timer { Interval = FadeTickIntervalMs };
         _fadeTimer.Tick += (s, e) => OnFadeTick();
 
@@ -127,6 +125,8 @@ public class OverlayForm : Form
             _hideTimer.Stop();
             _fadeTimer.Stop();
             Opacity = _baseOpacity;
+            _hideTimerMessageId = 0;
+            _fadeMessageId = 0;
         }
     }
 
@@ -168,6 +168,8 @@ public class OverlayForm : Form
             return;
         }
 
+        var messageId = unchecked(++_activeMessageId);
+
         SuspendLayout();
         try
         {
@@ -199,9 +201,12 @@ public class OverlayForm : Form
 
             _fadeTimer.Stop();
             _hideTimer.Stop();
+            _fadeMessageId = 0;
+            _hideTimerMessageId = 0;
             Opacity = _baseOpacity;
             if (durationMs > 0)
             {
+                _hideTimerMessageId = messageId;
                 _hideTimer.Interval = durationMs;
                 _hideTimer.Start();
             }
@@ -220,7 +225,7 @@ public class OverlayForm : Form
         }
 
         // Reassert topmost without activating so notifications stay visible.
-        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
@@ -288,22 +293,43 @@ public class OverlayForm : Form
         oldRegion?.Dispose();
     }
 
-    private void BeginFadeOut()
+    private void OnHideTimerTick()
+    {
+        _hideTimer.Stop();
+
+        if (!Visible)
+            return;
+
+        if (_hideTimerMessageId == 0 || _hideTimerMessageId != _activeMessageId)
+            return;
+
+        BeginFadeOut(_hideTimerMessageId);
+    }
+
+    private void BeginFadeOut(int messageId)
     {
         if (!Visible)
             return;
 
+        _fadeMessageId = messageId;
         _fadeTimer.Stop();
         _fadeTimer.Start();
     }
 
     private void OnFadeTick()
     {
+        if (_fadeMessageId == 0 || _fadeMessageId != _activeMessageId)
+        {
+            _fadeTimer.Stop();
+            return;
+        }
+
         var steps = Math.Max(1, FadeDurationMs / FadeTickIntervalMs);
         var nextOpacity = Opacity - (_baseOpacity / steps);
         if (nextOpacity <= 0.02)
         {
             _fadeTimer.Stop();
+            _fadeMessageId = 0;
             Hide();
             return;
         }
