@@ -417,7 +417,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 4,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -426,49 +426,107 @@ public class SettingsForm : Form
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var voiceHelp = new Label
         {
-            Text = "Commands are matched exactly (optional 'please' before or after).",
+            Text = "Each command can be enabled/disabled. Common supported phrases are listed below each command.",
             AutoSize = true,
             ForeColor = Color.DimGray,
             Margin = new Padding(0, 0, 0, 8)
         };
 
+        var voiceCommandTable = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 5,
+            RowCount = 2,
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = new Padding(0)
+        };
+        for (var i = 0; i < 5; i++)
+            voiceCommandTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20f));
+        voiceCommandTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        voiceCommandTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
         _openSettingsVoiceCommandCheck = new CheckBox
         {
-            Text = "Enable \"open settings\"",
+            Text = "Open Settings",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = new Padding(0, 0, 10, 4)
         };
         _exitAppVoiceCommandCheck = new CheckBox
         {
-            Text = "Enable \"exit app\"",
+            Text = "Exit App",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = new Padding(0, 0, 10, 4)
         };
         _toggleAutoEnterVoiceCommandCheck = new CheckBox
         {
-            Text = "Enable \"auto-send on/off\"",
+            Text = "Auto-Send",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = new Padding(0, 0, 10, 4)
         };
         _sendVoiceCommandCheck = new CheckBox
         {
-            Text = "Enable \"send\" (press Enter)",
+            Text = "Send",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = new Padding(0, 0, 10, 4)
         };
         _showVoiceCommandsVoiceCommandCheck = new CheckBox
         {
-            Text = "Enable \"show voice commands\"",
+            Text = "Show Commands",
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 8)
+            Margin = new Padding(0, 0, 0, 4)
         };
+
+        var openSettingsExamples = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 0, 10, 8),
+            Text = "open settings\nopen settings screen\nshow settings\nshow settings screen"
+        };
+        var exitAppExamples = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 0, 10, 8),
+            Text = "exit app\nclose app\nquit app\nclose voice type"
+        };
+        var autoSendExamples = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 0, 10, 8),
+            Text = "auto-send on\nauto-send off\nauto on / auto off\nenable/disable auto-send"
+        };
+        var sendExamples = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 0, 10, 8),
+            Text = "send\nsend message\nsend command\nsubmit\npress enter"
+        };
+        var showCommandsExamples = new Label
+        {
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Margin = new Padding(0, 0, 0, 8),
+            Text = "show voice commands\nshow voice command\nlist voice commands\nwhat are voice commands"
+        };
+
+        voiceCommandTable.Controls.Add(_openSettingsVoiceCommandCheck, 0, 0);
+        voiceCommandTable.Controls.Add(_exitAppVoiceCommandCheck, 1, 0);
+        voiceCommandTable.Controls.Add(_toggleAutoEnterVoiceCommandCheck, 2, 0);
+        voiceCommandTable.Controls.Add(_sendVoiceCommandCheck, 3, 0);
+        voiceCommandTable.Controls.Add(_showVoiceCommandsVoiceCommandCheck, 4, 0);
+        voiceCommandTable.Controls.Add(openSettingsExamples, 0, 1);
+        voiceCommandTable.Controls.Add(exitAppExamples, 1, 1);
+        voiceCommandTable.Controls.Add(autoSendExamples, 2, 1);
+        voiceCommandTable.Controls.Add(sendExamples, 3, 1);
+        voiceCommandTable.Controls.Add(showCommandsExamples, 4, 1);
 
         var validatorPanel = new TableLayoutPanel
         {
@@ -539,13 +597,9 @@ public class SettingsForm : Form
         _showVoiceCommandsVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
 
         voiceLayout.Controls.Add(voiceHelp, 0, 0);
-        voiceLayout.Controls.Add(_openSettingsVoiceCommandCheck, 0, 1);
-        voiceLayout.Controls.Add(_exitAppVoiceCommandCheck, 0, 2);
-        voiceLayout.Controls.Add(_toggleAutoEnterVoiceCommandCheck, 0, 3);
-        voiceLayout.Controls.Add(_sendVoiceCommandCheck, 0, 4);
-        voiceLayout.Controls.Add(_showVoiceCommandsVoiceCommandCheck, 0, 5);
-        voiceLayout.Controls.Add(validatorPanel, 0, 6);
-        voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 7);
+        voiceLayout.Controls.Add(voiceCommandTable, 0, 1);
+        voiceLayout.Controls.Add(validatorPanel, 0, 2);
+        voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 3);
         grpVoiceCommands.Controls.Add(voiceLayout);
 
         var grpAppInfo = new GroupBox
