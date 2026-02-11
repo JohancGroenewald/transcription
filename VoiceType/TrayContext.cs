@@ -7,6 +7,7 @@ namespace VoiceType;
 public class TrayContext : ApplicationContext
 {
     private static readonly string[] MicSpinnerFrames = ["|", "/", "-", "\\"];
+    private static readonly Color CommandOverlayColor = Color.DeepSkyBlue;
 
     private const int PRIMARY_HOTKEY_ID = 1;
     private const int PEN_HOTKEY_ID = 2;
@@ -588,29 +589,29 @@ public class TrayContext : ApplicationContext
         switch (command)
         {
             case VoiceCommandParser.Exit:
-                ShowOverlay("Goodbye!", Color.LightGreen, 1000);
+                ShowOverlay("Command: exit app", CommandOverlayColor, 1000);
                 _ = Task.Delay(800).ContinueWith(_ => Invoke(Shutdown));
                 break;
             case VoiceCommandParser.Settings:
-                ShowOverlay("Opening settings...", Color.CornflowerBlue, 1000);
+                ShowOverlay("Command: open settings", CommandOverlayColor, 1000);
                 OnSettings(null, EventArgs.Empty);
                 break;
             case VoiceCommandParser.AutoSendYes:
-                SetAutoSend(true);
+                SetAutoSend(true, fromVoiceCommand: true);
                 break;
             case VoiceCommandParser.AutoSendNo:
-                SetAutoSend(false);
+                SetAutoSend(false, fromVoiceCommand: true);
                 break;
             case VoiceCommandParser.Send:
-                TriggerSend();
+                TriggerSend(fromVoiceCommand: true);
                 break;
             case VoiceCommandParser.ShowVoiceCommands:
-                ShowVoiceCommands();
+                ShowVoiceCommands(fromVoiceCommand: true);
                 break;
         }
     }
 
-    private void ShowVoiceCommands()
+    private void ShowVoiceCommands(bool fromVoiceCommand = false)
     {
         var commandStates = new (string Phrase, bool Enabled)[]
         {
@@ -636,30 +637,41 @@ public class TrayContext : ApplicationContext
         var suffix = enabledCount == 0 ? "\nAll commands are disabled in Settings." : string.Empty;
         ShowOverlay(
             "Voice commands\n- " + string.Join("\n- ", lines) + suffix,
-            enabledCount == 0 ? Color.Gray : Color.CornflowerBlue,
+            enabledCount == 0
+                ? Color.Gray
+                : (fromVoiceCommand ? CommandOverlayColor : Color.CornflowerBlue),
             5500,
             ContentAlignment.TopLeft,
             centerTextBlock: true);
     }
 
-    private void TriggerSend()
+    private void TriggerSend(bool fromVoiceCommand = false)
     {
         if (!TextInjector.SendEnter())
         {
-            ShowOverlay("No target window to send Enter", Color.Gold, 1800);
+            var failedText = fromVoiceCommand
+                ? "Command: send (no target window)"
+                : "No target window to send Enter";
+            ShowOverlay(failedText, Color.Gold, 1800);
             return;
         }
 
-        ShowOverlay("Sent", Color.LightGreen, 1000);
+        var sentText = fromVoiceCommand ? "Command: send" : "Sent";
+        var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
+        ShowOverlay(sentText, sentColor, 1000);
         Log.Info("Enter key sent");
     }
 
-    private void SetAutoSend(bool enabled)
+    private void SetAutoSend(bool enabled, bool fromVoiceCommand = false)
     {
         if (_autoEnter == enabled)
         {
             var existingStateLabel = enabled ? "yes" : "no";
-            ShowOverlay($"Auto-send already {existingStateLabel}", Color.Gray, 1200);
+            var existingText = fromVoiceCommand
+                ? $"Command: auto-send {existingStateLabel} (already set)"
+                : $"Auto-send already {existingStateLabel}";
+            var existingColor = fromVoiceCommand ? CommandOverlayColor : Color.Gray;
+            ShowOverlay(existingText, existingColor, 1200);
             return;
         }
 
@@ -671,7 +683,11 @@ public class TrayContext : ApplicationContext
             _autoEnter = enabled;
 
             var stateLabel = enabled ? "yes" : "no";
-            ShowOverlay($"Auto-send {stateLabel}", Color.LightGreen, 1500);
+            var stateText = fromVoiceCommand
+                ? $"Command: auto-send {stateLabel}"
+                : $"Auto-send {stateLabel}";
+            var stateColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
+            ShowOverlay(stateText, stateColor, 1500);
             Log.Info($"Auto-send set via voice command ({stateLabel})");
         }
         catch (Exception ex)
