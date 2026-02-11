@@ -612,28 +612,30 @@ public class TrayContext : ApplicationContext
 
     private void ShowVoiceCommands()
     {
-        var commands = new List<string>();
-        if (_enableOpenSettingsVoiceCommand)
-            commands.Add("open settings");
-        if (_enableExitAppVoiceCommand)
-            commands.Add("exit app");
-        if (_enableToggleAutoEnterVoiceCommand)
-            commands.Add("auto-send on / auto-send off");
-        if (_enableSendVoiceCommand)
-            commands.Add("send");
-        if (_enableShowVoiceCommandsVoiceCommand)
-            commands.Add("show voice commands");
-
-        if (commands.Count == 0)
+        var commandStates = new (string Phrase, bool Enabled)[]
         {
-            ShowOverlay("Voice commands are all disabled in Settings", Color.Gray, 2500);
-            return;
+            ("open settings", _enableOpenSettingsVoiceCommand),
+            ("exit app", _enableExitAppVoiceCommand),
+            ("auto-send on / auto-send off", _enableToggleAutoEnterVoiceCommand),
+            ("send", _enableSendVoiceCommand),
+            ("show voice commands", _enableShowVoiceCommandsVoiceCommand)
+        };
+
+        var lines = new List<string>(commandStates.Length);
+        var enabledCount = 0;
+        foreach (var (phrase, enabled) in commandStates)
+        {
+            if (enabled)
+                enabledCount++;
+
+            lines.Add($"{phrase} [{(enabled ? "enabled" : "disabled")}]");
         }
 
+        var suffix = enabledCount == 0 ? "\nAll commands are disabled in Settings." : string.Empty;
         ShowOverlay(
-            "Voice commands\n- " + string.Join("\n- ", commands),
-            Color.CornflowerBlue,
-            4500,
+            "Voice commands\n- " + string.Join("\n- ", lines) + suffix,
+            enabledCount == 0 ? Color.Gray : Color.CornflowerBlue,
+            5500,
             ContentAlignment.TopLeft,
             centerTextBlock: true);
     }
