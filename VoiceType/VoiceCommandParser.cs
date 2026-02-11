@@ -42,7 +42,12 @@ public static class VoiceCommandParser
             "exit voicetype"))
             return Exit;
 
-        if (enableOpenSettingsVoiceCommand && MatchesPhrase(normalized, "open settings"))
+        if (enableOpenSettingsVoiceCommand && MatchesPhrase(
+            normalized,
+            "open settings",
+            "open settings screen",
+            "show settings",
+            "show settings screen"))
             return Settings;
 
         if (enableToggleAutoEnterVoiceCommand && MatchesAutoSendEnabled(normalized))
