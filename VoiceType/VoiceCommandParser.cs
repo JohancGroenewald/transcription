@@ -64,6 +64,8 @@ public static class VoiceCommandParser
             normalized,
             "show voice commands",
             "show voice command",
+            "share voice commands",
+            "share voice command",
             "list voice commands",
             "what are voice commands"))
             return ShowVoiceCommands;
