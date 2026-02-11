@@ -629,7 +629,8 @@ public class TrayContext : ApplicationContext
             if (enabled)
                 enabledCount++;
 
-            lines.Add($"{phrase.PadRight(phraseColumnWidth)}  [{(enabled ? "enabled" : "disabled")}]");
+            var statusTag = enabled ? "[ON ]" : "[OFF]";
+            lines.Add($"{phrase.PadRight(phraseColumnWidth)}  {statusTag}");
         }
 
         var suffix = enabledCount == 0 ? "\nAll commands are disabled in Settings." : string.Empty;
