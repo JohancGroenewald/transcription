@@ -71,7 +71,7 @@ git config --unset core.hooksPath
 - Listening HUD with mic meter or simple spinner mode
 - Transcribed-text HUD preview with adaptive duration and countdown progress bar
 - Tap-to-cancel transcribed preview before paste
-- Pen single-click cancel while transcribed preview countdown is running
+- Pen/listen single-press cancel or double-press immediate paste (without auto-send) during countdown
 - Configurable post-cancel debounce to ignore duplicate listen triggers
 - Clipboard-based text injection with optional auto-send (Enter)
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send on`, `auto-send off`, `submit`, `show voice commands`
@@ -88,7 +88,8 @@ git config --unset core.hooksPath
 1. Press it again to stop and transcribe.
 1. VoiceType shows transcribed text in a green HUD preview with a countdown bar.
 1. Optional: click/tap the preview while countdown is running to cancel paste.
-1. Optional: if Surface Pen hotkey is enabled, press the pen button once during countdown to cancel paste.
+1. Optional: trigger listen once during countdown to cancel paste (pen or `--listen` launcher).
+1. Optional: trigger listen twice quickly during countdown to paste immediately without auto-send (so you can edit before sending).
 1. If not canceled, VoiceType pastes the text into the active target and optionally sends Enter if auto-send is enabled.
 1. If no valid target is focused, text remains on clipboard and the HUD shows a fallback notice.
 

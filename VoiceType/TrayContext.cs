@@ -20,6 +20,7 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayMsPerWord = 320;
     private const int AdaptiveOverlayMaxMs = 22000;
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
+    private const int PendingPreviewDoublePressWindowMs = 380;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -58,6 +59,7 @@ public class TrayContext : ApplicationContext
     private readonly AudioRecorder _recorder;
     private readonly OverlayForm _overlay;
     private readonly System.Windows.Forms.Timer _listeningOverlayTimer;
+    private readonly System.Windows.Forms.Timer _pendingPreviewTriggerTimer;
     private readonly Icon _appIcon;
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
@@ -85,9 +87,17 @@ public class TrayContext : ApplicationContext
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
     private int _pendingPastePreviewMessageId;
-    private TaskCompletionSource<bool>? _pendingPasteCanceledTcs;
+    private TaskCompletionSource<TranscribedPreviewDecision>? _pendingPastePreviewDecisionTcs;
+    private int _pendingPreviewTriggerCount;
     private DateTime _ignoreListenUntilUtc;
     private int _cancelListenSuppressionMs = AppConfig.DefaultCancelListenSuppressionMs;
+
+    private enum TranscribedPreviewDecision
+    {
+        TimeoutPaste = 0,
+        Cancel = 1,
+        PasteWithoutSend = 2
+    }
 
     public TrayContext()
     {
@@ -97,6 +107,8 @@ public class TrayContext : ApplicationContext
         _recorder.InputLevelChanged += OnRecorderInputLevelChanged;
         _listeningOverlayTimer = new System.Windows.Forms.Timer { Interval = 120 };
         _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
+        _pendingPreviewTriggerTimer = new System.Windows.Forms.Timer { Interval = PendingPreviewDoublePressWindowMs };
+        _pendingPreviewTriggerTimer.Tick += OnPendingPreviewTriggerTimerTick;
         _overlay = new OverlayForm();
         _overlay.OverlayTapped += OnOverlayTapped;
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -200,7 +212,7 @@ public class TrayContext : ApplicationContext
         {
             if (e.HotkeyId == PEN_HOTKEY_ID)
             {
-                if (TryCancelPendingPastePreview("pen hotkey"))
+                if (TryHandlePendingPreviewListenTrigger("pen hotkey"))
                     return;
             }
 
@@ -255,17 +267,23 @@ public class TrayContext : ApplicationContext
                     }
 
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(text);
-                    var canceled = await ShowCancelableTranscribedPreviewAsync(text, adaptiveDurationMs);
-                    if (canceled)
+                    var previewDecision = await ShowCancelableTranscribedPreviewAsync(text, adaptiveDurationMs);
+                    if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
-                        Log.Info("Paste canceled by tap during transcribed preview.");
+                        Log.Info("Paste canceled during transcribed preview.");
                         ShowOverlay("Paste canceled", Color.Gray, 1000);
                         return;
                     }
 
-                    var pasted = TextInjector.InjectText(text, _autoEnter);
+                    var autoSend = previewDecision == TranscribedPreviewDecision.PasteWithoutSend
+                        ? false
+                        : _autoEnter;
+                    var pasted = TextInjector.InjectText(text, autoSend);
                     if (pasted)
                     {
+                        if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
+                            ShowOverlay("Pasted (auto-send skipped)", Color.LightGreen, 1000);
+
                         Log.Info("Text injected via clipboard");
                     }
                     else
@@ -406,7 +424,7 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
-            if (TryCancelPendingPastePreview("remote listen request"))
+            if (TryHandlePendingPreviewListenTrigger("remote listen request"))
                 return;
 
             if (IsListenSuppressed("remote listen request"))
@@ -880,6 +898,8 @@ public class TrayContext : ApplicationContext
             UnregisterHotkeys();
             _listeningOverlayTimer.Stop();
             _listeningOverlayTimer.Dispose();
+            _pendingPreviewTriggerTimer.Stop();
+            _pendingPreviewTriggerTimer.Dispose();
             _overlay.OverlayTapped -= OnOverlayTapped;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
@@ -891,7 +911,7 @@ public class TrayContext : ApplicationContext
         base.Dispose(disposing);
     }
 
-    private async Task<bool> ShowCancelableTranscribedPreviewAsync(string text, int durationMs)
+    private async Task<TranscribedPreviewDecision> ShowCancelableTranscribedPreviewAsync(string text, int durationMs)
     {
         var previewText = text;
         var messageId = ShowOverlay(
@@ -901,23 +921,27 @@ public class TrayContext : ApplicationContext
             showCountdownBar: true,
             tapToCancel: true);
         if (messageId == 0 || durationMs <= 0)
-            return false;
+            return TranscribedPreviewDecision.TimeoutPaste;
 
         _pendingPastePreviewMessageId = messageId;
-        _pendingPasteCanceledTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingPastePreviewDecisionTcs = new TaskCompletionSource<TranscribedPreviewDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingPreviewTriggerCount = 0;
+        _pendingPreviewTriggerTimer.Stop();
         try
         {
             var waitMs = durationMs + TranscribedOverlayCancelWindowPaddingMs;
-            var completed = await Task.WhenAny(_pendingPasteCanceledTcs.Task, Task.Delay(waitMs));
-            if (completed == _pendingPasteCanceledTcs.Task)
-                return _pendingPasteCanceledTcs.Task.Result;
+            var completed = await Task.WhenAny(_pendingPastePreviewDecisionTcs.Task, Task.Delay(waitMs));
+            if (completed == _pendingPastePreviewDecisionTcs.Task)
+                return _pendingPastePreviewDecisionTcs.Task.Result;
 
-            return false;
+            return TranscribedPreviewDecision.TimeoutPaste;
         }
         finally
         {
+            _pendingPreviewTriggerCount = 0;
+            _pendingPreviewTriggerTimer.Stop();
             _pendingPastePreviewMessageId = 0;
-            _pendingPasteCanceledTcs = null;
+            _pendingPastePreviewDecisionTcs = null;
         }
     }
 
@@ -926,24 +950,61 @@ public class TrayContext : ApplicationContext
         if (_pendingPastePreviewMessageId == 0 || e.MessageId != _pendingPastePreviewMessageId)
             return;
 
-        _ = TryCancelPendingPastePreview("overlay tap");
+        _ = TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "overlay tap");
     }
 
-    private bool TryCancelPendingPastePreview(string source)
+    private bool TryHandlePendingPreviewListenTrigger(string source)
     {
-        if (_pendingPastePreviewMessageId == 0 || _pendingPasteCanceledTcs == null)
+        if (_pendingPastePreviewMessageId == 0 || _pendingPastePreviewDecisionTcs == null)
             return false;
 
-        if (_pendingPasteCanceledTcs.Task.IsCompleted)
-            return false;
+        if (_pendingPastePreviewDecisionTcs.Task.IsCompleted)
+            return true;
 
-        var canceled = _pendingPasteCanceledTcs.TrySetResult(true);
-        if (canceled)
+        if (_pendingPreviewTriggerCount <= 0)
         {
-            ArmListenSuppression();
-            Log.Info($"Pending paste preview canceled via {source}.");
+            _pendingPreviewTriggerCount = 1;
+            _pendingPreviewTriggerTimer.Stop();
+            _pendingPreviewTriggerTimer.Start();
+            Log.Info($"Pending preview trigger captured from {source}. Waiting for second press...");
+            return true;
         }
-        return canceled;
+
+        _pendingPreviewTriggerTimer.Stop();
+        _pendingPreviewTriggerCount = 0;
+        return TryResolvePendingPastePreview(
+            TranscribedPreviewDecision.PasteWithoutSend,
+            source + " (double-press)");
+    }
+
+    private void OnPendingPreviewTriggerTimerTick(object? sender, EventArgs e)
+    {
+        _pendingPreviewTriggerTimer.Stop();
+        if (_pendingPreviewTriggerCount <= 0)
+            return;
+
+        _pendingPreviewTriggerCount = 0;
+        _ = TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "single-press");
+    }
+
+    private bool TryResolvePendingPastePreview(TranscribedPreviewDecision decision, string source)
+    {
+        if (_pendingPastePreviewMessageId == 0 || _pendingPastePreviewDecisionTcs == null)
+            return false;
+
+        if (_pendingPastePreviewDecisionTcs.Task.IsCompleted)
+            return false;
+
+        _pendingPreviewTriggerTimer.Stop();
+        _pendingPreviewTriggerCount = 0;
+
+        var resolved = _pendingPastePreviewDecisionTcs.TrySetResult(decision);
+        if (!resolved)
+            return false;
+
+        ArmListenSuppression();
+        Log.Info($"Pending paste preview resolved: {decision} via {source}.");
+        return true;
     }
 
     private void ArmListenSuppression()
