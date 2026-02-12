@@ -56,7 +56,7 @@ public class SettingsForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         KeyPreview = true;
         Padding = new Padding(12);
-        MinimumSize = new Size(620, 520);
+        MinimumSize = new Size(760, 520);
         KeyDown += OnSettingsKeyDown;
 
         var rootLayout = new TableLayoutPanel
