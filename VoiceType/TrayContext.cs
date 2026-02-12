@@ -20,7 +20,6 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayMsPerWord = 320;
     private const int AdaptiveOverlayMaxMs = 22000;
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
-    private const int CancelListenSuppressionMs = 1200;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -88,6 +87,7 @@ public class TrayContext : ApplicationContext
     private int _pendingPastePreviewMessageId;
     private TaskCompletionSource<bool>? _pendingPasteCanceledTcs;
     private DateTime _ignoreListenUntilUtc;
+    private int _cancelListenSuppressionMs = AppConfig.DefaultCancelListenSuppressionMs;
 
     public TrayContext()
     {
@@ -152,6 +152,7 @@ public class TrayContext : ApplicationContext
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
         _enableSendVoiceCommand = config.EnableSendVoiceCommand;
         _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
+        _cancelListenSuppressionMs = AppConfig.NormalizeCancelListenSuppressionMs(config.CancelListenSuppressionMs);
         _useSimpleMicSpinner = config.UseSimpleMicSpinner;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
@@ -948,7 +949,7 @@ public class TrayContext : ApplicationContext
 
     private void ArmListenSuppression()
     {
-        _ignoreListenUntilUtc = DateTime.UtcNow.AddMilliseconds(CancelListenSuppressionMs);
+        _ignoreListenUntilUtc = DateTime.UtcNow.AddMilliseconds(_cancelListenSuppressionMs);
     }
 
     private bool IsListenSuppressed(string source)

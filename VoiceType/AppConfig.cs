@@ -20,6 +20,9 @@ public class AppConfig
     public const int DefaultOverlayFontSizePt = 12;
     public const int MinOverlayFontSizePt = 9;
     public const int MaxOverlayFontSizePt = 22;
+    public const int DefaultCancelListenSuppressionMs = 1200;
+    public const int MinCancelListenSuppressionMs = 200;
+    public const int MaxCancelListenSuppressionMs = 5000;
     private static readonly string[] SupportedPenHotkeys =
     [
         "F13",
@@ -74,6 +77,7 @@ public class AppConfig
     public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
     public bool EnableSendVoiceCommand { get; set; } = true;
     public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
+    public int CancelListenSuppressionMs { get; set; } = DefaultCancelListenSuppressionMs;
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -103,6 +107,7 @@ public class AppConfig
         public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
         public bool EnableSendVoiceCommand { get; set; } = true;
         public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
+        public int CancelListenSuppressionMs { get; set; } = DefaultCancelListenSuppressionMs;
     }
 
     public static AppConfig Load()
@@ -136,7 +141,8 @@ public class AppConfig
                 EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
                 EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand,
                 EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
-                EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand
+                EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
+                CancelListenSuppressionMs = NormalizeCancelListenSuppressionMs(configFile.CancelListenSuppressionMs)
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -170,7 +176,8 @@ public class AppConfig
                 EnableExitAppVoiceCommand = EnableExitAppVoiceCommand,
                 EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand,
                 EnableSendVoiceCommand = EnableSendVoiceCommand,
-                EnableShowVoiceCommandsVoiceCommand = EnableShowVoiceCommandsVoiceCommand
+                EnableShowVoiceCommandsVoiceCommand = EnableShowVoiceCommandsVoiceCommand,
+                CancelListenSuppressionMs = NormalizeCancelListenSuppressionMs(CancelListenSuppressionMs)
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);
@@ -253,6 +260,15 @@ public class AppConfig
         if (fontSizePt > MaxOverlayFontSizePt)
             return MaxOverlayFontSizePt;
         return fontSizePt;
+    }
+
+    public static int NormalizeCancelListenSuppressionMs(int suppressionMs)
+    {
+        if (suppressionMs < MinCancelListenSuppressionMs)
+            return MinCancelListenSuppressionMs;
+        if (suppressionMs > MaxCancelListenSuppressionMs)
+            return MaxCancelListenSuppressionMs;
+        return suppressionMs;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()

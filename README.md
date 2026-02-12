@@ -72,6 +72,7 @@ git config --unset core.hooksPath
 - Transcribed-text HUD preview with adaptive duration and countdown progress bar
 - Tap-to-cancel transcribed preview before paste
 - Pen single-click cancel while transcribed preview countdown is running
+- Configurable post-cancel debounce to ignore duplicate listen triggers
 - Clipboard-based text injection with optional auto-send (Enter)
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send on`, `auto-send off`, `submit`, `show voice commands`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
@@ -157,6 +158,7 @@ Available settings:
 - `Use simple mic spinner (instead of level meter)`
 - `Enable Surface Pen hotkey`
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
+- `Post-cancel debounce (ms)` for pen/listen triggers (200-5000)
 - `Pen button validator` (shows last detected pen key while Settings is focused)
 - `Voice command: "open settings"`
 - `Voice command: "exit app"`
