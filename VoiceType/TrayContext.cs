@@ -16,6 +16,9 @@ public class TrayContext : ApplicationContext
     private const int MOD_SHIFT = 0x0004;
     private const int VK_SPACE = 0x20;
     private const string PrimaryHotkeyDisplayName = "Ctrl+Shift+Space";
+    private const int AdaptiveOverlayBaseMs = 1200;
+    private const int AdaptiveOverlayMsPerWord = 220;
+    private const int AdaptiveOverlayMaxMs = 15000;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -237,16 +240,20 @@ public class TrayContext : ApplicationContext
 
                     ShowOverlay("Preparing to paste...", Color.CornflowerBlue, 0);
                     var pasted = TextInjector.InjectText(text, _autoEnter);
+                    var displayedText = pasted
+                        ? text
+                        : text + "\n(copied to clipboard — Ctrl+V to paste)";
+                    var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(displayedText);
 
                     if (pasted)
                     {
                         Log.Info("Text injected via clipboard");
-                        ShowOverlay(text, Color.LightGreen, 4000);
+                        ShowOverlay(displayedText, Color.LightGreen, adaptiveDurationMs);
                     }
                     else
                     {
                         Log.Info("No paste target, text on clipboard");
-                        ShowOverlay(text + "\n(copied to clipboard — Ctrl+V to paste)", Color.Gold, 5000);
+                        ShowOverlay(displayedText, Color.Gold, adaptiveDurationMs);
                     }
                 }
                 else
@@ -502,11 +509,25 @@ public class TrayContext : ApplicationContext
         if (!_enableOverlayPopups)
             return;
 
-        var effectiveDurationMs = durationMs.HasValue && durationMs.Value <= 0
-            ? 0
+        var effectiveDurationMs = durationMs.HasValue
+            ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
 
         _overlay.ShowMessage(text, color, effectiveDurationMs, textAlign, centerTextBlock);
+    }
+
+    private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
+    {
+        if (string.IsNullOrWhiteSpace(displayedText))
+            return _overlayDurationMs;
+
+        var words = displayedText
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Length;
+        var adaptiveMs = AdaptiveOverlayBaseMs + (words * AdaptiveOverlayMsPerWord);
+        var maxMs = Math.Min(AppConfig.MaxOverlayDurationMs, AdaptiveOverlayMaxMs);
+        var preferredMs = Math.Max(_overlayDurationMs, adaptiveMs);
+        return Math.Clamp(preferredMs, AppConfig.MinOverlayDurationMs, maxMs);
     }
 
     private void StartListeningOverlay()
