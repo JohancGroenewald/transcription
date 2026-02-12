@@ -192,6 +192,9 @@ public class TrayContext : ApplicationContext
 
         if (_isTranscribing)
         {
+            if (e.HotkeyId == PEN_HOTKEY_ID && TryCancelPendingPastePreview("pen hotkey"))
+                return;
+
             ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
             return;
         }
@@ -394,6 +397,9 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
+            if (TryCancelPendingPastePreview("remote listen request"))
+                return;
+
             Log.Info("Remote listen requested");
             OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
         });
@@ -521,9 +527,6 @@ public class TrayContext : ApplicationContext
         var effectiveDurationMs = durationMs.HasValue
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
-
-        if (!tapToCancel && _pendingPastePreviewMessageId != 0)
-            _pendingPasteCanceledTcs?.TrySetResult(true);
 
         return _overlay.ShowMessage(
             text,
@@ -913,6 +916,20 @@ public class TrayContext : ApplicationContext
             return;
 
         _pendingPasteCanceledTcs?.TrySetResult(true);
+    }
+
+    private bool TryCancelPendingPastePreview(string source)
+    {
+        if (_pendingPastePreviewMessageId == 0 || _pendingPasteCanceledTcs == null)
+            return false;
+
+        if (_pendingPasteCanceledTcs.Task.IsCompleted)
+            return false;
+
+        var canceled = _pendingPasteCanceledTcs.TrySetResult(true);
+        if (canceled)
+            Log.Info($"Pending paste preview canceled via {source}.");
+        return canceled;
     }
 }
 
