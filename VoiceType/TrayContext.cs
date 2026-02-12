@@ -20,6 +20,7 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayMsPerWord = 320;
     private const int AdaptiveOverlayMaxMs = 22000;
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
+    private const int CancelListenSuppressionMs = 1200;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -86,6 +87,7 @@ public class TrayContext : ApplicationContext
     private bool _promptedForApiKeyOnStartup;
     private int _pendingPastePreviewMessageId;
     private TaskCompletionSource<bool>? _pendingPasteCanceledTcs;
+    private DateTime _ignoreListenUntilUtc;
 
     public TrayContext()
     {
@@ -190,10 +192,16 @@ public class TrayContext : ApplicationContext
             return;
         }
 
+        if (e.HotkeyId == PEN_HOTKEY_ID && IsListenSuppressed("pen hotkey"))
+            return;
+
         if (_isTranscribing)
         {
-            if (e.HotkeyId == PEN_HOTKEY_ID && TryCancelPendingPastePreview("pen hotkey"))
-                return;
+            if (e.HotkeyId == PEN_HOTKEY_ID)
+            {
+                if (TryCancelPendingPastePreview("pen hotkey"))
+                    return;
+            }
 
             ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
             return;
@@ -398,6 +406,9 @@ public class TrayContext : ApplicationContext
             }
 
             if (TryCancelPendingPastePreview("remote listen request"))
+                return;
+
+            if (IsListenSuppressed("remote listen request"))
                 return;
 
             Log.Info("Remote listen requested");
@@ -915,7 +926,7 @@ public class TrayContext : ApplicationContext
         if (_pendingPastePreviewMessageId == 0 || e.MessageId != _pendingPastePreviewMessageId)
             return;
 
-        _pendingPasteCanceledTcs?.TrySetResult(true);
+        _ = TryCancelPendingPastePreview("overlay tap");
     }
 
     private bool TryCancelPendingPastePreview(string source)
@@ -928,8 +939,25 @@ public class TrayContext : ApplicationContext
 
         var canceled = _pendingPasteCanceledTcs.TrySetResult(true);
         if (canceled)
+        {
+            ArmListenSuppression();
             Log.Info($"Pending paste preview canceled via {source}.");
+        }
         return canceled;
+    }
+
+    private void ArmListenSuppression()
+    {
+        _ignoreListenUntilUtc = DateTime.UtcNow.AddMilliseconds(CancelListenSuppressionMs);
+    }
+
+    private bool IsListenSuppressed(string source)
+    {
+        if (DateTime.UtcNow >= _ignoreListenUntilUtc)
+            return false;
+
+        Log.Info($"Ignoring {source} during post-cancel suppression.");
+        return true;
     }
 }
 
