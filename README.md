@@ -2,7 +2,7 @@
 
 VoiceType is a lightweight Windows tray app for push-to-talk dictation using OpenAI speech-to-text.
 
-Press a hotkey, speak, and VoiceType transcribes your audio and pastes text into the active app.
+Press a hotkey, speak, review the transcribed preview in the HUD, and let VoiceType paste into the active app.
 
 ## LLM-Friendly Repo Facts
 
@@ -69,14 +69,25 @@ git config --unset core.hooksPath
 - Global hotkey dictation: `Ctrl+Shift+Space`
 - Tray UX with on-screen HUD notifications
 - Listening HUD with mic meter or simple spinner mode
+- Transcribed-text HUD preview with adaptive duration and countdown progress bar
+- Tap-to-cancel transcribed preview before paste
 - Clipboard-based text injection with optional auto-send (Enter)
-- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send on`, `auto-send off`, `send`, `show voice commands`
+- Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send on`, `auto-send off`, `submit`, `show voice commands`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
 - Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
 - Single-instance behavior with remote close/listen/submit/replace flags
 - Settings UI with API key, model, logging, HUD, and voice-command controls
 - Version and uptime display (tray + settings)
 - API key encryption at rest via DPAPI
+
+## Dictation Flow
+
+1. Press `Ctrl+Shift+Space` (or your pen shortcut) to start listening.
+1. Press it again to stop and transcribe.
+1. VoiceType shows transcribed text in a green HUD preview with a countdown bar.
+1. Optional: click/tap the preview while countdown is running to cancel paste.
+1. If not canceled, VoiceType pastes the text into the active target and optionally sends Enter if auto-send is enabled.
+1. If no valid target is focused, text remains on clipboard and the HUD shows a fallback notice.
 
 ## Build and Publish
 
@@ -148,7 +159,7 @@ Available settings:
 - `Voice command: "open settings"`
 - `Voice command: "exit app"`
 - `Voice commands: "auto-send on/off"`
-- `Voice command: "send"` (sends Enter key)
+- `Voice command: "submit"` (sends Enter key; `send` also works as an alias)
 - `Voice command: "show voice commands"`
 - `App Info`: version, process start time, and uptime
 
@@ -225,7 +236,7 @@ Note: `--submit` targets a running VoiceType instance. If VoiceType is not runni
 ## Troubleshooting
 
 - Hotkey does not work: another app may already own `Ctrl+Shift+Space`.
-- Text is copied but not pasted: no valid target had focus. Use `Ctrl+V` manually.
+- Text preview finished but nothing pasted: no valid target had focus. Use `Ctrl+V` manually.
 - Tray icon appears stuck after crash/force kill: this is a Windows tray refresh artifact.
 
 ## Project Layout
