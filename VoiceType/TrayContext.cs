@@ -553,15 +553,14 @@ public class TrayContext : ApplicationContext
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
     {
         if (string.IsNullOrWhiteSpace(displayedText))
-            return _overlayDurationMs;
+            return AdaptiveOverlayBaseMs;
 
         var words = displayedText
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .Length;
         var adaptiveMs = AdaptiveOverlayBaseMs + (words * AdaptiveOverlayMsPerWord);
         var maxMs = Math.Min(AppConfig.MaxOverlayDurationMs, AdaptiveOverlayMaxMs);
-        var preferredMs = Math.Max(_overlayDurationMs, adaptiveMs);
-        return Math.Clamp(preferredMs, AppConfig.MinOverlayDurationMs, maxMs);
+        return Math.Clamp(adaptiveMs, AppConfig.MinOverlayDurationMs, maxMs);
     }
 
     private void StartListeningOverlay()
