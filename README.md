@@ -30,6 +30,18 @@ dotnet build VoiceType/VoiceType.csproj -c Debug
 dotnet run --project VoiceType/VoiceType.csproj
 ```
 
+Run automated tests:
+
+```powershell
+dotnet test VoiceType.Tests/VoiceType.Tests.csproj
+```
+
+Collect local coverage:
+
+```powershell
+dotnet test VoiceType.Tests/VoiceType.Tests.csproj --collect:"XPlat Code Coverage"
+```
+
 ### Optional: Enable Repo Git Hooks
 
 This repo includes versioned hook scripts under `.githooks` (for example
@@ -110,6 +122,12 @@ dotnet publish VoiceType/VoiceType.csproj -c Release
 Release output:
 
 - `VoiceType/bin/Release/net9.0-windows/win-x64/publish/VoiceType.exe`
+
+## CI
+
+- GitHub Actions workflow: `.github/workflows/ci.yml`
+- Triggers on push to `main` and on pull requests
+- Runs restore, release build, and the full unit-test suite with coverage collection on Windows
 
 ## Markdown Linting
 
@@ -252,4 +270,7 @@ Note: `--submit` targets a running VoiceType instance. If VoiceType is not runni
 - `VoiceType/TextInjector.cs`: clipboard and paste/send-key injection
 - `VoiceType/SettingsForm.cs`: settings UI
 - `VoiceType/AppConfig.cs`: config load/save and API-key protection
+- `VoiceType/AppInfo.cs`: version and uptime information helpers
+- `VoiceType/TranscribedPreviewCoordinator.cs`: transcribed-preview cancel/submit decision state
 - `VoiceType/OverlayForm.cs`: on-screen HUD notifications
+- `VoiceType.Tests/*`: automated unit tests (voice-command parsing, config normalization, uptime formatting, preview decision flow)

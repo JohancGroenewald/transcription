@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>1.0.70</Version>
+    <Version>1.0.71</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <Target Name="CreateVoiceTypeShortcuts" AfterTargets="Build"
-          Condition="'$(OS)' == 'Windows_NT' and Exists('$(TargetDir)$(AssemblyName).exe')">
+          Condition="'$(OS)' == 'Windows_NT' and Exists('$(TargetDir)$(AssemblyName).exe') and '$(SkipShortcutGeneration)' != 'true'">
     <PropertyGroup>
       <_VoiceTypeBuildExe>$(TargetDir)$(AssemblyName).exe</_VoiceTypeBuildExe>
     </PropertyGroup>
@@ -40,6 +40,7 @@
   </Target>
 
 </Project>
+
 
 
 

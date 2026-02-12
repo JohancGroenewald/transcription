@@ -84,15 +84,7 @@ public class TrayContext : ApplicationContext
     private bool _isTranscribing;
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
-    private int _pendingPastePreviewMessageId;
-    private TaskCompletionSource<TranscribedPreviewDecision>? _pendingPastePreviewDecisionTcs;
-
-    private enum TranscribedPreviewDecision
-    {
-        TimeoutPaste = 0,
-        Cancel = 1,
-        PasteWithoutSend = 2
-    }
+    private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
 
     public TrayContext()
     {
@@ -910,45 +902,44 @@ public class TrayContext : ApplicationContext
         if (messageId == 0 || durationMs <= 0)
             return TranscribedPreviewDecision.TimeoutPaste;
 
-        _pendingPastePreviewMessageId = messageId;
-        _pendingPastePreviewDecisionTcs = new TaskCompletionSource<TranscribedPreviewDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var decisionTask = _previewCoordinator.Begin(messageId);
         try
         {
             var waitMs = durationMs + TranscribedOverlayCancelWindowPaddingMs;
-            var completed = await Task.WhenAny(_pendingPastePreviewDecisionTcs.Task, Task.Delay(waitMs));
-            if (completed == _pendingPastePreviewDecisionTcs.Task)
-                return _pendingPastePreviewDecisionTcs.Task.Result;
+            var completed = await Task.WhenAny(decisionTask, Task.Delay(waitMs));
+            if (completed == decisionTask)
+                return decisionTask.Result;
 
             return TranscribedPreviewDecision.TimeoutPaste;
         }
         finally
         {
-            _pendingPastePreviewMessageId = 0;
-            _pendingPastePreviewDecisionTcs = null;
+            _previewCoordinator.End();
         }
     }
 
     private void OnOverlayTapped(object? sender, OverlayTappedEventArgs e)
     {
-        if (_pendingPastePreviewMessageId == 0 || e.MessageId != _pendingPastePreviewMessageId)
-            return;
-
-        _ = TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "overlay tap");
+        _ = TryResolvePendingPastePreviewFromOverlayTap(e.MessageId, "overlay tap");
     }
 
     private bool TryResolvePendingPastePreview(TranscribedPreviewDecision decision, string source)
     {
-        if (_pendingPastePreviewMessageId == 0 || _pendingPastePreviewDecisionTcs == null)
-            return false;
-
-        if (_pendingPastePreviewDecisionTcs.Task.IsCompleted)
-            return false;
-
-        var resolved = _pendingPastePreviewDecisionTcs.TrySetResult(decision);
+        var resolved = _previewCoordinator.TryResolve(decision);
         if (!resolved)
             return false;
 
         Log.Info($"Pending paste preview resolved: {decision} via {source}.");
+        return true;
+    }
+
+    private bool TryResolvePendingPastePreviewFromOverlayTap(int messageId, string source)
+    {
+        var resolved = _previewCoordinator.TryResolveFromOverlayTap(messageId);
+        if (!resolved)
+            return false;
+
+        Log.Info($"Pending paste preview resolved: {TranscribedPreviewDecision.Cancel} via {source}.");
         return true;
     }
 }

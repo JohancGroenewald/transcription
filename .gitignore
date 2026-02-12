@@ -8,6 +8,7 @@ obj/
 *.userosscache
 *.sln.docstates
 *.log
+TestResults/
 Thumbs.db
 Desktop.ini
 .DS_Store
