@@ -86,8 +86,6 @@ public class TrayContext : ApplicationContext
     private bool _promptedForApiKeyOnStartup;
     private int _pendingPastePreviewMessageId;
     private TaskCompletionSource<TranscribedPreviewDecision>? _pendingPastePreviewDecisionTcs;
-    private DateTime _ignoreListenUntilUtc;
-    private int _cancelListenSuppressionMs = AppConfig.DefaultCancelListenSuppressionMs;
 
     private enum TranscribedPreviewDecision
     {
@@ -159,7 +157,6 @@ public class TrayContext : ApplicationContext
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
         _enableSendVoiceCommand = config.EnableSendVoiceCommand;
         _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
-        _cancelListenSuppressionMs = AppConfig.NormalizeCancelListenSuppressionMs(config.CancelListenSuppressionMs);
         _useSimpleMicSpinner = config.UseSimpleMicSpinner;
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
@@ -211,9 +208,6 @@ public class TrayContext : ApplicationContext
             ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
             return;
         }
-
-        if (e.HotkeyId == PEN_HOTKEY_ID && IsListenSuppressed("pen hotkey"))
-            return;
 
         if (_transcriptionService == null)
         {
@@ -420,9 +414,6 @@ public class TrayContext : ApplicationContext
             }
 
             if (TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "remote listen request"))
-                return;
-
-            if (IsListenSuppressed("remote listen request"))
                 return;
 
             Log.Info("Remote listen requested");
@@ -957,22 +948,7 @@ public class TrayContext : ApplicationContext
         if (!resolved)
             return false;
 
-        ArmListenSuppression();
         Log.Info($"Pending paste preview resolved: {decision} via {source}.");
-        return true;
-    }
-
-    private void ArmListenSuppression()
-    {
-        _ignoreListenUntilUtc = DateTime.UtcNow.AddMilliseconds(_cancelListenSuppressionMs);
-    }
-
-    private bool IsListenSuppressed(string source)
-    {
-        if (DateTime.UtcNow >= _ignoreListenUntilUtc)
-            return false;
-
-        Log.Info($"Ignoring {source} during post-cancel suppression.");
         return true;
     }
 }

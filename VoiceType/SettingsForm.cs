@@ -24,7 +24,6 @@ public class SettingsForm : Form
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
     private readonly Label _penHotkeyLabel;
-    private readonly NumericUpDown _cancelListenSuppressionMsInput;
     private readonly Label _penHotkeyValidationResult;
     private readonly CheckBox _openSettingsVoiceCommandCheck;
     private readonly CheckBox _exitAppVoiceCommandCheck;
@@ -180,7 +179,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 15,
+            RowCount = 14,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -355,25 +354,6 @@ public class SettingsForm : Form
         };
         _penHotkeyBox.Items.AddRange(AppConfig.GetSupportedPenHotkeys().Cast<object>().ToArray());
 
-        var lblCancelListenSuppression = new Label
-        {
-            Text = "Post-cancel debounce (ms)",
-            AutoSize = true,
-            Anchor = AnchorStyles.Left,
-            Margin = new Padding(0, 6, 10, 3)
-        };
-
-        _cancelListenSuppressionMsInput = new NumericUpDown
-        {
-            Dock = DockStyle.Left,
-            Width = 120,
-            Minimum = AppConfig.MinCancelListenSuppressionMs,
-            Maximum = AppConfig.MaxCancelListenSuppressionMs,
-            Increment = 100,
-            ThousandsSeparator = true,
-            Margin = new Padding(0, 6, 0, 0)
-        };
-
         var penValidationLabel = new Label
         {
             Text = "Pen button validator",
@@ -415,11 +395,9 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
         behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 11);
         behaviorLayout.Controls.Add(_penHotkeyBox, 1, 11);
-        behaviorLayout.Controls.Add(lblCancelListenSuppression, 0, 12);
-        behaviorLayout.Controls.Add(_cancelListenSuppressionMsInput, 1, 12);
-        behaviorLayout.Controls.Add(penValidationLabel, 0, 13);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 12);
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
-        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 14);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 13);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
@@ -792,7 +770,6 @@ public class SettingsForm : Form
         _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
         if (_penHotkeyBox.SelectedIndex < 0)
             _penHotkeyBox.SelectedItem = AppConfig.DefaultPenHotkey;
-        _cancelListenSuppressionMsInput.Value = AppConfig.NormalizeCancelListenSuppressionMs(config.CancelListenSuppressionMs);
         _openSettingsVoiceCommandCheck.Checked = config.EnableOpenSettingsVoiceCommand;
         _exitAppVoiceCommandCheck.Checked = config.EnableExitAppVoiceCommand;
         _toggleAutoEnterVoiceCommandCheck.Checked = config.EnableToggleAutoEnterVoiceCommand;
@@ -823,7 +800,6 @@ public class SettingsForm : Form
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
             EnablePenHotkey = _enablePenHotkeyCheck.Checked,
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
-            CancelListenSuppressionMs = AppConfig.NormalizeCancelListenSuppressionMs((int)_cancelListenSuppressionMsInput.Value),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
             EnableExitAppVoiceCommand = _exitAppVoiceCommandCheck.Checked,
             EnableToggleAutoEnterVoiceCommand = _toggleAutoEnterVoiceCommandCheck.Checked,
