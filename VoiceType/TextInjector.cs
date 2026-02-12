@@ -5,6 +5,9 @@ namespace VoiceType;
 
 public static class TextInjector
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
@@ -23,28 +26,43 @@ public static class TextInjector
     private const byte VK_CONTROL = 0x11;
     private const byte VK_V = 0x56;
     private const byte VK_RETURN = 0x0D;
+    private const int INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const int ClipboardSettleDelayMs = 80;
+    private const int PostPasteBeforeEnterDelayMs = 110;
+    private const int TargetRetryAttempts = 4;
+    private const int TargetRetryDelayMs = 35;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public int type;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)]
+        public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
 
     /// <summary>
     /// Returns true if a suitable window is focused to receive pasted text.
     /// </summary>
     public static bool HasPasteTarget()
     {
-        var fg = GetForegroundWindow();
-        if (fg == IntPtr.Zero) return false;
-        if (fg == GetDesktopWindow()) return false;
-        if (fg == GetShellWindow()) return false;
-
-        // Check for common "no target" windows
-        var sb = new StringBuilder(256);
-        GetClassName(fg, sb, 256);
-        var className = sb.ToString();
-
-        // Progman / WorkerW = desktop wallpaper, Shell_TrayWnd = taskbar
-        if (className is "Progman" or "WorkerW" or "Shell_TrayWnd")
-            return false;
-
-        return true;
+        return TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs) != IntPtr.Zero;
     }
 
     /// <summary>
@@ -56,26 +74,24 @@ public static class TextInjector
     {
         Clipboard.SetText(text);
 
-        if (!HasPasteTarget())
+        var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
+        if (target == IntPtr.Zero)
         {
             Log.Info("No paste target detected, text copied to clipboard only");
             return false;
         }
 
         // Small delay to let the clipboard settle
-        Thread.Sleep(50);
+        Thread.Sleep(ClipboardSettleDelayMs);
 
-        // Press Ctrl+V
-        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
-        keybd_event(VK_V, 0, 0, UIntPtr.Zero);
-        keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        SendCtrlV();
 
         if (autoEnter)
         {
-            Thread.Sleep(30);
-            keybd_event(VK_RETURN, 0, 0, UIntPtr.Zero);
-            keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            // Give target apps time to process paste before submit.
+            Thread.Sleep(PostPasteBeforeEnterDelayMs);
+            if (!SendEnter())
+                Log.Info("Auto-enter skipped because no suitable target was focused after paste.");
         }
 
         return true;
@@ -87,14 +103,116 @@ public static class TextInjector
     /// </summary>
     public static bool SendEnter()
     {
-        if (!HasPasteTarget())
+        var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
+        if (target == IntPtr.Zero)
         {
             Log.Info("No suitable target detected for Enter key");
             return false;
         }
 
+        SendEnterKey();
+        return true;
+    }
+
+    private static IntPtr TryGetSuitableTargetWindow(int attempts, int delayMs)
+    {
+        var clampedAttempts = Math.Max(1, attempts);
+        for (var attempt = 0; attempt < clampedAttempts; attempt++)
+        {
+            var fg = GetForegroundWindow();
+            if (IsSuitableTargetWindow(fg))
+                return fg;
+
+            if (attempt < clampedAttempts - 1)
+                Thread.Sleep(Math.Max(0, delayMs));
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private static bool IsSuitableTargetWindow(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+            return false;
+        if (handle == GetDesktopWindow())
+            return false;
+        if (handle == GetShellWindow())
+            return false;
+
+        // Check for common "no target" windows.
+        var sb = new StringBuilder(256);
+        GetClassName(handle, sb, 256);
+        var className = sb.ToString();
+
+        // Progman / WorkerW = desktop wallpaper, Shell_TrayWnd = taskbar.
+        return className is not ("Progman" or "WorkerW" or "Shell_TrayWnd");
+    }
+
+    private static void SendCtrlV()
+    {
+        var inputs = new[]
+        {
+            CreateKeyDown(VK_CONTROL),
+            CreateKeyDown(VK_V),
+            CreateKeyUp(VK_V),
+            CreateKeyUp(VK_CONTROL)
+        };
+
+        if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length)
+            return;
+
+        // Fallback for environments where SendInput may be blocked.
+        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_V, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
+    private static void SendEnterKey()
+    {
+        var inputs = new[]
+        {
+            CreateKeyDown(VK_RETURN),
+            CreateKeyUp(VK_RETURN)
+        };
+
+        if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length)
+            return;
+
+        // Fallback for environments where SendInput may be blocked.
         keybd_event(VK_RETURN, 0, 0, UIntPtr.Zero);
         keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-        return true;
+    }
+
+    private static INPUT CreateKeyDown(byte virtualKey)
+    {
+        return new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new InputUnion
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = virtualKey,
+                    dwFlags = 0
+                }
+            }
+        };
+    }
+
+    private static INPUT CreateKeyUp(byte virtualKey)
+    {
+        return new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new InputUnion
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = virtualKey,
+                    dwFlags = KEYEVENTF_KEYUP
+                }
+            }
+        };
     }
 }

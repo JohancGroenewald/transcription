@@ -639,7 +639,7 @@ public class TrayContext : ApplicationContext
             ("open settings", _enableOpenSettingsVoiceCommand),
             ("exit app", _enableExitAppVoiceCommand),
             ("auto-send on / auto-send off", _enableToggleAutoEnterVoiceCommand),
-            ("send", _enableSendVoiceCommand),
+            ("submit", _enableSendVoiceCommand),
             ("show voice commands", _enableShowVoiceCommandsVoiceCommand)
         };
 
@@ -671,13 +671,13 @@ public class TrayContext : ApplicationContext
         if (!TextInjector.SendEnter())
         {
             var failedText = fromVoiceCommand
-                ? "Command: send (no target window)"
+                ? "Command: submit (no target window)"
                 : "No target window to send Enter";
             ShowOverlay(failedText, Color.Gold, 1800);
             return;
         }
 
-        var sentText = fromVoiceCommand ? "Command: send" : "Sent";
+        var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
         var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
         ShowOverlay(sentText, sentColor, 1000);
         Log.Info("Enter key sent");

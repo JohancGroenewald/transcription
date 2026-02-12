@@ -84,7 +84,7 @@ public static class VoiceCommandParser
             Settings => "Open Settings",
             AutoSendYes => "Auto-Send: Yes",
             AutoSendNo => "Auto-Send: No",
-            Send => "Send (Press Enter)",
+            Send => "Submit (Press Enter)",
             ShowVoiceCommands => "Show Voice Commands",
             _ => command
         };

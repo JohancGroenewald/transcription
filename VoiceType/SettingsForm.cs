@@ -470,7 +470,7 @@ public class SettingsForm : Form
         };
         _sendVoiceCommandCheck = new CheckBox
         {
-            Text = "Send",
+            Text = "Submit",
             AutoSize = true,
             Margin = new Padding(0, 0, 10, 4)
         };
@@ -507,7 +507,7 @@ public class SettingsForm : Form
             AutoSize = true,
             ForeColor = Color.DimGray,
             Margin = new Padding(0, 0, 10, 8),
-            Text = "send\nsend message\nsend command\nsubmit\npress enter"
+            Text = "submit\nsend\nsend message\nsend command\npress enter"
         };
         var showCommandsExamples = new Label
         {
