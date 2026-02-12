@@ -248,7 +248,7 @@ public class TrayContext : ApplicationContext
                     if (pasted)
                     {
                         Log.Info("Text injected via clipboard");
-                        ShowOverlay(displayedText, Color.LightGreen, adaptiveDurationMs);
+                        ShowOverlay(displayedText, Color.LightGreen, adaptiveDurationMs, showCountdownBar: true);
                     }
                     else
                     {
@@ -504,7 +504,8 @@ public class TrayContext : ApplicationContext
         Color? color = null,
         int? durationMs = null,
         ContentAlignment textAlign = ContentAlignment.MiddleCenter,
-        bool centerTextBlock = false)
+        bool centerTextBlock = false,
+        bool showCountdownBar = false)
     {
         if (!_enableOverlayPopups)
             return;
@@ -513,7 +514,7 @@ public class TrayContext : ApplicationContext
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
 
-        _overlay.ShowMessage(text, color, effectiveDurationMs, textAlign, centerTextBlock);
+        _overlay.ShowMessage(text, color, effectiveDurationMs, textAlign, centerTextBlock, showCountdownBar);
     }
 
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
