@@ -879,7 +879,7 @@ public class TrayContext : ApplicationContext
 
     private async Task<bool> ShowCancelableTranscribedPreviewAsync(string text, int durationMs)
     {
-        var previewText = text + "\n(tap overlay to cancel paste)";
+        var previewText = text;
         var messageId = ShowOverlay(
             previewText,
             Color.LightGreen,
