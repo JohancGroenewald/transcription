@@ -88,7 +88,7 @@ git config --unset core.hooksPath
 1. Press it again to stop and transcribe.
 1. VoiceType shows transcribed text in a green HUD preview with a countdown bar.
 1. Optional: click/tap the preview while countdown is running to cancel paste.
-1. Optional: trigger listen once during countdown to cancel paste (pen or `--listen` launcher).
+1. Optional: trigger listen once during countdown to cancel paste (pen or `--listen` launcher). The countdown line turns amber while waiting for a second press.
 1. Optional: trigger listen twice quickly during countdown to paste immediately without auto-send (so you can edit before sending).
 1. If not canceled, VoiceType pastes the text into the active target and optionally sends Enter if auto-send is enabled.
 1. If no valid target is focused, text remains on clipboard and the HUD shows a fallback notice.

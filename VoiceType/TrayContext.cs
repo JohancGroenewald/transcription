@@ -205,9 +205,6 @@ public class TrayContext : ApplicationContext
             return;
         }
 
-        if (e.HotkeyId == PEN_HOTKEY_ID && IsListenSuppressed("pen hotkey"))
-            return;
-
         if (_isTranscribing)
         {
             if (e.HotkeyId == PEN_HOTKEY_ID)
@@ -219,6 +216,9 @@ public class TrayContext : ApplicationContext
             ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
             return;
         }
+
+        if (e.HotkeyId == PEN_HOTKEY_ID && IsListenSuppressed("pen hotkey"))
+            return;
 
         if (_transcriptionService == null)
         {
@@ -927,6 +927,7 @@ public class TrayContext : ApplicationContext
         _pendingPastePreviewDecisionTcs = new TaskCompletionSource<TranscribedPreviewDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingPreviewTriggerCount = 0;
         _pendingPreviewTriggerTimer.Stop();
+        _overlay.SetCountdownAccentColor(null);
         try
         {
             var waitMs = durationMs + TranscribedOverlayCancelWindowPaddingMs;
@@ -966,6 +967,7 @@ public class TrayContext : ApplicationContext
             _pendingPreviewTriggerCount = 1;
             _pendingPreviewTriggerTimer.Stop();
             _pendingPreviewTriggerTimer.Start();
+            _overlay.SetCountdownAccentColor(Color.Gold);
             Log.Info($"Pending preview trigger captured from {source}. Waiting for second press...");
             return true;
         }
@@ -997,6 +999,7 @@ public class TrayContext : ApplicationContext
 
         _pendingPreviewTriggerTimer.Stop();
         _pendingPreviewTriggerCount = 0;
+        _overlay.SetCountdownAccentColor(null);
 
         var resolved = _pendingPastePreviewDecisionTcs.TrySetResult(decision);
         if (!resolved)
