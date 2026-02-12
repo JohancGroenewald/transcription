@@ -16,9 +16,9 @@ public class TrayContext : ApplicationContext
     private const int MOD_SHIFT = 0x0004;
     private const int VK_SPACE = 0x20;
     private const string PrimaryHotkeyDisplayName = "Ctrl+Shift+Space";
-    private const int AdaptiveOverlayBaseMs = 1200;
-    private const int AdaptiveOverlayMsPerWord = 220;
-    private const int AdaptiveOverlayMaxMs = 15000;
+    private const int AdaptiveOverlayBaseMs = 1800;
+    private const int AdaptiveOverlayMsPerWord = 320;
+    private const int AdaptiveOverlayMaxMs = 22000;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
