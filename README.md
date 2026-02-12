@@ -176,7 +176,7 @@ Voice commands are matched as exact phrases after trimming punctuation and norma
 - `--help`, `-h`: show CLI usage and exit
 - `--version`, `-v`: print app version and exit
 - `--listen`: trigger dictation in an existing instance (or start app and begin listening)
-- `--submit`: send Enter through an existing VoiceType instance
+- `--submit`: send Enter through an existing VoiceType instance, or paste without auto-send when transcribed preview countdown is active
 - `--close`: request graceful shutdown of an existing instance
 - `--replace-existing`: close running instance and start this one
 - `--pin-to-taskbar`: best-effort pin current executable to taskbar
@@ -197,7 +197,7 @@ You can bind generated `.lnk` files to Surface Pen or any programmable input dev
 1. In that output folder, use:
 
    - `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
-   - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit`
+   - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit` (context-aware: submit Enter, or paste-without-send during preview countdown)
 
 1. If links are missing, regenerate from that same folder:
 
@@ -220,7 +220,7 @@ Or run the flags directly:
 Recommended mapping:
 
 - Primary button -> `VoiceTypeActivate.exe.lnk` (start/stop listening)
-- Secondary button -> `VoiceTypeSubmit.exe.lnk` (send Enter)
+- Secondary button -> `VoiceTypeSubmit.exe.lnk` (send Enter, or paste-without-send during preview countdown)
 
 Note: `--submit` targets a running VoiceType instance. If VoiceType is not running, no Enter is sent.
 

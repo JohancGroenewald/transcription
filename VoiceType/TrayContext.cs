@@ -448,6 +448,9 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
+            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote submit request"))
+                return;
+
             Log.Info("Remote submit requested");
             TriggerSend();
         });

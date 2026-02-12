@@ -119,7 +119,7 @@ static class Program
             var succeeded = ShortcutManager.TryCreateCurrentExecutableShortcut(
                 shortcutFileName: "VoiceTypeSubmit.exe.lnk",
                 arguments: "--submit",
-                description: "Trigger VoiceType submit mode",
+                description: "Trigger VoiceType submit mode (or paste without auto-send during preview)",
                 out var message);
             if (succeeded)
                 Console.WriteLine(message);
@@ -418,7 +418,7 @@ static class Program
         Console.WriteLine("  --version, -v             Show app version and exit.");
         Console.WriteLine("  --test                    Run microphone/API dry-run test.");
         Console.WriteLine("  --listen                  Trigger dictation (existing instance or fresh start).");
-        Console.WriteLine("  --submit                  Send Enter key via an existing instance.");
+        Console.WriteLine("  --submit                  Send Enter, or paste without auto-send if preview is active.");
         Console.WriteLine("  --close                   Request graceful close (finishes current work first).");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
