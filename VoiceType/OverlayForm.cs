@@ -48,12 +48,10 @@ public class OverlayForm : Form
     private int _lastDurationMs = 3000;
     private bool _lastShowCountdownBar;
     private bool _lastTapToCancel;
-    private Color? _lastCountdownAccentColor;
     private bool _showCountdownBar;
     private int _countdownMessageId;
     private DateTime _countdownStartUtc;
     private int _countdownTotalMs;
-    private Color? _countdownAccentColor;
     private bool _tapToCancelEnabled;
     private int _tapToCancelMessageId;
     // Message IDs prevent stale hide/fade timer ticks from resurfacing previous text.
@@ -186,8 +184,7 @@ public class OverlayForm : Form
         ContentAlignment textAlign = ContentAlignment.MiddleCenter,
         bool centerTextBlock = false,
         bool showCountdownBar = false,
-        bool tapToCancel = false,
-        Color? countdownAccentColor = null)
+        bool tapToCancel = false)
     {
         if (InvokeRequired)
         {
@@ -198,8 +195,7 @@ public class OverlayForm : Form
                 textAlign,
                 centerTextBlock,
                 showCountdownBar,
-                tapToCancel,
-                countdownAccentColor)));
+                tapToCancel)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -214,7 +210,6 @@ public class OverlayForm : Form
             _lastCenterTextBlock = centerTextBlock;
             _lastShowCountdownBar = showCountdownBar;
             _lastTapToCancel = tapToCancel;
-            _lastCountdownAccentColor = countdownAccentColor;
 
             var workingArea = GetTargetScreen().WorkingArea;
             var preferredWidth = Math.Clamp(
@@ -241,7 +236,7 @@ public class OverlayForm : Form
             _fadeMessageId = 0;
             _hideTimerMessageId = 0;
             Opacity = _baseOpacity;
-            ConfigureCountdown(showCountdownBar, durationMs, messageId, countdownAccentColor);
+            ConfigureCountdown(showCountdownBar, durationMs, messageId);
             ConfigureTapToCancel(tapToCancel, durationMs, messageId);
             if (durationMs > 0)
             {
@@ -302,8 +297,7 @@ public class OverlayForm : Form
                 _lastTextAlign,
                 _lastCenterTextBlock,
                 _lastShowCountdownBar,
-                _lastTapToCancel,
-                _lastCountdownAccentColor);
+                _lastTapToCancel);
     }
 
     private void ConfigureLabelLayout(Size measuredTextSize, ContentAlignment textAlign, bool centerTextBlock)
@@ -352,7 +346,7 @@ public class OverlayForm : Form
         if (fillWidth > 0)
         {
             var fillBounds = new Rectangle(trackBounds.Left, trackBounds.Top, fillWidth, trackBounds.Height);
-            var fillColor = Color.FromArgb(220, _countdownAccentColor ?? _label.ForeColor);
+            var fillColor = Color.FromArgb(220, _label.ForeColor);
             using var fillBrush = new SolidBrush(fillColor);
             e.Graphics.FillRectangle(fillBrush, fillBounds);
         }
@@ -415,7 +409,7 @@ public class OverlayForm : Form
         Invalidate();
     }
 
-    private void ConfigureCountdown(bool showCountdownBar, int durationMs, int messageId, Color? countdownAccentColor)
+    private void ConfigureCountdown(bool showCountdownBar, int durationMs, int messageId)
     {
         if (!showCountdownBar || durationMs <= 0)
         {
@@ -427,7 +421,6 @@ public class OverlayForm : Form
         _countdownMessageId = messageId;
         _countdownStartUtc = DateTime.UtcNow;
         _countdownTotalMs = durationMs + FadeDurationMs;
-        _countdownAccentColor = countdownAccentColor;
         _countdownTimer.Start();
     }
 
@@ -484,21 +477,6 @@ public class OverlayForm : Form
         _showCountdownBar = false;
         _countdownMessageId = 0;
         _countdownTotalMs = 0;
-        _countdownAccentColor = null;
-    }
-
-    public void SetCountdownAccentColor(Color? color)
-    {
-        if (InvokeRequired)
-        {
-            Invoke(() => SetCountdownAccentColor(color));
-            return;
-        }
-
-        _countdownAccentColor = color;
-        _lastCountdownAccentColor = color;
-        if (_showCountdownBar && Visible)
-            Invalidate();
     }
 
     private void ResetTapToCancel()
