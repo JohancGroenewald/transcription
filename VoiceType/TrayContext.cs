@@ -19,6 +19,7 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayBaseMs = 1800;
     private const int AdaptiveOverlayMsPerWord = 320;
     private const int AdaptiveOverlayMaxMs = 22000;
+    private const int TranscribedOverlayCancelWindowPaddingMs = 560;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -83,6 +84,8 @@ public class TrayContext : ApplicationContext
     private bool _isTranscribing;
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
+    private int _pendingPastePreviewMessageId;
+    private TaskCompletionSource<bool>? _pendingPasteCanceledTcs;
 
     public TrayContext()
     {
@@ -93,6 +96,7 @@ public class TrayContext : ApplicationContext
         _listeningOverlayTimer = new System.Windows.Forms.Timer { Interval = 120 };
         _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
         _overlay = new OverlayForm();
+        _overlay.OverlayTapped += OnOverlayTapped;
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _appIcon = extractedIcon != null
             ? (Icon)extractedIcon.Clone()
@@ -238,22 +242,25 @@ public class TrayContext : ApplicationContext
                         return;
                     }
 
-                    ShowOverlay("Preparing to paste...", Color.CornflowerBlue, 0);
-                    var pasted = TextInjector.InjectText(text, _autoEnter);
-                    var displayedText = pasted
-                        ? text
-                        : text + "\n(copied to clipboard — Ctrl+V to paste)";
-                    var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(displayedText);
+                    var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(text);
+                    var canceled = await ShowCancelableTranscribedPreviewAsync(text, adaptiveDurationMs);
+                    if (canceled)
+                    {
+                        Log.Info("Paste canceled by tap during transcribed preview.");
+                        ShowOverlay("Paste canceled", Color.Gray, 1000);
+                        return;
+                    }
 
+                    var pasted = TextInjector.InjectText(text, _autoEnter);
                     if (pasted)
                     {
                         Log.Info("Text injected via clipboard");
-                        ShowOverlay(displayedText, Color.LightGreen, adaptiveDurationMs, showCountdownBar: true);
                     }
                     else
                     {
+                        var fallbackText = text + "\n(copied to clipboard — Ctrl+V to paste)";
                         Log.Info("No paste target, text on clipboard");
-                        ShowOverlay(displayedText, Color.Gold, adaptiveDurationMs);
+                        ShowOverlay(fallbackText, Color.Gold, adaptiveDurationMs);
                     }
                 }
                 else
@@ -499,22 +506,33 @@ public class TrayContext : ApplicationContext
         _penHotkeyRegistered = false;
     }
 
-    private void ShowOverlay(
+    private int ShowOverlay(
         string text,
         Color? color = null,
         int? durationMs = null,
         ContentAlignment textAlign = ContentAlignment.MiddleCenter,
         bool centerTextBlock = false,
-        bool showCountdownBar = false)
+        bool showCountdownBar = false,
+        bool tapToCancel = false)
     {
         if (!_enableOverlayPopups)
-            return;
+            return 0;
 
         var effectiveDurationMs = durationMs.HasValue
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
 
-        _overlay.ShowMessage(text, color, effectiveDurationMs, textAlign, centerTextBlock, showCountdownBar);
+        if (!tapToCancel && _pendingPastePreviewMessageId != 0)
+            _pendingPasteCanceledTcs?.TrySetResult(true);
+
+        return _overlay.ShowMessage(
+            text,
+            color,
+            effectiveDurationMs,
+            textAlign,
+            centerTextBlock,
+            showCountdownBar,
+            tapToCancel);
     }
 
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
@@ -848,6 +866,7 @@ public class TrayContext : ApplicationContext
             UnregisterHotkeys();
             _listeningOverlayTimer.Stop();
             _listeningOverlayTimer.Dispose();
+            _overlay.OverlayTapped -= OnOverlayTapped;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
@@ -856,6 +875,44 @@ public class TrayContext : ApplicationContext
             _appIcon.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    private async Task<bool> ShowCancelableTranscribedPreviewAsync(string text, int durationMs)
+    {
+        var previewText = text + "\n(tap overlay to cancel paste)";
+        var messageId = ShowOverlay(
+            previewText,
+            Color.LightGreen,
+            durationMs,
+            showCountdownBar: true,
+            tapToCancel: true);
+        if (messageId == 0 || durationMs <= 0)
+            return false;
+
+        _pendingPastePreviewMessageId = messageId;
+        _pendingPasteCanceledTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            var waitMs = durationMs + TranscribedOverlayCancelWindowPaddingMs;
+            var completed = await Task.WhenAny(_pendingPasteCanceledTcs.Task, Task.Delay(waitMs));
+            if (completed == _pendingPasteCanceledTcs.Task)
+                return _pendingPasteCanceledTcs.Task.Result;
+
+            return false;
+        }
+        finally
+        {
+            _pendingPastePreviewMessageId = 0;
+            _pendingPasteCanceledTcs = null;
+        }
+    }
+
+    private void OnOverlayTapped(object? sender, OverlayTappedEventArgs e)
+    {
+        if (_pendingPastePreviewMessageId == 0 || e.MessageId != _pendingPastePreviewMessageId)
+            return;
+
+        _pendingPasteCanceledTcs?.TrySetResult(true);
     }
 }
 

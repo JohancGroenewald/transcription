@@ -47,16 +47,21 @@ public class OverlayForm : Form
     private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
     private int _lastDurationMs = 3000;
     private bool _lastShowCountdownBar;
+    private bool _lastTapToCancel;
     private bool _showCountdownBar;
     private int _countdownMessageId;
     private DateTime _countdownStartUtc;
     private int _countdownTotalMs;
+    private bool _tapToCancelEnabled;
+    private int _tapToCancelMessageId;
     // Message IDs prevent stale hide/fade timer ticks from resurfacing previous text.
     private int _activeMessageId;
     private int _hideTimerMessageId;
     private int _fadeMessageId;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastCenterTextBlock;
+
+    public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -98,6 +103,8 @@ public class OverlayForm : Form
         _fadeTimer.Tick += (s, e) => OnFadeTick();
         _countdownTimer = new System.Windows.Forms.Timer { Interval = CountdownTickIntervalMs };
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
+        MouseClick += OnOverlayMouseClick;
+        _label.MouseClick += OnOverlayMouseClick;
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -141,6 +148,7 @@ public class OverlayForm : Form
             _hideTimerMessageId = 0;
             _fadeMessageId = 0;
             ResetCountdown();
+            ResetTapToCancel();
         }
     }
 
@@ -169,18 +177,25 @@ public class OverlayForm : Form
         return Screen.FromPoint(Cursor.Position);
     }
 
-    public void ShowMessage(
+    public int ShowMessage(
         string text,
         Color? color = null,
         int durationMs = 3000,
         ContentAlignment textAlign = ContentAlignment.MiddleCenter,
         bool centerTextBlock = false,
-        bool showCountdownBar = false)
+        bool showCountdownBar = false,
+        bool tapToCancel = false)
     {
         if (InvokeRequired)
         {
-            Invoke(() => ShowMessage(text, color, durationMs, textAlign, centerTextBlock, showCountdownBar));
-            return;
+            return (int)Invoke(new Func<int>(() => ShowMessage(
+                text,
+                color,
+                durationMs,
+                textAlign,
+                centerTextBlock,
+                showCountdownBar,
+                tapToCancel)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -194,6 +209,7 @@ public class OverlayForm : Form
             _lastTextAlign = textAlign;
             _lastCenterTextBlock = centerTextBlock;
             _lastShowCountdownBar = showCountdownBar;
+            _lastTapToCancel = tapToCancel;
 
             var workingArea = GetTargetScreen().WorkingArea;
             var preferredWidth = Math.Clamp(
@@ -221,6 +237,7 @@ public class OverlayForm : Form
             _hideTimerMessageId = 0;
             Opacity = _baseOpacity;
             ConfigureCountdown(showCountdownBar, durationMs, messageId);
+            ConfigureTapToCancel(tapToCancel, durationMs, messageId);
             if (durationMs > 0)
             {
                 _hideTimerMessageId = messageId;
@@ -250,6 +267,8 @@ public class OverlayForm : Form
         // Reassert topmost without activating when newly shown.
         if (!wasVisible)
             _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+        return messageId;
     }
 
     public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
@@ -271,7 +290,14 @@ public class OverlayForm : Form
         oldFont.Dispose();
 
         if (Visible)
-            ShowMessage(_label.Text, _label.ForeColor, _lastDurationMs, _lastTextAlign, _lastCenterTextBlock, _lastShowCountdownBar);
+            ShowMessage(
+                _label.Text,
+                _label.ForeColor,
+                _lastDurationMs,
+                _lastTextAlign,
+                _lastCenterTextBlock,
+                _lastShowCountdownBar,
+                _lastTapToCancel);
     }
 
     private void ConfigureLabelLayout(Size measuredTextSize, ContentAlignment textAlign, bool centerTextBlock)
@@ -416,6 +442,20 @@ public class OverlayForm : Form
         Invalidate();
     }
 
+    private void ConfigureTapToCancel(bool tapToCancel, int durationMs, int messageId)
+    {
+        if (!tapToCancel || durationMs <= 0)
+        {
+            ResetTapToCancel();
+            return;
+        }
+
+        _tapToCancelEnabled = true;
+        _tapToCancelMessageId = messageId;
+        Cursor = Cursors.Hand;
+        _label.Cursor = Cursors.Hand;
+    }
+
     private bool TryGetCountdownProgress(out double remainingFraction)
     {
         remainingFraction = 0;
@@ -437,6 +477,30 @@ public class OverlayForm : Form
         _showCountdownBar = false;
         _countdownMessageId = 0;
         _countdownTotalMs = 0;
+    }
+
+    private void ResetTapToCancel()
+    {
+        _tapToCancelEnabled = false;
+        _tapToCancelMessageId = 0;
+        Cursor = Cursors.Default;
+        _label.Cursor = Cursors.Default;
+    }
+
+    private void OnOverlayMouseClick(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left)
+            return;
+
+        if (!_tapToCancelEnabled)
+            return;
+
+        if (_tapToCancelMessageId == 0 || _tapToCancelMessageId != _activeMessageId)
+            return;
+
+        var messageId = _tapToCancelMessageId;
+        ResetTapToCancel();
+        OverlayTapped?.Invoke(this, new OverlayTappedEventArgs(messageId));
     }
 
     private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
@@ -466,4 +530,14 @@ public class OverlayForm : Form
         path.CloseFigure();
         return path;
     }
+}
+
+public sealed class OverlayTappedEventArgs : EventArgs
+{
+    public OverlayTappedEventArgs(int messageId)
+    {
+        MessageId = messageId;
+    }
+
+    public int MessageId { get; }
 }
