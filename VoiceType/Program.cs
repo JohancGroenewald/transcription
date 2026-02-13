@@ -149,12 +149,13 @@ static class Program
             EnsureConsoleForCliOutput();
             var testConfig = AppConfig.Load();
             Log.Configure(testConfig.EnableDebugLogging);
-            RunTest().GetAwaiter().GetResult();
+            Environment.ExitCode = RunTest().GetAwaiter().GetResult();
             return;
         }
 
         var request = launchRequest.Value;
         var listenAfterStartup = request == LaunchRequest.Listen;
+        var routedToExistingInstance = false;
 
         // Detach from any parent console so GUI launch returns immediately.
         FreeConsole();
@@ -168,9 +169,10 @@ static class Program
             switch (request)
             {
                 case LaunchRequest.Close:
-                    if (SignalExistingInstanceExit())
+                    routedToExistingInstance = SignalExistingInstanceExit();
+                    if (routedToExistingInstance)
                         _ = WaitForExistingInstanceExit(CloseWaitTimeout);
-                    return;
+                    break;
 
                 case LaunchRequest.Listen:
                     if (SignalExistingInstanceListen())
@@ -184,8 +186,8 @@ static class Program
                     break;
 
                 case LaunchRequest.Submit:
-                    _ = SignalExistingInstanceSubmit();
-                    return;
+                    routedToExistingInstance = SignalExistingInstanceSubmit();
+                    break;
 
                 case LaunchRequest.ReplaceExisting:
                     if (SignalExistingInstanceExit())
@@ -211,6 +213,16 @@ static class Program
         // `--close` and `--submit` target an already-running instance and should not start a new UI.
         if (request is LaunchRequest.Close or LaunchRequest.Submit)
         {
+            if (!routedToExistingInstance)
+            {
+                EnsureConsoleForCliOutput();
+                Console.Error.WriteLine(
+                    request == LaunchRequest.Close
+                        ? "No running VoiceType instance found to close."
+                        : "No running VoiceType instance found for submit.");
+                Environment.ExitCode = 1;
+            }
+
             mutex.ReleaseMutex();
             return;
         }
@@ -475,8 +487,10 @@ static class Program
         return handle != IntPtr.Zero && handle != new IntPtr(-1);
     }
 
-    static async Task RunTest()
+    static async Task<int> RunTest()
     {
+        var exitCode = 0;
+
         Console.WriteLine("=== VoiceType Dry-Run Test ===");
         Console.WriteLine();
 
@@ -530,6 +544,7 @@ static class Program
         catch (Exception ex)
         {
             Console.WriteLine($"  FAILED - {ex.Message}");
+            exitCode = 1;
         }
         finally
         {
@@ -538,5 +553,7 @@ static class Program
 
         Console.WriteLine();
         Console.WriteLine("=== Test Complete ===");
+
+        return exitCode;
     }
 }

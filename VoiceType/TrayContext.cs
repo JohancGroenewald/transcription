@@ -52,6 +52,7 @@ public class TrayContext : ApplicationContext
     private static extern IntPtr GetDesktopWindow();
 
     private const int SW_RESTORE = 9;
+    private static readonly TimeSpan TranscriptionTimeout = TimeSpan.FromSeconds(30);
 
     private readonly NotifyIcon _trayIcon;
     private readonly HotkeyWindow _hotkeyWindow;
@@ -85,6 +86,7 @@ public class TrayContext : ApplicationContext
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
+    private readonly CancellationTokenSource _shutdownCancellation = new();
 
     public TrayContext()
     {
@@ -233,7 +235,9 @@ public class TrayContext : ApplicationContext
                     return;
                 }
 
-                var text = await _transcriptionService.TranscribeAsync(audioData);
+                using var transcriptionCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
+                transcriptionCts.CancelAfter(TranscriptionTimeout);
+                var text = await _transcriptionService.TranscribeAsync(audioData, transcriptionCts.Token);
                 Log.Info($"Transcription completed ({text.Length} chars)");
 
                 if (!string.IsNullOrWhiteSpace(text))
@@ -278,6 +282,11 @@ public class TrayContext : ApplicationContext
                 {
                     ShowOverlay("No speech detected", Color.Gray, 2000);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                Log.Info("Transcription canceled (shutdown requested or timeout reached).");
+                ShowOverlay("Transcription canceled or timed out", Color.Salmon, 4000);
             }
             catch (Exception ex)
             {
@@ -373,6 +382,7 @@ public class TrayContext : ApplicationContext
                 return;
 
             _shutdownRequested = true;
+            _shutdownCancellation.Cancel();
             Log.Info("Shutdown requested");
 
             if (_isRecording)
@@ -877,6 +887,8 @@ public class TrayContext : ApplicationContext
             UnhookShutdownEvents();
             EnsureTrayIconHidden();
             UnregisterHotkeys();
+            _shutdownCancellation.Cancel();
+            _shutdownCancellation.Dispose();
             _listeningOverlayTimer.Stop();
             _listeningOverlayTimer.Dispose();
             _overlay.OverlayTapped -= OnOverlayTapped;

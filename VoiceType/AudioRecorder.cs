@@ -16,12 +16,15 @@ public readonly record struct AudioCaptureMetrics(
 
 public class AudioRecorder : IDisposable
 {
+    private static readonly TimeSpan MaxRecordingDuration = TimeSpan.FromMinutes(5);
     private readonly object _sync = new();
     private WaveInEvent? _waveIn;
     private MemoryStream? _audioBuffer;
     private WaveFormat? _waveFormat;
     private TaskCompletionSource<bool>? _recordingStopped;
     private bool _disposed;
+    private bool _maxRecordingLimitReached;
+    private long _maxRecordingBytes;
 
     public AudioCaptureMetrics LastCaptureMetrics { get; private set; }
     public event Action<int>? InputLevelChanged;
@@ -35,6 +38,8 @@ public class AudioRecorder : IDisposable
         LastCaptureMetrics = default;
         _audioBuffer = new MemoryStream();
         _recordingStopped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _maxRecordingLimitReached = false;
+        _maxRecordingBytes = 0;
 
         var waveIn = new WaveInEvent
         {
@@ -42,6 +47,7 @@ public class AudioRecorder : IDisposable
         };
         _waveIn = waveIn;
         _waveFormat = waveIn.WaveFormat;
+        _maxRecordingBytes = (long)_waveFormat.AverageBytesPerSecond * (long)MaxRecordingDuration.TotalSeconds;
 
         waveIn.DataAvailable += OnDataAvailable;
         waveIn.RecordingStopped += OnRecordingStopped;
@@ -120,9 +126,34 @@ public class AudioRecorder : IDisposable
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
+        var shouldStopRecording = false;
         lock (_sync)
         {
+            if (_audioBuffer == null)
+                return;
+
             _audioBuffer?.Write(e.Buffer, 0, e.BytesRecorded);
+
+            if (!_maxRecordingLimitReached &&
+                _maxRecordingBytes > 0 &&
+                _audioBuffer.Length >= _maxRecordingBytes)
+            {
+                _maxRecordingLimitReached = true;
+                shouldStopRecording = true;
+            }
+        }
+
+        if (shouldStopRecording)
+        {
+            Log.Info($"Maximum recording duration reached ({MaxRecordingDuration.TotalSeconds:0.0} seconds). Auto-stopping.");
+            try
+            {
+                _waveIn?.StopRecording();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Failed to auto-stop recording after duration limit was reached.", ex);
+            }
         }
 
         var levelPercent = CalculateInputLevelPercent(e.Buffer, e.BytesRecorded);
@@ -158,6 +189,8 @@ public class AudioRecorder : IDisposable
         _audioBuffer = null;
         _waveFormat = null;
         _recordingStopped = null;
+        _maxRecordingLimitReached = false;
+        _maxRecordingBytes = 0;
     }
 
     private static AudioCaptureMetrics AnalyzeRawPcm16Mono(byte[] rawAudio, WaveFormat waveFormat)

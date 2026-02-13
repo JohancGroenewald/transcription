@@ -11,7 +11,7 @@ public class TranscriptionService
         _client = new AudioClient(model, apiKey);
     }
 
-    public async Task<string> TranscribeAsync(byte[] wavAudio)
+    public async Task<string> TranscribeAsync(byte[] wavAudio, CancellationToken cancellationToken = default)
     {
         using var stream = new MemoryStream(wavAudio);
 
@@ -22,7 +22,8 @@ public class TranscriptionService
             {
                 Language = "en",
                 ResponseFormat = AudioTranscriptionFormat.Text
-            });
+            },
+            cancellationToken);
 
         return result.Value.Text?.Trim() ?? string.Empty;
     }
