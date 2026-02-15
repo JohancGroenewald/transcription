@@ -3,6 +3,8 @@ Workflow
 - After making any repository changes, always commit and push them.
 Latest applied change
 ---------------------
+- ProseMirror placeholder text is now treated as empty for existing-text detection (UIA `TextPattern` can expose placeholder as text); this allows empty VS Code chat inputs to correctly show the "empty" state (green) while real typed content still shows as "has text" (yellow).
+- Audio recorder stop no longer blocks for seconds waiting for `RecordingStopped`; we now do a short best-effort wait (100ms) and continue without logging a timeout, reducing noisy stop-timeout log spam during debugging.
 - UIA existing-text detection now recognizes ProseMirror contenteditable editors exposed as `ControlType.Group`/`ControlType.Document`/`ControlType.Pane` with `TextPattern` when keyboard-focused, enabling existing-text detection in VS Code chat input.
 - Remote action indicators now render in a dedicated overlay window (`_actionOverlay`) that is positioned above the live listening HUD, so they do not get repositioned by listening text updates and do not obstruct the listening text.
 - Action overlay is short-lived (carry-over duration) and is hidden when recording stops.
@@ -26,6 +28,7 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- Implemented (2026-02-15): ProseMirror empty inputs were being misdetected as non-empty because UIA `TextPattern` returns placeholder text (for example ~26 chars) even when the editor has no user-typed content; we now detect and strip placeholder by comparing `TextPattern` text against UIA `HelpText`/`Name`/`ItemStatus` for ProseMirror, so empty inputs return `TargetHasExistingText=false`.
 - Implemented (2026-02-15): `TargetHasExistingText()` now treats keyboard-focused ProseMirror contenteditable UIA elements (often `ControlType.Group`) as editable for `TextPattern`, so VS Code/Chromium chat input can be detected as empty vs non-empty.
 - New request (2026-02-15): clarify git hook behavior. Solution: repo sets `core.hooksPath=.githooks` so commits run `.githooks/pre-commit` (bumps `<Version>` in `VoiceType/VoiceType.csproj` via `bump-version.ps1`, skippable with `SKIP_VERSION_BUMP=1`) and `.githooks/post-commit` (runs `restart-voicetype.ps1` to close any repo-running VoiceType.exe, build Debug, and relaunch).
 - New request (2026-02-15): add detailed debug logging for `TextInjector.TargetHasExistingText()` so we can see which target window/control is being evaluated (HWND/class/process), whether Win32 text APIs or UI Automation are used, and what text-length/meaningful checks are returning (without logging actual field contents).

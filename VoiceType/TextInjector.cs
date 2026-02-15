@@ -455,15 +455,18 @@ public static class TextInjector
                 return false;
 
             if (TryGetEditableTextFromFocusedAutomationElement(
-                    focused,
-                    out var text,
-                    out var source,
-                    out var isReadOnly,
-                    out var skipReason))
+                     focused,
+                     out var text,
+                     out var source,
+                     out var isReadOnly,
+                     out var skipReason))
             {
                 var meaningful = HasMeaningfulText(text);
                 if (debugEnabled)
-                    Log.Info($"[TextInjector/UIA] Text probe: depth=0 source={source} readOnly={isReadOnly} textLen={text.Length} meaningful={meaningful}");
+                {
+                    var note = string.IsNullOrWhiteSpace(skipReason) ? string.Empty : $" note={skipReason}";
+                    Log.Info($"[TextInjector/UIA] Text probe: depth=0 source={source} readOnly={isReadOnly} textLen={text.Length} meaningful={meaningful}{note}");
+                }
                 return meaningful;
             }
 
@@ -607,7 +610,9 @@ public static class TextInjector
         {
             source = UiAutomationTextSource.TextPattern;
             isReadOnly = false;
-            text = textPattern.DocumentRange.GetText(UiAutomationMaxTextLength);
+            text = textPattern.DocumentRange.GetText(UiAutomationMaxTextLength) ?? string.Empty;
+            if (TryStripProseMirrorPlaceholderText(element, ref text, out var placeholderNote))
+                skipReason = placeholderNote;
             return true;
         }
 
@@ -644,6 +649,72 @@ public static class TextInjector
             return true;
 
         return false;
+    }
+
+    private static bool TryStripProseMirrorPlaceholderText(AutomationElement element, ref string text, out string note)
+    {
+        note = string.Empty;
+
+        if (string.IsNullOrEmpty(text))
+            return false;
+
+        if (!IsProseMirrorAutomationElement(element))
+            return false;
+
+        var normalizedText = NormalizeAutomationText(text);
+        if (normalizedText.Length == 0)
+            return false;
+
+        var helpText = SafeGet(() => element.Current.HelpText ?? string.Empty, string.Empty);
+        if (!string.IsNullOrWhiteSpace(helpText))
+        {
+            var normalizedHelp = NormalizeAutomationText(helpText);
+            if (normalizedHelp.Length > 0 && normalizedText.Equals(normalizedHelp, StringComparison.Ordinal))
+            {
+                text = string.Empty;
+                note = $"placeholder-helptext(len={normalizedText.Length})";
+                return true;
+            }
+        }
+
+        var name = SafeGet(() => element.Current.Name ?? string.Empty, string.Empty);
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var normalizedName = NormalizeAutomationText(name);
+            if (normalizedName.Length > 0 && normalizedText.Equals(normalizedName, StringComparison.Ordinal))
+            {
+                text = string.Empty;
+                note = $"placeholder-name(len={normalizedText.Length})";
+                return true;
+            }
+        }
+
+        var itemStatus = SafeGet(() => element.Current.ItemStatus ?? string.Empty, string.Empty);
+        if (!string.IsNullOrWhiteSpace(itemStatus))
+        {
+            var normalizedStatus = NormalizeAutomationText(itemStatus);
+            if (normalizedStatus.Length > 0 && normalizedText.Equals(normalizedStatus, StringComparison.Ordinal))
+            {
+                text = string.Empty;
+                note = $"placeholder-itemstatus(len={normalizedText.Length})";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsProseMirrorAutomationElement(AutomationElement element)
+    {
+        var className = SafeGet(() => element.Current.ClassName ?? string.Empty, string.Empty);
+        return className.IndexOf("ProseMirror", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static string NormalizeAutomationText(string text)
+    {
+        return string.IsNullOrEmpty(text)
+            ? string.Empty
+            : text.Replace("\r\n", "\n").Trim();
     }
 
     private static bool IsPasswordAutomationElement(AutomationElement element)

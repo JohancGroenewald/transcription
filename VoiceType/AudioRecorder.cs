@@ -77,13 +77,8 @@ public class AudioRecorder : IDisposable
         var stopped = _recordingStopped;
 
         waveIn.StopRecording();
-        if (stopped != null)
-        {
-            if (!stopped.Task.Wait(TimeSpan.FromSeconds(2)))
-                Log.Error("Timed out waiting for microphone capture to stop.");
-            else
-                stopped.Task.GetAwaiter().GetResult();
-        }
+        if (stopped != null && stopped.Task.Wait(TimeSpan.FromMilliseconds(100)))
+            stopped.Task.GetAwaiter().GetResult();
 
         byte[] rawAudio;
         lock (_sync)
