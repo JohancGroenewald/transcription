@@ -19,6 +19,9 @@ Latest applied change
 - User reported: pasted prefix appears twice in preview; plan is to keep prefix only in dedicated faded preview line and remove duplicate from main preview body.
 - New request: when existing text is detected in focused field, show transcribed preview in a yellow tone (instead of green) to indicate prefix was skipped.
 - Existing-text detection was updated to use foreground-thread focus information and child-control fallback instead of thread-local `GetFocus`.
+- User now reports a false-positive: target field appears empty but is detected as containing text.
+- Interim fix: only treat a control as "non-empty" when queried text contains non-whitespace characters, not just a nonzero reported length.
+- Fix now implemented in `TextInjector`: read actual window text via `GetWindowText` and suppress prefix only when non-whitespace text is present.
 
 Current request
 ---------------
@@ -42,9 +45,11 @@ Current request
 - Verify why the pasted-text prefix preview is not visible and adjust detection if needed.
 - Fix prefix preview duplication by displaying raw dictated text in the body and prefix only in the separate preview line.
  - If existing text is detected in the target field, display pasted-text preview with a non-green color (yellow).
- - Current issue: prefix still applies when target text already exists, likely because focus detection for existing-text checks uses `GetFocus` (thread-local) rather than the active foreground thread focus.
- - Planned update: switch target-text detection to `GetGUIThreadInfo` on the foreground thread, and continue to suppress prefix when that focused control reports existing text.
- - Completed: `TextInjector` now resolves the focused control using `GetGUIThreadInfo` from the foreground thread, with a direct-child text-input fallback for reliable existing-text detection.
+- Current issue: prefix still applies when target text already exists, likely because focus detection for existing-text checks uses `GetFocus` (thread-local) rather than the active foreground thread focus.
+- Planned update: switch target-text detection to `GetGUIThreadInfo` on the foreground thread, and continue to suppress prefix when that focused control reports existing text.
+- Completed: `TextInjector` now resolves the focused control using `GetGUIThreadInfo` from the foreground thread, with a direct-child text-input fallback for reliable existing-text detection.
+- New request: fix false positives where empty fields are reported as non-empty by tightening `TextInjector` text-content check to verify actual non-whitespace text.
+- Completed: `TextInjector` now uses `GetWindowText` content checks and only considers non-whitespace text as existing content.
 - Commit requested: finalize these changes by committing `TextInjector` detection updates and pushing for immediate local test.
 
 

@@ -29,6 +29,9 @@ public static class TextInjector
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowTextLength(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
@@ -298,15 +301,32 @@ public static class TextInjector
 
         try
         {
-            if (GetWindowTextLength(handle) > 0)
+            var textLength = GetWindowTextLength(handle);
+            if (textLength > 0 && HasReadableNonWhitespaceText(handle, textLength))
                 return true;
 
-            return SendMessage(handle, WM_GETTEXTLENGTH, 0, 0) > 0;
+            var messageTextLength = SendMessage(handle, WM_GETTEXTLENGTH, 0, 0);
+            return HasReadableNonWhitespaceText(handle, messageTextLength);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static bool HasReadableNonWhitespaceText(IntPtr handle, int textLength)
+    {
+        if (textLength <= 0)
+            return false;
+
+        var requestedLength = Math.Max(1, Math.Min(textLength + 1, 8192));
+        var sb = new StringBuilder(requestedLength);
+        var actualLength = GetWindowText(handle, sb, requestedLength);
+        if (actualLength <= 0)
+            return false;
+
+        var text = sb.ToString(0, actualLength);
+        return !string.IsNullOrWhiteSpace(text);
     }
 
     private static void SendCtrlV()
