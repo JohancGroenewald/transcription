@@ -119,14 +119,45 @@ public static class TextInjector
     /// </summary>
     public static bool TargetHasExistingText()
     {
+        var debugEnabled = Log.IsEnabled;
         var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
         if (target == IntPtr.Zero)
+        {
+            if (debugEnabled)
+            {
+                var fg = GetForegroundWindow();
+                var fgClass = fg == IntPtr.Zero ? string.Empty : GetWindowClassName(fg);
+                Log.Info($"[TextInjector] TargetHasExistingText: no suitable target. foreground={FormatHandle(fg)} class={fgClass}");
+            }
             return false;
+        }
+
+        if (debugEnabled)
+        {
+            var className = GetWindowClassName(target);
+            var threadId = GetWindowThreadProcessId(target, out var processId);
+            var processName = TryGetProcessName(processId);
+            var processLabel = string.IsNullOrWhiteSpace(processName) ? string.Empty : $" ({processName})";
+            Log.Info($"[TextInjector] TargetHasExistingText: target={FormatHandle(target)} class={className} tid={threadId} pid={processId}{processLabel}");
+        }
 
         var focusedWindow = GetFocusedWindowInForegroundThread(target);
-        return DoesWindowHaveTextInTextInputTarget(
+        var candidate = focusedWindow == IntPtr.Zero ? target : focusedWindow;
+        if (debugEnabled)
+        {
+            var candidateClass = GetWindowClassName(candidate);
+            _ = IsLikelyTextInputWindow(candidate, out var confidence);
+            Log.Info($"[TextInjector] TargetHasExistingText: candidate={FormatHandle(candidate)} class={candidateClass} confidence={confidence}");
+        }
+
+        var hasText = DoesWindowHaveTextInTextInputTarget(
             focusedWindow == IntPtr.Zero ? target : focusedWindow,
             foregroundWindow: target);
+
+        if (debugEnabled)
+            Log.Info($"[TextInjector] TargetHasExistingText: result={hasText}");
+
+        return hasText;
     }
 
     /// <summary>
@@ -217,18 +248,25 @@ public static class TextInjector
         if (targetWindow == IntPtr.Zero)
             return false;
 
-        if (IsLikelyTextInputWindow(targetWindow, out var confidence) &&
-            confidence is TextInputConfidence.Strong)
+        var debugEnabled = Log.IsEnabled;
+        var className = debugEnabled ? GetWindowClassName(targetWindow) : string.Empty;
+        var isTextInput = IsLikelyTextInputWindow(targetWindow, out var confidence);
+        if (isTextInput && confidence is TextInputConfidence.Strong)
         {
+            if (debugEnabled)
+                Log.Info($"[TextInjector] ExistingText probe: hwnd={FormatHandle(targetWindow)} class={className} path=win32");
             return DoesWindowHaveText(targetWindow);
         }
 
         // For Chromium/Electron/WPF/etc, the focused UIA element is a better signal than window text APIs.
+        if (debugEnabled)
+            Log.Info($"[TextInjector] ExistingText probe: hwnd={FormatHandle(targetWindow)} class={className} confidence={confidence} path=uia");
         return DoesFocusedUiAutomationTextInputHaveExistingText(foregroundWindow);
     }
 
     private static IntPtr GetFocusedWindowInForegroundThread(IntPtr fallbackWindow)
     {
+        var debugEnabled = Log.IsEnabled;
         var foregroundWindow = GetForegroundWindow();
         if (foregroundWindow == IntPtr.Zero)
             return FindLikelyTextInputWindowOrFallback(fallbackWindow);
@@ -236,6 +274,12 @@ public static class TextInjector
         var foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, out _);
         if (foregroundThreadId == 0)
             return FindLikelyTextInputWindowOrFallback(fallbackWindow);
+
+        if (debugEnabled)
+        {
+            var fgClass = GetWindowClassName(foregroundWindow);
+            Log.Info($"[TextInjector] GUIThreadInfo: foreground={FormatHandle(foregroundWindow)} class={fgClass} thread={foregroundThreadId}");
+        }
 
         var guiInfo = new GUITHREADINFO
         {
@@ -245,10 +289,19 @@ public static class TextInjector
         if (!GetGUIThreadInfo(foregroundThreadId, ref guiInfo))
             return FindLikelyTextInputWindowOrFallback(fallbackWindow);
 
+        if (debugEnabled)
+        {
+            var activeClass = guiInfo.hwndActive == IntPtr.Zero ? string.Empty : GetWindowClassName(guiInfo.hwndActive);
+            var focusClass = guiInfo.hwndFocus == IntPtr.Zero ? string.Empty : GetWindowClassName(guiInfo.hwndFocus);
+            Log.Info($"[TextInjector] GUIThreadInfo: active={FormatHandle(guiInfo.hwndActive)} class={activeClass} focus={FormatHandle(guiInfo.hwndFocus)} class={focusClass}");
+        }
+
         if (guiInfo.hwndFocus != IntPtr.Zero &&
             IsLikelyTextInputWindow(guiInfo.hwndFocus, out var focusedConfidence) &&
             focusedConfidence == TextInputConfidence.Strong)
         {
+            if (debugEnabled)
+                Log.Info($"[TextInjector] GUIThreadInfo: using strong hwndFocus={FormatHandle(guiInfo.hwndFocus)}");
             return guiInfo.hwndFocus;
         }
 
@@ -260,14 +313,24 @@ public static class TextInjector
         if (fallbackWindow == IntPtr.Zero)
             return IntPtr.Zero;
 
+        var debugEnabled = Log.IsEnabled;
         var weakFallback = IntPtr.Zero;
+        var scannedChildren = 0;
         var directChild = GetWindow(fallbackWindow, GW_CHILD);
         while (directChild != IntPtr.Zero)
         {
+            scannedChildren++;
             if (IsLikelyTextInputWindow(directChild, out var confidence))
             {
                 if (confidence == TextInputConfidence.Strong)
+                {
+                    if (debugEnabled)
+                    {
+                        var childClass = GetWindowClassName(directChild);
+                        Log.Info($"[TextInjector] Focus fallback scan: selected strong child={FormatHandle(directChild)} class={childClass} scanned={scannedChildren}");
+                    }
                     return directChild;
+                }
 
                 if (weakFallback == IntPtr.Zero)
                     weakFallback = directChild;
@@ -276,7 +339,16 @@ public static class TextInjector
             directChild = GetWindow(directChild, GW_HWNDNEXT);
         }
 
-        return weakFallback != IntPtr.Zero ? weakFallback : fallbackWindow;
+        var selected = weakFallback != IntPtr.Zero ? weakFallback : fallbackWindow;
+        if (debugEnabled)
+        {
+            var fallbackClass = GetWindowClassName(fallbackWindow);
+            var weakClass = weakFallback == IntPtr.Zero ? string.Empty : GetWindowClassName(weakFallback);
+            var selectedClass = GetWindowClassName(selected);
+            Log.Info($"[TextInjector] Focus fallback scan: fallback={FormatHandle(fallbackWindow)} class={fallbackClass} scanned={scannedChildren} weak={FormatHandle(weakFallback)} class={weakClass} selected={FormatHandle(selected)} class={selectedClass}");
+        }
+
+        return selected;
     }
 
     private enum TextInputConfidence
@@ -346,40 +418,104 @@ public static class TextInjector
         if (foregroundWindow == IntPtr.Zero)
             return false;
 
+        var debugEnabled = Log.IsEnabled;
         try
         {
-            var focused = AutomationElement.FocusedElement;
+            AutomationElement? focused;
+            try
+            {
+                focused = AutomationElement.FocusedElement;
+            }
+            catch (Exception ex)
+            {
+                if (debugEnabled)
+                    Log.Info($"[TextInjector/UIA] FocusedElement failed: ex={ex.GetType().Name}");
+                return false;
+            }
+
             if (focused == null)
+            {
+                if (debugEnabled)
+                    Log.Info("[TextInjector/UIA] No focused element.");
+                return false;
+            }
+
+            var inForeground = IsAutomationElementInForegroundWindow(
+                focused,
+                foregroundWindow,
+                out var resolvedWindow,
+                out var resolvedDepth);
+            if (debugEnabled)
+            {
+                var focusedSummary = DescribeAutomationElement(focused);
+                Log.Info($"[TextInjector/UIA] Focused element: {focusedSummary} resolvedHwnd={FormatHandle(resolvedWindow)} hwndDepth={resolvedDepth} inForeground={inForeground} foreground={FormatHandle(foregroundWindow)}");
+            }
+
+            if (!inForeground)
                 return false;
 
-            if (!IsAutomationElementInForegroundWindow(focused, foregroundWindow))
-                return false;
+            if (TryGetEditableTextFromFocusedAutomationElement(
+                    focused,
+                    out var text,
+                    out var source,
+                    out var isReadOnly,
+                    out var skipReason))
+            {
+                var meaningful = HasMeaningfulText(text);
+                if (debugEnabled)
+                    Log.Info($"[TextInjector/UIA] Text probe: depth=0 source={source} readOnly={isReadOnly} textLen={text.Length} meaningful={meaningful}");
+                return meaningful;
+            }
 
-            if (TryGetEditableTextFromFocusedAutomationElement(focused, out var text))
-                return HasMeaningfulText(text);
+            if (debugEnabled && !string.IsNullOrWhiteSpace(skipReason))
+                Log.Info($"[TextInjector/UIA] Text probe: depth=0 skipped ({skipReason})");
 
             // Some providers place focus on a child within the editable region; walk up a few ancestors.
             var current = focused;
-            for (var depth = 0; depth < 8; depth++)
+            for (var depth = 1; depth <= 8; depth++)
             {
-                current = TreeWalker.RawViewWalker.GetParent(current);
+                current = SafeGet(() => TreeWalker.RawViewWalker.GetParent(current), null);
                 if (current == null)
                     break;
 
-                if (TryGetEditableTextFromFocusedAutomationElement(current, out text))
-                    return HasMeaningfulText(text);
+                if (TryGetEditableTextFromFocusedAutomationElement(
+                        current,
+                        out text,
+                        out source,
+                        out isReadOnly,
+                        out _))
+                {
+                    var meaningful = HasMeaningfulText(text);
+                    if (debugEnabled)
+                    {
+                        var elementSummary = DescribeAutomationElement(current);
+                        Log.Info($"[TextInjector/UIA] Text probe: depth={depth} source={source} readOnly={isReadOnly} textLen={text.Length} meaningful={meaningful} element={elementSummary}");
+                    }
+                    return meaningful;
+                }
             }
+
+            if (debugEnabled)
+                Log.Info("[TextInjector/UIA] Text probe: no editable text found on focused element or ancestors.");
         }
-        catch
+        catch (Exception ex)
         {
             // Best effort only.
+            if (debugEnabled)
+                Log.Info($"[TextInjector/UIA] Exception: ex={ex.GetType().Name}");
         }
 
         return false;
     }
 
-    private static bool IsAutomationElementInForegroundWindow(AutomationElement element, IntPtr foregroundWindow)
+    private static bool IsAutomationElementInForegroundWindow(
+        AutomationElement element,
+        IntPtr foregroundWindow,
+        out IntPtr resolvedWindow,
+        out int resolvedDepth)
     {
+        resolvedWindow = IntPtr.Zero;
+        resolvedDepth = -1;
         try
         {
             var current = element;
@@ -388,11 +524,9 @@ public static class TextInjector
                 var hwnd = current.Current.NativeWindowHandle;
                 if (hwnd != 0)
                 {
-                    var handle = (IntPtr)hwnd;
-                    if (handle == foregroundWindow || IsChild(foregroundWindow, handle))
-                        return true;
-
-                    return false;
+                    resolvedWindow = (IntPtr)hwnd;
+                    resolvedDepth = depth;
+                    return resolvedWindow == foregroundWindow || IsChild(foregroundWindow, resolvedWindow);
                 }
 
                 current = TreeWalker.RawViewWalker.GetParent(current);
@@ -406,32 +540,85 @@ public static class TextInjector
         return false;
     }
 
-    private static bool TryGetEditableTextFromFocusedAutomationElement(AutomationElement element, out string text)
+    private enum UiAutomationTextSource
+    {
+        None,
+        ValuePattern,
+        TextPattern
+    }
+
+    private static bool TryGetEditableTextFromFocusedAutomationElement(
+        AutomationElement element,
+        out string text,
+        out UiAutomationTextSource source,
+        out bool isReadOnly,
+        out string skipReason)
     {
         text = string.Empty;
+        source = UiAutomationTextSource.None;
+        isReadOnly = true;
+        skipReason = string.Empty;
 
         if (IsPasswordAutomationElement(element))
+        {
+            skipReason = "password";
             return false;
+        }
 
-        if (!element.Current.IsEnabled)
+        bool isEnabled;
+        try
+        {
+            isEnabled = element.Current.IsEnabled;
+        }
+        catch (Exception ex)
+        {
+            skipReason = $"element-unavailable({ex.GetType().Name})";
             return false;
+        }
+
+        if (!isEnabled)
+        {
+            skipReason = "disabled";
+            return false;
+        }
 
         if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObject) &&
             valuePatternObject is ValuePattern valuePattern &&
-            !valuePattern.Current.IsReadOnly)
+            valuePattern.Current.IsReadOnly is false)
         {
+            source = UiAutomationTextSource.ValuePattern;
+            isReadOnly = valuePattern.Current.IsReadOnly;
             text = valuePattern.Current.Value ?? string.Empty;
             return true;
+        }
+
+        if (element.TryGetCurrentPattern(ValuePattern.Pattern, out valuePatternObject) &&
+            valuePatternObject is ValuePattern readOnlyValuePattern &&
+            readOnlyValuePattern.Current.IsReadOnly)
+        {
+            var value = readOnlyValuePattern.Current.Value ?? string.Empty;
+            skipReason = $"value-readonly(len={value.Length})";
+            return false;
         }
 
         if (element.TryGetCurrentPattern(TextPattern.Pattern, out var textPatternObject) &&
             textPatternObject is TextPattern textPattern &&
             IsEditableTextPatternElement(element))
         {
+            source = UiAutomationTextSource.TextPattern;
+            isReadOnly = false;
             text = textPattern.DocumentRange.GetText(UiAutomationMaxTextLength);
             return true;
         }
 
+        if (element.TryGetCurrentPattern(TextPattern.Pattern, out _))
+        {
+            var controlType = SafeGet(() => element.Current.ControlType?.ProgrammaticName ?? "?", "?");
+            skipReason = $"textpattern-non-edit(ct={controlType})";
+            return false;
+        }
+
+        skipReason = "no-editable-pattern";
         return false;
     }
 
@@ -476,27 +663,51 @@ public static class TextInjector
 
         try
         {
+            var debugEnabled = Log.IsEnabled;
             var textLength = GetWindowTextLength(handle);
-            if (textLength > 0 && HasReadableNonWhitespaceText(handle, textLength))
-                return true;
+            var hasWindowText = HasReadableNonWhitespaceText(handle, textLength, out var requested1, out var actual1);
 
             var messageTextLength = SendMessage(handle, WM_GETTEXTLENGTH, 0, 0);
-            return HasReadableNonWhitespaceText(handle, messageTextLength);
+            var hasMessageText = HasReadableNonWhitespaceText(handle, messageTextLength, out var requested2, out var actual2);
+            var result = hasWindowText || hasMessageText;
+
+            if (debugEnabled)
+            {
+                var className = GetWindowClassName(handle);
+                Log.Info(
+                    $"[TextInjector] Win32 text probe: hwnd={FormatHandle(handle)} class={className} " +
+                    $"GetWindowTextLength={textLength} requested={requested1} actual={actual1} " +
+                    $"WM_GETTEXTLENGTH={messageTextLength} requested2={requested2} actual2={actual2} meaningful={result}");
+            }
+
+            return result;
         }
         catch
         {
+            if (Log.IsEnabled)
+            {
+                var className = GetWindowClassName(handle);
+                Log.Info($"[TextInjector] Win32 text probe failed: hwnd={FormatHandle(handle)} class={className}");
+            }
             return false;
         }
     }
 
-    private static bool HasReadableNonWhitespaceText(IntPtr handle, int textLength)
+    private static bool HasReadableNonWhitespaceText(
+        IntPtr handle,
+        int textLength,
+        out int requestedLength,
+        out int actualLength)
     {
+        requestedLength = 0;
+        actualLength = 0;
+
         if (textLength <= 0)
             return false;
 
-        var requestedLength = Math.Max(1, Math.Min(textLength + 1, 8192));
+        requestedLength = Math.Max(1, Math.Min(textLength + 1, 8192));
         var sb = new StringBuilder(requestedLength);
-        var actualLength = GetWindowText(handle, sb, requestedLength);
+        actualLength = GetWindowText(handle, sb, requestedLength);
         if (actualLength <= 0)
             return false;
 
@@ -519,6 +730,57 @@ public static class TextInjector
         }
 
         return false;
+    }
+
+    private static string FormatHandle(IntPtr handle)
+    {
+        return handle == IntPtr.Zero ? "0x0" : $"0x{handle.ToInt64():X}";
+    }
+
+    private static string TryGetProcessName(uint processId)
+    {
+        if (processId == 0)
+            return string.Empty;
+
+        try
+        {
+            return System.Diagnostics.Process.GetProcessById(unchecked((int)processId)).ProcessName;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string DescribeAutomationElement(AutomationElement element)
+    {
+        try
+        {
+            var hwnd = element.Current.NativeWindowHandle;
+            var pid = element.Current.ProcessId;
+            var controlType = element.Current.ControlType?.ProgrammaticName ?? "?";
+            var className = element.Current.ClassName ?? string.Empty;
+            var enabled = element.Current.IsEnabled;
+            var hasFocus = element.Current.HasKeyboardFocus;
+            var focusable = element.Current.IsKeyboardFocusable;
+            return $"ct={controlType} class={className} pid={pid} hwnd=0x{hwnd:X} enabled={enabled} focus={hasFocus} kbdFocusable={focusable}";
+        }
+        catch (Exception ex)
+        {
+            return $"<unavailable:{ex.GetType().Name}>";
+        }
+    }
+
+    private static T SafeGet<T>(Func<T> getter, T fallback)
+    {
+        try
+        {
+            return getter();
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private static void SendCtrlV()
