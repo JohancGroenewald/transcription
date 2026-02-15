@@ -29,6 +29,9 @@ public static class TextInjector
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowTextLength(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetFocus();
+
     private const byte VK_CONTROL = 0x11;
     private const byte VK_V = 0x56;
     private const byte VK_RETURN = 0x0D;
@@ -78,7 +81,7 @@ public static class TextInjector
     public static bool TargetHasExistingText()
     {
         var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
-        return DoesWindowHaveText(target);
+        return DoesWindowHaveTextInTextInputTarget(target);
     }
 
     /// <summary>
@@ -162,6 +165,52 @@ public static class TextInjector
 
         // Progman / WorkerW = desktop wallpaper, Shell_TrayWnd = taskbar.
         return className is not ("Progman" or "WorkerW" or "Shell_TrayWnd");
+    }
+
+    private static bool DoesWindowHaveTextInTextInputTarget(IntPtr targetWindow)
+    {
+        if (targetWindow == IntPtr.Zero)
+            return false;
+
+        var focusedWindow = GetFocus();
+        if (focusedWindow != IntPtr.Zero && IsLikelyTextInputWindow(focusedWindow))
+            return DoesWindowHaveText(focusedWindow);
+
+        if (IsLikelyTextInputWindow(targetWindow))
+            return DoesWindowHaveText(targetWindow);
+
+        return false;
+    }
+
+    private static bool IsLikelyTextInputWindow(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+            return false;
+
+        var className = GetWindowClassName(handle);
+        if (string.IsNullOrWhiteSpace(className))
+            return false;
+
+        if (className.Equals("Edit", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (className.StartsWith("WindowsForms10.EDIT", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (className.Contains("RICHEDIT", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (className.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return className.Contains("TEXT", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetWindowClassName(IntPtr handle)
+    {
+        var sb = new StringBuilder(256);
+        _ = GetClassName(handle, sb, 256);
+        return sb.ToString();
     }
 
     private static bool DoesWindowHaveText(IntPtr handle)

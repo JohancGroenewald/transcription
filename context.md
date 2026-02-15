@@ -12,6 +12,10 @@ Latest applied change
 - Prefix editor now uses a dedicated multiline control with `AutoSize = false` and a fixed five-line minimum height.
 - Prefix preview text is rendered in a faded color and omitted when target application already contains text.
 - Prefix injection now inserts a newline separator between prefix and transcribed text.
+- Requested: normalize repository line endings (`git add --renormalize .`) and verify remaining mixed EOL state.
+- Requested: debug why pasted prefix line no longer appears in preview after the latest prefix detection changes.
+- Renormalization pass now completes with no mixed `w/mixed` files reported by `git ls-files --eol`; mixed-state warnings are no longer present in the tracked index view.
+- Fixed prefix visibility regression by changing detection to only skip prepends when a detected **text-input control** appears to already contain content (instead of treating any focused window with title text as occupied).
 
 Current request
 ---------------
@@ -31,6 +35,8 @@ Current request
 - Print a newline between inserted prefix and dictation text.
 - Render the prefix preview in a faded color.
 - Skip prefix insertion when active target already appears to have existing text.
+- Verify line-ending normalization status after renormalize.
+- Verify why the pasted-text prefix preview is not visible and adjust detection if needed.
 
 VoiceType CLI actions (VoiceType.exe)
 ====================================
