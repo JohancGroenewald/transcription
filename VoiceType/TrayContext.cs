@@ -273,16 +273,15 @@ public class TrayContext : ApplicationContext
                         return;
                     }
 
-                    var (textToInject, prefixTextForPreview, prefixSuppressedForExistingText) = ApplyPastePrefix(
-                        text,
-                        TextInjector.TargetHasExistingText());
+                    var targetHasExistingText = TextInjector.TargetHasExistingText();
+                    var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
                     var previewText = prefixTextForPreview is null ? textToInject : text;
                     var previewDecision = await ShowCancelableTranscribedPreviewAsync(
                         previewText,
                         adaptiveDurationMs,
                         prefixTextForPreview,
-                        prefixSuppressedForExistingText);
+                        targetHasExistingText);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
@@ -743,18 +742,15 @@ public class TrayContext : ApplicationContext
         return Math.Clamp(adaptiveMs, AppConfig.MinOverlayDurationMs, maxMs);
     }
 
-    private (string TextToInject, string? PrefixForPreview, bool PrefixSuppressedForExistingText) ApplyPastePrefix(
+    private (string TextToInject, string? PrefixForPreview) ApplyPastePrefix(
         string text,
         bool targetHasExistingText)
     {
-        if (_ignorePastedTextPrefixForNextTranscription)
-            return (text, null, false);
+        // Temporarily disabled: keep existing-text detection (for preview color),
+        // but do not prepend the configured prefix while testing.
+        return (text, null);
 
-        if (string.IsNullOrWhiteSpace(_pastedTextPrefix) || targetHasExistingText)
-            return (text, null, targetHasExistingText);
-
-        var normalizedPrefix = _pastedTextPrefix.TrimEnd('\r', '\n');
-        return (GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text), normalizedPrefix, false);
+        // TODO: Re-enable prefix logic behind a config toggle when testing completes.
     }
 
     private static string GetTextWithNormalizedPrefixSpacing(string prefix, string text)
@@ -1109,9 +1105,9 @@ public class TrayContext : ApplicationContext
         string text,
         int durationMs,
         string? prefixTextForPreview,
-        bool prefixSuppressedForExistingText)
+        bool targetHasExistingText)
     {
-        var previewColor = prefixSuppressedForExistingText
+        var previewColor = targetHasExistingText
             ? Color.Gold
             : Color.LightGreen;
         var messageId = ShowOverlay(
