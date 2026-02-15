@@ -23,6 +23,12 @@ public static class TextInjector
     [DllImport("user32.dll")]
     private static extern IntPtr GetDesktopWindow();
 
+    [DllImport("user32.dll")]
+    private static extern int SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(IntPtr hWnd);
+
     private const byte VK_CONTROL = 0x11;
     private const byte VK_V = 0x56;
     private const byte VK_RETURN = 0x0D;
@@ -32,6 +38,7 @@ public static class TextInjector
     private const int PostPasteBeforeEnterDelayMs = 110;
     private const int TargetRetryAttempts = 4;
     private const int TargetRetryDelayMs = 35;
+    private const int WM_GETTEXTLENGTH = 0x000E;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -63,6 +70,15 @@ public static class TextInjector
     public static bool HasPasteTarget()
     {
         return TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs) != IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// Returns true when the active suitable target appears to already contain text.
+    /// </summary>
+    public static bool TargetHasExistingText()
+    {
+        var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
+        return DoesWindowHaveText(target);
     }
 
     /// <summary>
@@ -146,6 +162,24 @@ public static class TextInjector
 
         // Progman / WorkerW = desktop wallpaper, Shell_TrayWnd = taskbar.
         return className is not ("Progman" or "WorkerW" or "Shell_TrayWnd");
+    }
+
+    private static bool DoesWindowHaveText(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+            return false;
+
+        try
+        {
+            if (GetWindowTextLength(handle) > 0)
+                return true;
+
+            return SendMessage(handle, WM_GETTEXTLENGTH, 0, 0) > 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void SendCtrlV()

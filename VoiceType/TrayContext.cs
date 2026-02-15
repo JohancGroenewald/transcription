@@ -8,6 +8,7 @@ public class TrayContext : ApplicationContext
 {
     private static readonly string[] MicSpinnerFrames = ["|", "/", "-", "\\"];
     private static readonly Color CommandOverlayColor = Color.DeepSkyBlue;
+    private static readonly Color PreviewPrefixColor = Color.FromArgb(120, 180, 255, 180);
 
     private const int PRIMARY_HOTKEY_ID = 1;
     private const int PEN_HOTKEY_ID = 2;
@@ -268,9 +269,14 @@ public class TrayContext : ApplicationContext
                         return;
                     }
 
-                    var textToInject = ApplyPastePrefix(text);
+                    var (textToInject, prefixTextForPreview) = ApplyPastePrefix(
+                        text,
+                        TextInjector.TargetHasExistingText());
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
-                    var previewDecision = await ShowCancelableTranscribedPreviewAsync(textToInject, adaptiveDurationMs);
+                    var previewDecision = await ShowCancelableTranscribedPreviewAsync(
+                        textToInject,
+                        adaptiveDurationMs,
+                        prefixTextForPreview);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
@@ -579,7 +585,9 @@ public class TrayContext : ApplicationContext
         bool tapToCancel = false,
         bool includeRemoteAction = true,
         string? remoteActionText = null,
-        Color? remoteActionColor = null)
+        Color? remoteActionColor = null,
+        string? prefixText = null,
+        Color? prefixColor = null)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -606,7 +614,9 @@ public class TrayContext : ApplicationContext
             showCountdownBar,
             tapToCancel,
             resolvedRemoteActionMessage,
-            resolvedRemoteActionColor);
+            resolvedRemoteActionColor,
+            prefixText,
+            prefixColor);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -727,14 +737,18 @@ public class TrayContext : ApplicationContext
         return Math.Clamp(adaptiveMs, AppConfig.MinOverlayDurationMs, maxMs);
     }
 
-    private string ApplyPastePrefix(string text)
+    private (string TextToInject, string? PrefixForPreview) ApplyPastePrefix(
+        string text,
+        bool targetHasExistingText)
     {
         if (_ignorePastedTextPrefixForNextTranscription)
-            return text;
+            return (text, null);
 
-        return string.IsNullOrWhiteSpace(_pastedTextPrefix)
-            ? text
-            : GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text);
+        if (string.IsNullOrWhiteSpace(_pastedTextPrefix) || targetHasExistingText)
+            return (text, null);
+
+        var normalizedPrefix = _pastedTextPrefix.TrimEnd('\r', '\n');
+        return (GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text), normalizedPrefix);
     }
 
     private static string GetTextWithNormalizedPrefixSpacing(string prefix, string text)
@@ -742,15 +756,11 @@ public class TrayContext : ApplicationContext
         if (string.IsNullOrWhiteSpace(prefix))
             return text;
 
+        var normalizedPrefix = prefix.TrimEnd('\r', '\n');
         if (text.Length == 0)
-            return prefix;
+            return normalizedPrefix;
 
-        var lastPrefixChar = prefix[^1];
-        var firstTextChar = text[0];
-        if (char.IsWhiteSpace(lastPrefixChar) || char.IsWhiteSpace(firstTextChar))
-            return prefix + text;
-
-        return $"{prefix} {text}";
+        return $"{normalizedPrefix}\n{text.TrimStart('\r', '\n')}";
     }
 
     private void StartListeningOverlay()
@@ -1089,15 +1099,20 @@ public class TrayContext : ApplicationContext
         base.Dispose(disposing);
     }
 
-    private async Task<TranscribedPreviewDecision> ShowCancelableTranscribedPreviewAsync(string text, int durationMs)
+    private async Task<TranscribedPreviewDecision> ShowCancelableTranscribedPreviewAsync(
+        string text,
+        int durationMs,
+        string? prefixTextForPreview)
     {
-        var previewText = text;
         var messageId = ShowOverlay(
-            previewText,
+            text,
             Color.LightGreen,
             durationMs,
             showCountdownBar: true,
-            tapToCancel: true);
+            tapToCancel: true,
+            includeRemoteAction: false,
+            prefixText: prefixTextForPreview,
+            prefixColor: PreviewPrefixColor);
         if (messageId == 0 || durationMs <= 0)
             return TranscribedPreviewDecision.TimeoutPaste;
 

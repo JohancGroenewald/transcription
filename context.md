@@ -9,6 +9,9 @@ Latest applied change
 - Main listening overlay updates now always render without embedded remote action text (`includeRemoteAction: false`) while listening remains on.
 - Added `.gitattributes` for repo-level text normalization and explicit EOL preferences to reduce LF/CRLF commit warnings.
 - `context.md` updated first in this iteration before code changes, then changes are ready for commit/push.
+- Prefix editor now uses a dedicated multiline control with `AutoSize = false` and a fixed five-line minimum height.
+- Prefix preview text is rendered in a faded color and omitted when target application already contains text.
+- Prefix injection now inserts a newline separator between prefix and transcribed text.
 
 Current request
 ---------------
@@ -21,6 +24,13 @@ Current request
 - Make the listener overlay stack the action line as a full-width top strip (left-aligned), then render the listening lines below it.
 - Keep remote action action notices in a dedicated popup overlay stacked above the listening overlay and dismissing shortly after the carry-over period.
 - Add repo-level line-ending normalization (for example `.gitattributes`) so LF/CRLF conversion warnings stop appearing during commits.
+- Prefix handling now uses best-effort target-text detection before prefixing so existing target text can suppress the prefix.
+- Prefix insertion now forces a newline separator between prefix and dictated text and supports faded-prefix preview rendering in the transcribed preview HUD.
+- Prefix input is a multiline 5-line-capable editor with Enter accepted for new lines.
+- Make the pasted-text prefix editor explicitly five editable lines high (`AutoSize = false`).
+- Print a newline between inserted prefix and dictation text.
+- Render the prefix preview in a faded color.
+- Skip prefix insertion when active target already appears to have existing text.
 
 VoiceType CLI actions (VoiceType.exe)
 ====================================

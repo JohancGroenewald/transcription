@@ -41,6 +41,7 @@ public class OverlayForm : Form
 
     private readonly Label _label;
     private readonly Label _actionLabel;
+    private readonly Label _prefixLabel;
     private readonly System.Windows.Forms.Timer _hideTimer;
     private readonly System.Windows.Forms.Timer _fadeTimer;
     private readonly System.Windows.Forms.Timer _countdownTimer;
@@ -52,9 +53,12 @@ public class OverlayForm : Form
     private bool _lastShowCountdownBar;
     private bool _lastTapToCancel;
     private bool _lastShowActionLine;
+    private bool _lastShowPrefixLine;
     private bool _showCountdownBar;
     private string _lastActionText = string.Empty;
     private Color _lastActionColor = ActionTextColor;
+    private string _lastPrefixText = string.Empty;
+    private Color _lastPrefixColor = DefaultTextColor;
     private int _countdownMessageId;
     private DateTime _countdownStartUtc;
     private int _countdownTotalMs;
@@ -111,7 +115,18 @@ public class OverlayForm : Form
             AutoSize = false,
             Visible = false
         };
+        _prefixLabel = new Label
+        {
+            Dock = DockStyle.Bottom,
+            Font = new Font("Consolas", Math.Max(8, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Regular),
+            ForeColor = Color.FromArgb(150, 173, 255, 173),
+            TextAlign = ContentAlignment.TopLeft,
+            AutoEllipsis = false,
+            AutoSize = false,
+            Visible = false
+        };
         Controls.Add(_actionLabel);
+        Controls.Add(_prefixLabel);
         Controls.Add(_label);
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = 3000 };
@@ -123,6 +138,7 @@ public class OverlayForm : Form
         MouseClick += OnOverlayMouseClick;
         _label.MouseClick += OnOverlayMouseClick;
         _actionLabel.MouseClick += OnOverlayMouseClick;
+        _prefixLabel.MouseClick += OnOverlayMouseClick;
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -169,6 +185,10 @@ public class OverlayForm : Form
             _actionLabel.Visible = false;
             _lastActionText = string.Empty;
             _lastShowActionLine = false;
+            _prefixLabel.Text = string.Empty;
+            _prefixLabel.Visible = false;
+            _lastPrefixText = string.Empty;
+            _lastShowPrefixLine = false;
             ResetCountdown();
             ResetTapToCancel();
         }
@@ -208,7 +228,9 @@ public class OverlayForm : Form
         bool showCountdownBar = false,
         bool tapToCancel = false,
         string? actionText = null,
-        Color? actionColor = null)
+        Color? actionColor = null,
+        string? prefixText = null,
+        Color? prefixColor = null)
     {
         if (InvokeRequired)
         {
@@ -221,7 +243,9 @@ public class OverlayForm : Form
                 showCountdownBar,
                 tapToCancel,
                 actionText,
-                actionColor)));
+                actionColor,
+                prefixText,
+                prefixColor)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -234,6 +258,9 @@ public class OverlayForm : Form
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = actionColor ?? ActionTextColor;
             _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
+            _lastPrefixText = string.IsNullOrWhiteSpace(prefixText) ? string.Empty : prefixText;
+            _lastPrefixColor = prefixColor ?? DefaultTextColor;
+            _lastShowPrefixLine = !string.IsNullOrWhiteSpace(_lastPrefixText);
             _lastDurationMs = durationMs;
             _lastTextAlign = textAlign;
             _lastCenterTextBlock = centerTextBlock;
@@ -274,21 +301,43 @@ public class OverlayForm : Form
                 _actionLabel.Visible = false;
             }
 
+            var prefixSize = Size.Empty;
+            var prefixLineHeight = 0;
+            if (_lastShowPrefixLine)
+            {
+                _prefixLabel.Text = _lastPrefixText;
+                _prefixLabel.ForeColor = _lastPrefixColor;
+                _prefixLabel.Visible = true;
+                prefixSize = TextRenderer.MeasureText(
+                    _lastPrefixText,
+                    _prefixLabel.Font,
+                    new Size(width - Padding.Horizontal, int.MaxValue),
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                prefixLineHeight = Math.Max(16, prefixSize.Height + 2);
+            }
+            else
+            {
+                _prefixLabel.Text = string.Empty;
+                _prefixLabel.Visible = false;
+            }
+
             var height = Math.Max(
                 MinOverlayHeight,
                 measured.Height +
                 (actionLineHeight > 0 ? actionLineHeight + ActionLineSpacing : 0) +
+                (prefixLineHeight > 0 ? prefixLineHeight + ActionLineSpacing : 0) +
                 Padding.Vertical +
                 8);
 
             Size = new Size(width, height);
             ConfigureLabelLayout(
                 measured,
-                actionSize,
                 actionLineHeight,
+                prefixLineHeight,
                 textAlign,
                 centerTextBlock,
-                _lastShowActionLine);
+                _lastShowActionLine,
+                _lastShowPrefixLine);
             PositionOnScreen(workingArea);
 
             _fadeTimer.Stop();
@@ -351,6 +400,9 @@ public class OverlayForm : Form
         var oldActionFont = _actionLabel.Font;
         _actionLabel.Font = new Font("Consolas", Math.Max(9, _overlayFontSizePt - 2), FontStyle.Regular);
         oldActionFont.Dispose();
+        var oldPrefixFont = _prefixLabel.Font;
+        _prefixLabel.Font = new Font("Consolas", Math.Max(8, _overlayFontSizePt - 3), FontStyle.Regular);
+        oldPrefixFont.Dispose();
 
         if (Visible)
             ShowMessage(
@@ -362,75 +414,93 @@ public class OverlayForm : Form
                 _lastShowCountdownBar,
                 _lastTapToCancel,
                 _lastActionText,
-                _lastActionColor);
+                _lastActionColor,
+                _lastPrefixText,
+                _lastPrefixColor);
         }
 
     private void ConfigureLabelLayout(
         Size measuredTextSize,
-        Size measuredActionTextSize,
         int measuredActionLineHeight,
+        int measuredPrefixLineHeight,
         ContentAlignment textAlign,
         bool centerTextBlock,
-        bool hasActionText)
+        bool hasActionText,
+        bool hasPrefixText)
     {
         _actionLabel.Visible = hasActionText;
+        _prefixLabel.Visible = hasPrefixText;
         _label.Dock = DockStyle.None;
         _actionLabel.Dock = DockStyle.None;
+        _prefixLabel.Dock = DockStyle.None;
         _actionLabel.TextAlign = ContentAlignment.TopLeft;
+        _prefixLabel.TextAlign = ContentAlignment.TopLeft;
         var actionLineHeight = Math.Max(0, measuredActionLineHeight);
-        var actionAreaHeight = actionLineHeight > 0
-            ? actionLineHeight + ActionLineSpacing
-            : 0;
+        var prefixLineHeight = Math.Max(0, measuredPrefixLineHeight);
+        var metaAreaHeight = actionLineHeight + prefixLineHeight + (hasActionText ? ActionLineSpacing : 0)
+            + (hasPrefixText ? ActionLineSpacing : 0);
+
+        var cursorY = Padding.Top;
+
+        if (_lastShowActionLine)
+        {
+            _actionLabel.Bounds = new Rectangle(
+                Padding.Left,
+                cursorY,
+                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                actionLineHeight);
+            cursorY += actionLineHeight + ActionLineSpacing;
+        }
+        else
+        {
+            _actionLabel.Text = string.Empty;
+            _actionLabel.Visible = false;
+        }
+
+        if (hasPrefixText)
+        {
+            _prefixLabel.Bounds = new Rectangle(
+                Padding.Left,
+                cursorY,
+                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                prefixLineHeight);
+            cursorY += prefixLineHeight + ActionLineSpacing;
+        }
+
+        var availableHeight = Math.Max(
+            20,
+            ClientSize.Height - Padding.Vertical - cursorY + Padding.Top);
 
         if (!centerTextBlock)
         {
-            _actionLabel.Dock = DockStyle.None;
-            var labelWidth = Math.Max(1, ClientSize.Width - Padding.Horizontal);
-            var labelHeight = Math.Max(
-                20,
-                ClientSize.Height - Padding.Vertical - actionAreaHeight);
-            _actionLabel.Bounds = new Rectangle(
-                Padding.Left,
-                Padding.Top,
-                labelWidth,
-                actionLineHeight);
+            _actionLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
             _actionLabel.Height = actionLineHeight;
-            _label.Dock = DockStyle.None;
+            _prefixLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
+            _prefixLabel.Height = prefixLineHeight;
             _label.Bounds = new Rectangle(
                 Padding.Left,
-                Padding.Top + actionAreaHeight,
-                labelWidth,
-                Math.Max(20, labelHeight));
+                cursorY,
+                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                Math.Max(20, availableHeight));
             _label.TextAlign = textAlign;
             _actionLabel.BringToFront();
             return;
         }
 
-        if (!hasActionText)
+        if (!hasActionText && !hasPrefixText)
         {
             _label.TextAlign = textAlign;
             return;
         }
 
         var maxLabelWidth = Math.Max(40, ClientSize.Width - Padding.Horizontal);
-        var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical - actionAreaHeight);
+        var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical - metaAreaHeight);
         var labelWidth = Math.Clamp(measuredTextSize.Width, 1, maxLabelWidth);
         var labelHeight = Math.Clamp(measuredTextSize.Height, 1, maxLabelHeight);
         var left = Math.Max(Padding.Left, (ClientSize.Width - labelWidth) / 2);
-        var top = Math.Max(Padding.Top, (ClientSize.Height - actionAreaHeight - labelHeight) / 2);
+        var top = Math.Max(Padding.Top, (ClientSize.Height - metaAreaHeight - labelHeight) / 2);
         _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
         _label.TextAlign = ContentAlignment.TopLeft;
-
-        var actionWidth = Math.Clamp(measuredActionTextSize.Width, 1, ClientSize.Width - Padding.Horizontal);
-        var actionLeft = Math.Max(Padding.Left, (ClientSize.Width - actionWidth) / 2);
-        var actionTop = Math.Min(
-            ClientSize.Height - Padding.Bottom - measuredActionTextSize.Height - 2,
-            top + labelHeight + ActionLineSpacing);
-        _actionLabel.Bounds = new Rectangle(
-            actionLeft,
-            actionTop,
-            actionWidth,
-            actionLineHeight);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -517,6 +587,9 @@ public class OverlayForm : Form
             _actionLabel.Text = string.Empty;
             _actionLabel.Visible = false;
             _lastShowActionLine = false;
+            _prefixLabel.Text = string.Empty;
+            _prefixLabel.Visible = false;
+            _lastShowPrefixLine = false;
             Hide();
             return;
         }
@@ -571,6 +644,7 @@ public class OverlayForm : Form
         Cursor = Cursors.Hand;
         _label.Cursor = Cursors.Hand;
         _actionLabel.Cursor = Cursors.Hand;
+        _prefixLabel.Cursor = Cursors.Hand;
     }
 
     private bool TryGetCountdownProgress(out double remainingFraction)
@@ -603,6 +677,7 @@ public class OverlayForm : Form
         Cursor = Cursors.Default;
         _label.Cursor = Cursors.Default;
         _actionLabel.Cursor = Cursors.Default;
+        _prefixLabel.Cursor = Cursors.Default;
     }
 
     private void OnOverlayMouseClick(object? sender, MouseEventArgs e)

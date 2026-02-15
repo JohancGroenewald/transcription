@@ -362,15 +362,20 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 10, 3)
         };
 
+        const int PrefixEditorLineCount = 5;
+        var prefixEditorMinHeight = (PrefixEditorLineCount * Font.Height) + 8;
+
         _pastedTextPrefixTextBox = new TextBox
         {
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 6, 0, 0),
-            MinimumSize = new Size(0, 100),
+            AutoSize = false,
+            Height = prefixEditorMinHeight,
+            MinimumSize = new Size(0, prefixEditorMinHeight),
             Multiline = true,
             ScrollBars = ScrollBars.Vertical,
             WordWrap = true,
-            AcceptsReturn = false,
+            AcceptsReturn = true,
             PlaceholderText = "Optional prefix"
         };
 
