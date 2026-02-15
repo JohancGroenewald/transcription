@@ -25,6 +25,8 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- New request (2026-02-15): `VoiceType/TextInjector.cs` is not reliably detecting whether the destination input already contains text (common in non-native controls like Chromium/Electron text fields). Solution: keep the current Win32 `HWND`-based detection for strong text input classes (Edit/RichEdit/etc), but add a UI Automation fallback that inspects the **focused** UIA element in the foreground app (ValuePattern/TextPattern) and only returns "has existing text" when non-whitespace, non-control characters are present (skip password fields and ignore weak/unrelated focused elements). Implementation details: enable `<UseWPF>true</UseWPF>` in `VoiceType/VoiceType.csproj` to reference UIA assemblies, and add `VoiceType/GlobalUsings.cs` for `System.IO` which is no longer implicitly included under the WindowsDesktop implicit-usings profile.
+- This is a pretext prefill test run (`pretext pretext tests`): validate whether prefix is now only added when destination truly has existing text.
 - Use a multiline editor field for the pasted-text prefix setting instead of a single-line text box.
 - Improve pasted-text prefix spacing so the prefix and dictated text are not merged unintentionally.
 - Render remote action notice text in a distinct color in the existing popup overlay.

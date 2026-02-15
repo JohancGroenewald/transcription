@@ -129,14 +129,15 @@ public class AudioRecorder : IDisposable
         var shouldStopRecording = false;
         lock (_sync)
         {
-            if (_audioBuffer == null)
+            var buffer = _audioBuffer;
+            if (buffer == null)
                 return;
 
-            _audioBuffer?.Write(e.Buffer, 0, e.BytesRecorded);
+            buffer.Write(e.Buffer, 0, e.BytesRecorded);
 
             if (!_maxRecordingLimitReached &&
                 _maxRecordingBytes > 0 &&
-                _audioBuffer.Length >= _maxRecordingBytes)
+                buffer.Length >= _maxRecordingBytes)
             {
                 _maxRecordingLimitReached = true;
                 shouldStopRecording = true;

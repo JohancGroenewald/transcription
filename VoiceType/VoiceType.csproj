@@ -3,9 +3,10 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>1.0.93</Version>
+    <Version>1.0.94</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
@@ -41,6 +42,7 @@
   </Target>
 
 </Project>
+
 
 
 

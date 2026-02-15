@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Automation;
 
 namespace VoiceType;
 
@@ -41,6 +42,9 @@ public static class TextInjector
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
+    [DllImport("user32.dll")]
+    private static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);
+
     private const byte VK_CONTROL = 0x11;
     private const byte VK_V = 0x56;
     private const byte VK_RETURN = 0x0D;
@@ -53,6 +57,7 @@ public static class TextInjector
     private const int WM_GETTEXTLENGTH = 0x000E;
     private const int GW_CHILD = 5;
     private const int GW_HWNDNEXT = 2;
+    private const int UiAutomationMaxTextLength = 8192;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct GUITHREADINFO
@@ -119,7 +124,9 @@ public static class TextInjector
             return false;
 
         var focusedWindow = GetFocusedWindowInForegroundThread(target);
-        return DoesWindowHaveTextInTextInputTarget(focusedWindow == IntPtr.Zero ? target : focusedWindow);
+        return DoesWindowHaveTextInTextInputTarget(
+            focusedWindow == IntPtr.Zero ? target : focusedWindow,
+            foregroundWindow: target);
     }
 
     /// <summary>
@@ -205,20 +212,19 @@ public static class TextInjector
         return className is not ("Progman" or "WorkerW" or "Shell_TrayWnd");
     }
 
-    private static bool DoesWindowHaveTextInTextInputTarget(IntPtr targetWindow)
+    private static bool DoesWindowHaveTextInTextInputTarget(IntPtr targetWindow, IntPtr foregroundWindow)
     {
         if (targetWindow == IntPtr.Zero)
             return false;
 
-        if (IsLikelyTextInputWindow(targetWindow, out var confidence))
+        if (IsLikelyTextInputWindow(targetWindow, out var confidence) &&
+            confidence is TextInputConfidence.Strong)
         {
-            if (confidence is not TextInputConfidence.Strong)
-                return false;
-
             return DoesWindowHaveText(targetWindow);
         }
 
-        return false;
+        // For Chromium/Electron/WPF/etc, the focused UIA element is a better signal than window text APIs.
+        return DoesFocusedUiAutomationTextInputHaveExistingText(foregroundWindow);
     }
 
     private static IntPtr GetFocusedWindowInForegroundThread(IntPtr fallbackWindow)
@@ -333,6 +339,122 @@ public static class TextInjector
 
         confidence = TextInputConfidence.None;
         return false;
+    }
+
+    private static bool DoesFocusedUiAutomationTextInputHaveExistingText(IntPtr foregroundWindow)
+    {
+        if (foregroundWindow == IntPtr.Zero)
+            return false;
+
+        try
+        {
+            var focused = AutomationElement.FocusedElement;
+            if (focused == null)
+                return false;
+
+            if (!IsAutomationElementInForegroundWindow(focused, foregroundWindow))
+                return false;
+
+            if (TryGetEditableTextFromFocusedAutomationElement(focused, out var text))
+                return HasMeaningfulText(text);
+
+            // Some providers place focus on a child within the editable region; walk up a few ancestors.
+            var current = focused;
+            for (var depth = 0; depth < 8; depth++)
+            {
+                current = TreeWalker.RawViewWalker.GetParent(current);
+                if (current == null)
+                    break;
+
+                if (TryGetEditableTextFromFocusedAutomationElement(current, out text))
+                    return HasMeaningfulText(text);
+            }
+        }
+        catch
+        {
+            // Best effort only.
+        }
+
+        return false;
+    }
+
+    private static bool IsAutomationElementInForegroundWindow(AutomationElement element, IntPtr foregroundWindow)
+    {
+        try
+        {
+            var current = element;
+            for (var depth = 0; depth < 64 && current != null; depth++)
+            {
+                var hwnd = current.Current.NativeWindowHandle;
+                if (hwnd != 0)
+                {
+                    var handle = (IntPtr)hwnd;
+                    if (handle == foregroundWindow || IsChild(foregroundWindow, handle))
+                        return true;
+
+                    return false;
+                }
+
+                current = TreeWalker.RawViewWalker.GetParent(current);
+            }
+        }
+        catch
+        {
+            // Ignore UIA failures.
+        }
+
+        return false;
+    }
+
+    private static bool TryGetEditableTextFromFocusedAutomationElement(AutomationElement element, out string text)
+    {
+        text = string.Empty;
+
+        if (IsPasswordAutomationElement(element))
+            return false;
+
+        if (!element.Current.IsEnabled)
+            return false;
+
+        if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObject) &&
+            valuePatternObject is ValuePattern valuePattern &&
+            !valuePattern.Current.IsReadOnly)
+        {
+            text = valuePattern.Current.Value ?? string.Empty;
+            return true;
+        }
+
+        if (element.TryGetCurrentPattern(TextPattern.Pattern, out var textPatternObject) &&
+            textPatternObject is TextPattern textPattern &&
+            IsEditableTextPatternElement(element))
+        {
+            text = textPattern.DocumentRange.GetText(UiAutomationMaxTextLength);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsEditableTextPatternElement(AutomationElement element)
+    {
+        // Avoid treating focused "document/page" text as an input target; prefer Edit-like UIA controls.
+        var controlType = element.Current.ControlType;
+        if (controlType != ControlType.Edit)
+            return false;
+        return true;
+    }
+
+    private static bool IsPasswordAutomationElement(AutomationElement element)
+    {
+        try
+        {
+            var value = element.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty);
+            return value is bool isPassword && isPassword;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsLikelyTextInputWindow(IntPtr handle)
