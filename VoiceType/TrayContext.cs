@@ -20,6 +20,7 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayMsPerWord = 320;
     private const int AdaptiveOverlayMaxMs = 22000;
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
+    private const int RemoteActionPopupCarryoverMs = 1400;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -76,6 +77,8 @@ public class TrayContext : ApplicationContext
     private bool _enableSendVoiceCommand;
     private bool _enableShowVoiceCommandsVoiceCommand;
     private int _remoteActionPopupLevel;
+    private string _remoteActionPopupMessage = string.Empty;
+    private DateTime _remoteActionPopupExpiresUtc;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
     private bool _useSimpleMicSpinner;
@@ -564,7 +567,8 @@ public class TrayContext : ApplicationContext
         ContentAlignment textAlign = ContentAlignment.MiddleCenter,
         bool centerTextBlock = false,
         bool showCountdownBar = false,
-        bool tapToCancel = false)
+        bool tapToCancel = false,
+        bool includeRemoteAction = true)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -572,9 +576,15 @@ public class TrayContext : ApplicationContext
         var effectiveDurationMs = durationMs.HasValue
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
+        var remoteActionMessage = includeRemoteAction
+            ? GetActiveRemoteActionPopupMessage()
+            : string.Empty;
+        var normalizedText = string.IsNullOrWhiteSpace(remoteActionMessage)
+            ? text
+            : $"{text}\n{remoteActionMessage}";
 
         return _overlay.ShowMessage(
-            text,
+            string.IsNullOrWhiteSpace(normalizedText) ? text : normalizedText,
             color,
             effectiveDurationMs,
             textAlign,
@@ -586,13 +596,41 @@ public class TrayContext : ApplicationContext
     private void ShowRemoteActionPopup(string action, string? details = null)
     {
         if (_remoteActionPopupLevel <= 0)
+        {
+            _remoteActionPopupMessage = string.Empty;
+            _remoteActionPopupExpiresUtc = DateTime.MinValue;
             return;
+        }
 
         var message = $"Remote action: {action}";
         if (_remoteActionPopupLevel >= 2 && !string.IsNullOrWhiteSpace(details))
             message += $" ({details})";
 
-        ShowOverlay(message, Color.CornflowerBlue, 900);
+        SetRemoteActionPopupContext(message);
+        ShowOverlay(message, Color.CornflowerBlue, 900, includeRemoteAction: false);
+    }
+
+    private void SetRemoteActionPopupContext(string message)
+    {
+        _remoteActionPopupMessage = message;
+        _remoteActionPopupExpiresUtc = DateTime.UtcNow.AddMilliseconds(RemoteActionPopupCarryoverMs);
+    }
+
+    private string GetActiveRemoteActionPopupMessage()
+    {
+        if (_remoteActionPopupLevel <= 0)
+        {
+            _remoteActionPopupMessage = string.Empty;
+            return string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(_remoteActionPopupMessage) || DateTime.UtcNow > _remoteActionPopupExpiresUtc)
+        {
+            _remoteActionPopupMessage = string.Empty;
+            return string.Empty;
+        }
+
+        return _remoteActionPopupMessage;
     }
 
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
