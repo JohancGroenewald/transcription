@@ -1,3 +1,7 @@
+Workflow
+--------
+- After making any repository changes, always commit and push them.
+
 VoiceType CLI actions (VoiceType.exe)
 ====================================
 
