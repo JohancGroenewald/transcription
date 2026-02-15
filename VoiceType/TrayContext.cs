@@ -76,6 +76,7 @@ public class TrayContext : ApplicationContext
     private bool _enableSendVoiceCommand;
     private bool _enableShowVoiceCommandsVoiceCommand;
     private string _pastedTextPrefix = string.Empty;
+    private bool _ignorePastedTextPrefixForNextTranscription;
     private bool _useSimpleMicSpinner;
     private int _micLevelPercent;
     private int _micSpinnerIndex;
@@ -306,6 +307,7 @@ public class TrayContext : ApplicationContext
             finally
             {
                 _isTranscribing = false;
+                _ignorePastedTextPrefixForNextTranscription = false;
                 CompleteShutdownIfRequested();
             }
         }
@@ -407,6 +409,11 @@ public class TrayContext : ApplicationContext
 
     public void RequestListen()
     {
+        RequestListen(ignorePastedTextPrefix: false);
+    }
+
+    public void RequestListen(bool ignorePastedTextPrefix)
+    {
         if (_overlay.IsDisposed)
             return;
 
@@ -421,6 +428,7 @@ public class TrayContext : ApplicationContext
             if (TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "remote listen request"))
                 return;
 
+            _ignorePastedTextPrefixForNextTranscription = ignorePastedTextPrefix;
             Log.Info("Remote listen requested");
             OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
         });
@@ -577,6 +585,9 @@ public class TrayContext : ApplicationContext
 
     private string ApplyPastePrefix(string text)
     {
+        if (_ignorePastedTextPrefixForNextTranscription)
+            return text;
+
         return string.IsNullOrEmpty(_pastedTextPrefix) ? text : _pastedTextPrefix + text;
     }
 

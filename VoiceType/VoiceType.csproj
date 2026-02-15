@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>1.0.74</Version>
+    <Version>1.0.75</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -37,9 +37,11 @@
     </PropertyGroup>
     <Exec Command="&quot;$(_VoiceTypeBuildExe)&quot; --create-activate-shortcut" ContinueOnError="WarnAndContinue" />
     <Exec Command="&quot;$(_VoiceTypeBuildExe)&quot; --create-submit-shortcut" ContinueOnError="WarnAndContinue" />
+    <Exec Command="&quot;$(_VoiceTypeBuildExe)&quot; --create-listen-ignore-prefix-shortcut" ContinueOnError="WarnAndContinue" />
   </Target>
 
 </Project>
+
 
 
 

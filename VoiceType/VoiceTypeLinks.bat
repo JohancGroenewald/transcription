@@ -18,7 +18,11 @@ set "ACTIVATE_EXIT=%ERRORLEVEL%"
 "%APP_EXE%" --create-submit-shortcut
 set "SUBMIT_EXIT=%ERRORLEVEL%"
 
-if "%ACTIVATE_EXIT%"=="0" if "%SUBMIT_EXIT%"=="0" (
+echo [VoiceType] Creating no-prefix listener shortcut...
+"%APP_EXE%" --create-listen-ignore-prefix-shortcut
+set "LISTEN_NO_PREFIX_EXIT=%ERRORLEVEL%"
+
+if "%ACTIVATE_EXIT%"=="0" if "%SUBMIT_EXIT%"=="0" if "%LISTEN_NO_PREFIX_EXIT%"=="0" (
   echo [VoiceType] Shortcuts created successfully.
   exit /b 0
 )

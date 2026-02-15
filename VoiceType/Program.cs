@@ -16,6 +16,7 @@ static class Program
     private const string MutexName = "VoiceType_SingleInstance";
     private const string ExitEventName = MutexName + "_Exit";
     private const string ListenEventName = MutexName + "_Listen";
+    private const string ListenIgnorePrefixEventName = MutexName + "_ListenIgnorePrefix";
     private const string SubmitEventName = MutexName + "_Submit";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
@@ -24,6 +25,7 @@ static class Program
     private const int STD_ERROR_HANDLE = -12;
     private static EventWaitHandle? _exitEvent;
     private static EventWaitHandle? _listenEvent;
+    private static EventWaitHandle? _listenIgnorePrefixEvent;
     private static EventWaitHandle? _submitEvent;
 
     [DllImport("kernel32.dll")]
@@ -68,15 +70,22 @@ static class Program
         var requestUnpinFromTaskbar = args.Contains("--unpin-from-taskbar", StringComparer.OrdinalIgnoreCase);
         var requestCreateActivateShortcut = args.Contains("--create-activate-shortcut", StringComparer.OrdinalIgnoreCase);
         var requestCreateSubmitShortcut = args.Contains("--create-submit-shortcut", StringComparer.OrdinalIgnoreCase);
+        var requestCreateListenIgnorePrefixShortcut = args.Contains(
+            "--create-listen-ignore-prefix-shortcut",
+            StringComparer.OrdinalIgnoreCase);
         var utilityRequestCount =
             (requestPinToTaskbar ? 1 : 0) +
             (requestUnpinFromTaskbar ? 1 : 0) +
             (requestCreateActivateShortcut ? 1 : 0) +
-            (requestCreateSubmitShortcut ? 1 : 0);
+            (requestCreateSubmitShortcut ? 1 : 0) +
+            (requestCreateListenIgnorePrefixShortcut ? 1 : 0);
         if (utilityRequestCount > 1)
         {
             EnsureConsoleForCliOutput();
-            Console.Error.WriteLine("Specify only one of: --pin-to-taskbar, --unpin-from-taskbar, --create-activate-shortcut, --create-submit-shortcut.");
+            Console.Error.WriteLine(
+                "Specify only one of: --pin-to-taskbar, --unpin-from-taskbar, " +
+                "--create-activate-shortcut, --create-submit-shortcut, " +
+                "--create-listen-ignore-prefix-shortcut.");
             Environment.ExitCode = 2;
             return;
         }
@@ -130,8 +139,26 @@ static class Program
             return;
         }
 
+        if (requestCreateListenIgnorePrefixShortcut)
+        {
+            EnsureConsoleForCliOutput();
+            var succeeded = ShortcutManager.TryCreateCurrentExecutableShortcut(
+                shortcutFileName: "VoiceTypeListenNoPrefix.exe.lnk",
+                arguments: "--listen --ignore-prefix",
+                description: "Trigger VoiceType listen mode without pasted-text prefix",
+                out var message);
+            if (succeeded)
+                Console.WriteLine(message);
+            else
+                Console.Error.WriteLine(message);
+
+            Environment.ExitCode = succeeded ? 0 : 1;
+            return;
+        }
+
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
         var requestListen = args.Contains("--listen", StringComparer.OrdinalIgnoreCase);
+        var requestIgnorePrefix = args.Contains("--ignore-prefix", StringComparer.OrdinalIgnoreCase);
         var requestSubmit = args.Contains("--submit", StringComparer.OrdinalIgnoreCase);
         var requestReplaceExisting = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
         var launchRequest = GetLaunchRequest(requestClose, requestListen, requestSubmit, requestReplaceExisting);
@@ -139,6 +166,14 @@ static class Program
         {
             EnsureConsoleForCliOutput();
             Console.Error.WriteLine("Specify only one of: --close, --listen, --submit, --replace-existing.");
+            Environment.ExitCode = 2;
+            return;
+        }
+
+        if (requestIgnorePrefix && !requestListen)
+        {
+            EnsureConsoleForCliOutput();
+            Console.Error.WriteLine("--ignore-prefix can only be used with --listen.");
             Environment.ExitCode = 2;
             return;
         }
@@ -155,6 +190,7 @@ static class Program
 
         var request = launchRequest.Value;
         var listenAfterStartup = request == LaunchRequest.Listen;
+        var listenIgnorePrefixOnStartup = listenAfterStartup && requestIgnorePrefix;
         var routedToExistingInstance = false;
 
         // Detach from any parent console so GUI launch returns immediately.
@@ -175,7 +211,7 @@ static class Program
                     break;
 
                 case LaunchRequest.Listen:
-                    if (SignalExistingInstanceListen())
+                    if (SignalExistingInstanceListen(ignorePrefix: requestIgnorePrefix))
                         return;
 
                     // Fallback for older running versions that do not listen for remote listen signals.
@@ -183,6 +219,7 @@ static class Program
                         _ = WaitForExistingInstanceExit(ReplaceWaitTimeout);
                     ownsMutex = TryTakeOverMutex(mutex);
                     listenAfterStartup = true;
+                    listenIgnorePrefixOnStartup = requestIgnorePrefix;
                     break;
 
                 case LaunchRequest.Submit:
@@ -231,6 +268,10 @@ static class Program
         {
             _exitEvent = new EventWaitHandle(false, EventResetMode.ManualReset, ExitEventName);
             _listenEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ListenEventName);
+            _listenIgnorePrefixEvent = new EventWaitHandle(
+                false,
+                EventResetMode.AutoReset,
+                ListenIgnorePrefixEventName);
             _submitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SubmitEventName);
 
             var config = AppConfig.Load();
@@ -280,6 +321,32 @@ static class Program
             { IsBackground = true };
             listenThread.Start();
 
+            var listenIgnorePrefixThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        _listenIgnorePrefixEvent.WaitOne();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        trayContext.RequestListen(ignorePastedTextPrefix: true);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+                }
+            })
+            { IsBackground = true };
+            listenIgnorePrefixThread.Start();
+
             var submitThread = new Thread(() =>
             {
                 while (true)
@@ -307,7 +374,7 @@ static class Program
             submitThread.Start();
 
             if (listenAfterStartup)
-                trayContext.RequestListen();
+                trayContext.RequestListen(ignorePastedTextPrefix: listenIgnorePrefixOnStartup);
 
             Application.Run(trayContext);
         }
@@ -315,6 +382,8 @@ static class Program
         {
             _submitEvent?.Dispose();
             _submitEvent = null;
+            _listenIgnorePrefixEvent?.Dispose();
+            _listenIgnorePrefixEvent = null;
             _listenEvent?.Dispose();
             _listenEvent = null;
             _exitEvent?.Dispose();
@@ -375,7 +444,14 @@ static class Program
 
     private static bool SignalExistingInstanceListen()
     {
-        if (EventWaitHandle.TryOpenExisting(ListenEventName, out var evt))
+        return SignalExistingInstanceListen(ignorePrefix: false);
+    }
+
+    private static bool SignalExistingInstanceListen(bool ignorePrefix)
+    {
+        if (EventWaitHandle.TryOpenExisting(
+            ignorePrefix ? ListenIgnorePrefixEventName : ListenEventName,
+            out var evt))
         {
             evt.Set();
             evt.Dispose();
@@ -430,6 +506,7 @@ static class Program
         Console.WriteLine("  --version, -v             Show app version and exit.");
         Console.WriteLine("  --test                    Run microphone/API dry-run test.");
         Console.WriteLine("  --listen                  Trigger dictation (existing instance or fresh start).");
+        Console.WriteLine("  --ignore-prefix           Use with --listen to skip configured pasted text prefix for this invocation.");
         Console.WriteLine("  --submit                  Send Enter, or paste without auto-send if preview is active.");
         Console.WriteLine("  --close                   Request graceful close (finishes current work first).");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
@@ -437,6 +514,9 @@ static class Program
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
         Console.WriteLine("  --create-activate-shortcut  Create VoiceTypeActivate.exe.lnk for --listen.");
         Console.WriteLine("  --create-submit-shortcut  Create VoiceTypeSubmit.exe.lnk for --submit.");
+        Console.WriteLine(
+            "  --create-listen-ignore-prefix-shortcut " +
+            "Create VoiceTypeListenNoPrefix.exe.lnk for --listen --ignore-prefix.");
         Console.WriteLine();
         Console.WriteLine("Default behavior:");
         Console.WriteLine("  Launching without options starts VoiceType, or triggers dictation in existing instance.");

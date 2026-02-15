@@ -88,7 +88,7 @@ git config --unset core.hooksPath
 - Clipboard-based text injection with optional auto-send (Enter)
 - Voice commands (optional, per-command toggle): `open settings`, `exit app`, `auto-send on`, `auto-send off`, `submit`, `show voice commands`
 - Optional Surface Pen secondary hotkey (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`)
-- Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`)
+- Auto-generated launcher links for hardware buttons (`VoiceTypeActivate.exe.lnk`, `VoiceTypeSubmit.exe.lnk`, `VoiceTypeListenNoPrefix.exe.lnk`)
 - Single-instance behavior with remote close/listen/submit/replace flags
 - Settings UI with API key, model, logging, HUD, and voice-command controls
 - Version and uptime display (tray + settings)
@@ -194,6 +194,7 @@ Voice commands are matched as exact phrases after trimming punctuation and norma
 - `--help`, `-h`: show CLI usage and exit
 - `--version`, `-v`: print app version and exit
 - `--listen`: trigger dictation in an existing instance (or start app and begin listening)
+- `--ignore-prefix`: use with `--listen` to skip the configured pasted-text prefix
 - `--submit`: send Enter through an existing VoiceType instance, or paste without auto-send when transcribed preview countdown is active
 - `--close`: request graceful shutdown of an existing instance
 - `--replace-existing`: close running instance and start this one
@@ -201,11 +202,12 @@ Voice commands are matched as exact phrases after trimming punctuation and norma
 - `--unpin-from-taskbar`: best-effort unpin current executable from taskbar
 - `--create-activate-shortcut`: create `VoiceTypeActivate.exe.lnk` next to the executable (`--listen`)
 - `--create-submit-shortcut`: create `VoiceTypeSubmit.exe.lnk` next to the executable (`--submit`)
+- `--create-listen-ignore-prefix-shortcut`: create `VoiceTypeListenNoPrefix.exe.lnk` next to the executable (`--listen --ignore-prefix`)
 
 Build automation:
 
-- On Windows `.exe` builds, VoiceType auto-creates both `.lnk` files in the output folder.
-- `VoiceTypeLinks.bat` is included in build/publish output to regenerate both links with one command.
+- On Windows `.exe` builds, VoiceType auto-creates three `.lnk` files in the output folder.
+- `VoiceTypeLinks.bat` is included in build/publish output to regenerate all links with one command.
 
 ## Hardware Button Linking
 
@@ -216,6 +218,7 @@ You can bind generated `.lnk` files to Surface Pen or any programmable input dev
 
    - `VoiceTypeActivate.exe.lnk` -> `VoiceType.exe --listen`
    - `VoiceTypeSubmit.exe.lnk` -> `VoiceType.exe --submit` (context-aware: submit Enter, or paste-without-send during preview countdown)
+   - `VoiceTypeListenNoPrefix.exe.lnk` -> `VoiceType.exe --listen --ignore-prefix`
 
 1. If links are missing, regenerate from that same folder:
 
@@ -228,6 +231,7 @@ Or run the flags directly:
 ```powershell
 .\VoiceType.exe --create-activate-shortcut
 .\VoiceType.exe --create-submit-shortcut
+.\VoiceType.exe --create-listen-ignore-prefix-shortcut
 ```
 
 1. Map device buttons to those `.lnk` files:
@@ -239,6 +243,7 @@ Recommended mapping:
 
 - Primary button -> `VoiceTypeActivate.exe.lnk` (start/stop listening)
 - Secondary button -> `VoiceTypeSubmit.exe.lnk` (send Enter, or paste-without-send during preview countdown)
+- No-prefix listener -> `VoiceTypeListenNoPrefix.exe.lnk` (start listening and skip pasted-text prefix)
 
 Note: `--submit` targets a running VoiceType instance. If VoiceType is not running, no Enter is sent.
 
