@@ -366,7 +366,7 @@ public class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 6, 0, 0),
-            MinimumSize = new Size(0, 56),
+            MinimumSize = new Size(0, 100),
             Multiline = true,
             ScrollBars = ScrollBars.Vertical,
             WordWrap = true,
