@@ -25,6 +25,7 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- New request (2026-02-15): clarify git hook behavior. Solution: repo sets `core.hooksPath=.githooks` so commits run `.githooks/pre-commit` (bumps `<Version>` in `VoiceType/VoiceType.csproj` via `bump-version.ps1`, skippable with `SKIP_VERSION_BUMP=1`) and `.githooks/post-commit` (runs `restart-voicetype.ps1` to close any repo-running VoiceType.exe, build Debug, and relaunch).
 - New request (2026-02-15): add detailed debug logging for `TextInjector.TargetHasExistingText()` so we can see which target window/control is being evaluated (HWND/class/process), whether Win32 text APIs or UI Automation are used, and what text-length/meaningful checks are returning (without logging actual field contents).
 - New request (2026-02-15): disable pasted-text prefix (pre-text paste) injection temporarily to simplify testing. Keep existing-text detection and render the transcribed preview color as: yellow when the focused target already contains text, green when it does not.
 - New request (2026-02-15): implement a "pretext detector" for transcriptions: strip any `<flow>...</flow>` directive blocks from the transcribed text before voice-command parsing, preview display, and injection. Success criteria: `<flow>` content never appears in the preview/injected text.
