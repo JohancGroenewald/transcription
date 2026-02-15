@@ -2,6 +2,14 @@ Workflow
 --------
 - After making any repository changes, always commit and push them.
 
+Latest applied change
+---------------------
+- Remote action indicators now render in a dedicated overlay window (`_actionOverlay`) that is positioned above the live listening HUD, so they do not get repositioned by listening text updates and do not obstruct the listening text.
+- Action overlay is short-lived (carry-over duration) and is hidden when recording stops.
+- Main listening overlay updates now always render without embedded remote action text (`includeRemoteAction: false`) while listening remains on.
+- Added `.gitattributes` for repo-level text normalization and explicit EOL preferences to reduce LF/CRLF commit warnings.
+- `context.md` updated first in this iteration before code changes, then changes are ready for commit/push.
+
 Current request
 ---------------
 - Use a multiline editor field for the pasted-text prefix setting instead of a single-line text box.
@@ -11,6 +19,8 @@ Current request
 - Make the pasted text prefix editor five lines high.
 - Keep the remote action overlay line visually stacked above the listening text (not right-aligned; not a side toast effect).
 - Make the listener overlay stack the action line as a full-width top strip (left-aligned), then render the listening lines below it.
+- Keep remote action action notices in a dedicated popup overlay stacked above the listening overlay and dismissing shortly after the carry-over period.
+- Add repo-level line-ending normalization (for example `.gitattributes`) so LF/CRLF conversion warnings stop appearing during commits.
 
 VoiceType CLI actions (VoiceType.exe)
 ====================================

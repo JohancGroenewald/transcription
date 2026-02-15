@@ -60,6 +60,7 @@ public class TrayContext : ApplicationContext
     private readonly HotkeyWindow _hotkeyWindow;
     private readonly AudioRecorder _recorder;
     private readonly OverlayForm _overlay;
+    private readonly OverlayForm _actionOverlay;
     private readonly System.Windows.Forms.Timer _listeningOverlayTimer;
     private readonly Icon _appIcon;
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
@@ -105,6 +106,7 @@ public class TrayContext : ApplicationContext
         _listeningOverlayTimer = new System.Windows.Forms.Timer { Interval = 120 };
         _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
         _overlay = new OverlayForm();
+        _actionOverlay = new OverlayForm();
         _overlay.OverlayTapped += OnOverlayTapped;
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _appIcon = extractedIcon != null
@@ -148,6 +150,11 @@ public class TrayContext : ApplicationContext
         _enableOverlayPopups = config.EnableOverlayPopups;
         _overlayDurationMs = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
         _overlay.ApplyHudSettings(
+            config.OverlayOpacityPercent,
+            config.OverlayWidthPercent,
+            config.OverlayFontSizePt,
+            config.ShowOverlayBorder);
+        _actionOverlay.ApplyHudSettings(
             config.OverlayOpacityPercent,
             config.OverlayWidthPercent,
             config.OverlayFontSizePt,
@@ -619,16 +626,57 @@ public class TrayContext : ApplicationContext
         SetRemoteActionPopupContext(message, remoteActionColor: RemoteActionPopupTextColor);
         if (_isRecording && _enableOverlayPopups)
         {
-            ShowOverlay(
-                BuildListeningOverlayText(),
-                Color.CornflowerBlue,
-                0,
-                remoteActionText: message,
-                remoteActionColor: RemoteActionPopupTextColor);
+            ShowRemoteActionOverlay(message);
             return;
         }
 
         ShowOverlay(message, Color.CornflowerBlue, 900, includeRemoteAction: false);
+    }
+
+    private void ShowRemoteActionOverlay(string message)
+    {
+        if (!_enableOverlayPopups || _actionOverlay.IsDisposed)
+            return;
+
+        var messageId = _actionOverlay.ShowMessage(
+            message,
+            RemoteActionPopupTextColor,
+            RemoteActionPopupCarryoverMs,
+            ContentAlignment.TopLeft,
+            centerTextBlock: false,
+            showCountdownBar: false,
+            tapToCancel: false);
+
+        if (messageId == 0)
+            return;
+
+        RepositionActionOverlayAboveListening();
+    }
+
+    private void RepositionActionOverlayAboveListening()
+    {
+        if (_actionOverlay.IsDisposed || !_actionOverlay.Visible)
+            return;
+
+        if (!_overlay.Visible || !_overlay.IsHandleCreated)
+        {
+            _actionOverlay.Hide();
+            return;
+        }
+
+        var listeningBounds = _overlay.Bounds;
+        var workingArea = Screen.FromHandle(_overlay.Handle).WorkingArea;
+        var width = Math.Clamp(listeningBounds.Width, 220, Math.Max(220, workingArea.Width - 24));
+        var x = Math.Clamp(
+            listeningBounds.Left,
+            workingArea.Left + 2,
+            Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
+        var y = listeningBounds.Top - _actionOverlay.Height - 10;
+        if (y < workingArea.Top + 2)
+            y = Math.Min(workingArea.Bottom - _actionOverlay.Height - 2, listeningBounds.Bottom + 6);
+
+        _actionOverlay.Size = new Size(width, _actionOverlay.Height);
+        _actionOverlay.Location = new Point(x, Math.Max(workingArea.Top + 2, y));
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
@@ -721,6 +769,7 @@ public class TrayContext : ApplicationContext
     {
         _listeningOverlayTimer.Stop();
         Interlocked.Exchange(ref _micLevelPercent, 0);
+        _actionOverlay.Hide();
     }
 
     private void OnRecorderInputLevelChanged(int levelPercent)
@@ -736,7 +785,10 @@ public class TrayContext : ApplicationContext
         ShowOverlay(
             BuildListeningOverlayText(),
             Color.CornflowerBlue,
-            0);
+            0,
+            includeRemoteAction: false);
+
+        RepositionActionOverlayAboveListening();
     }
 
     private string BuildListeningOverlayText()
@@ -1030,6 +1082,7 @@ public class TrayContext : ApplicationContext
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
             _overlay.Dispose();
+            _actionOverlay.Dispose();
             _recorder.Dispose();
             _appIcon.Dispose();
         }
