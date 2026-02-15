@@ -52,3 +52,10 @@ Constraint summary
 - For launch actions: `--close`, `--listen`, `--submit`, `--replace-existing` are mutually exclusive.
 - `--ignore-prefix` can only be used with `--listen`.
 - For utility actions: one of `--pin-to-taskbar`, `--unpin-from-taskbar`, `--create-activate-shortcut`, `--create-submit-shortcut`, `--create-listen-ignore-prefix-shortcut` may be used at a time.
+
+Remote action popup level
+------------------------
+Running instance behavior:
+- `RemoteActionPopupLevel: 0` (Off): do not show a popup for remote actions.
+- `RemoteActionPopupLevel: 1` (Basic): show a short popup for remote `--listen`, `--submit`, and `--close`.
+- `RemoteActionPopupLevel: 2` (Detailed): same as Basic, plus action-detail text when available (e.g., `listen --ignore-prefix`).

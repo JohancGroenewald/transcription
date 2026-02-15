@@ -75,6 +75,7 @@ public class TrayContext : ApplicationContext
     private bool _enableToggleAutoEnterVoiceCommand;
     private bool _enableSendVoiceCommand;
     private bool _enableShowVoiceCommandsVoiceCommand;
+    private int _remoteActionPopupLevel;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
     private bool _useSimpleMicSpinner;
@@ -149,11 +150,12 @@ public class TrayContext : ApplicationContext
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
-                _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
-                _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
-                _enableSendVoiceCommand = config.EnableSendVoiceCommand;
-                _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
-                _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
+        _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
+        _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
+        _enableSendVoiceCommand = config.EnableSendVoiceCommand;
+        _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
+        _remoteActionPopupLevel = AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel);
+        _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
                 _useSimpleMicSpinner = config.UseSimpleMicSpinner;
                 if (!string.IsNullOrWhiteSpace(config.ApiKey))
                     _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
@@ -378,6 +380,11 @@ public class TrayContext : ApplicationContext
 
     public void RequestShutdown()
     {
+        RequestShutdown(fromRemoteAction: false);
+    }
+
+    public void RequestShutdown(bool fromRemoteAction)
+    {
         if (_overlay.IsDisposed)
             return;
 
@@ -389,6 +396,8 @@ public class TrayContext : ApplicationContext
             _shutdownRequested = true;
             _shutdownCancellation.Cancel();
             Log.Info("Shutdown requested");
+            if (fromRemoteAction)
+                ShowRemoteActionPopup("Close requested");
 
             if (_isRecording)
             {
@@ -425,6 +434,9 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
+            ShowRemoteActionPopup(
+                ignorePastedTextPrefix ? "Listen requested (ignore prefix)" : "Listen requested",
+                ignorePastedTextPrefix ? "listen --ignore-prefix" : "listen");
             if (TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "remote listen request"))
                 return;
 
@@ -447,6 +459,7 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
+            ShowRemoteActionPopup("Submit requested");
             if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote submit request"))
                 return;
 
@@ -568,6 +581,18 @@ public class TrayContext : ApplicationContext
             centerTextBlock,
             showCountdownBar,
             tapToCancel);
+    }
+
+    private void ShowRemoteActionPopup(string action, string? details = null)
+    {
+        if (_remoteActionPopupLevel <= 0)
+            return;
+
+        var message = $"Remote action: {action}";
+        if (_remoteActionPopupLevel >= 2 && !string.IsNullOrWhiteSpace(details))
+            message += $" ({details})";
+
+        ShowOverlay(message, Color.CornflowerBlue, 900);
     }
 
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)

@@ -21,6 +21,9 @@ public class AppConfig
     public const int DefaultOverlayFontSizePt = 12;
     public const int MinOverlayFontSizePt = 9;
     public const int MaxOverlayFontSizePt = 22;
+    public const int MinRemoteActionPopupLevel = 0;
+    public const int DefaultRemoteActionPopupLevel = 1;
+    public const int MaxRemoteActionPopupLevel = 2;
     private static readonly string[] SupportedPenHotkeys =
     [
         "F13",
@@ -75,6 +78,7 @@ public class AppConfig
     public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
     public bool EnableSendVoiceCommand { get; set; } = true;
     public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
+    public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
     public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
 
     private static readonly string ConfigDir = Path.Combine(
@@ -105,6 +109,7 @@ public class AppConfig
         public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
         public bool EnableSendVoiceCommand { get; set; } = true;
         public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
+        public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
         public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
     }
 
@@ -140,6 +145,7 @@ public class AppConfig
                 EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand,
                 EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
                 EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
+                RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(configFile.RemoteActionPopupLevel),
                 PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix
             };
         }
@@ -175,6 +181,7 @@ public class AppConfig
                 EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand,
                 EnableSendVoiceCommand = EnableSendVoiceCommand,
                 EnableShowVoiceCommandsVoiceCommand = EnableShowVoiceCommandsVoiceCommand,
+                RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(RemoteActionPopupLevel),
                 PastedTextPrefix = PastedTextPrefix ?? DefaultPastedTextPrefix
             };
 
@@ -258,6 +265,15 @@ public class AppConfig
         if (fontSizePt > MaxOverlayFontSizePt)
             return MaxOverlayFontSizePt;
         return fontSizePt;
+    }
+
+    public static int NormalizeRemoteActionPopupLevel(int level)
+    {
+        if (level < MinRemoteActionPopupLevel)
+            return MinRemoteActionPopupLevel;
+        if (level > MaxRemoteActionPopupLevel)
+            return MaxRemoteActionPopupLevel;
+        return level;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()
