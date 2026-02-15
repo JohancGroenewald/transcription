@@ -9,6 +9,7 @@ Current request
 - Render remote action notice text in a distinct color in the existing popup overlay.
 - When a remote action occurs during the listening overlay, draw the action notice stacked on top of the listening overlay so it is visible briefly and then disappears, not blocking listening text.
 - Make the pasted text prefix editor five lines high.
+- Keep the remote action overlay line visually stacked above the listening text (not right-aligned; not a side toast effect).
 
 VoiceType CLI actions (VoiceType.exe)
 ====================================

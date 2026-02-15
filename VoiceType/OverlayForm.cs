@@ -106,7 +106,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font("Consolas", Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Regular),
             ForeColor = ActionTextColor,
-            TextAlign = ContentAlignment.MiddleRight,
+            TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false
@@ -376,7 +376,7 @@ public class OverlayForm : Form
         _actionLabel.Visible = hasActionText;
         _label.Dock = DockStyle.None;
         _actionLabel.Dock = DockStyle.None;
-        _actionLabel.TextAlign = ContentAlignment.MiddleRight;
+        _actionLabel.TextAlign = ContentAlignment.TopLeft;
         var actionLineHeight = Math.Max(0, measuredActionLineHeight);
         var actionAreaHeight = actionLineHeight > 0
             ? actionLineHeight + ActionLineSpacing
