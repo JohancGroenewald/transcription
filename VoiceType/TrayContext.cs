@@ -273,8 +273,9 @@ public class TrayContext : ApplicationContext
                         text,
                         TextInjector.TargetHasExistingText());
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
+                    var previewText = prefixTextForPreview is null ? textToInject : text;
                     var previewDecision = await ShowCancelableTranscribedPreviewAsync(
-                        textToInject,
+                        previewText,
                         adaptiveDurationMs,
                         prefixTextForPreview);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
@@ -1195,4 +1196,3 @@ internal sealed class HotkeyPressedEventArgs : EventArgs
 
     public int HotkeyId { get; }
 }
-
