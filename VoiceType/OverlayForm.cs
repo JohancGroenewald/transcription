@@ -384,6 +384,7 @@ public class OverlayForm : Form
 
         if (!centerTextBlock)
         {
+            _actionLabel.Dock = DockStyle.None;
             var labelWidth = Math.Max(1, ClientSize.Width - Padding.Horizontal);
             var labelHeight = Math.Max(
                 20,
@@ -394,11 +395,19 @@ public class OverlayForm : Form
                 labelWidth,
                 actionLineHeight);
             _actionLabel.Height = actionLineHeight;
+            _label.Dock = DockStyle.None;
             _label.Bounds = new Rectangle(
                 Padding.Left,
                 Padding.Top + actionAreaHeight,
                 labelWidth,
-                Math.Max(20, labelHeight - ActionLineSpacing));
+                Math.Max(20, labelHeight));
+            _label.TextAlign = textAlign;
+            _actionLabel.BringToFront();
+            return;
+        }
+
+        if (!hasActionText)
+        {
             _label.TextAlign = textAlign;
             return;
         }
@@ -411,9 +420,6 @@ public class OverlayForm : Form
         var top = Math.Max(Padding.Top, (ClientSize.Height - actionAreaHeight - labelHeight) / 2);
         _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
         _label.TextAlign = ContentAlignment.TopLeft;
-
-        if (!hasActionText)
-            return;
 
         var actionWidth = Math.Clamp(measuredActionTextSize.Width, 1, ClientSize.Width - Padding.Horizontal);
         var actionLeft = Math.Max(Padding.Left, (ClientSize.Width - actionWidth) / 2);
