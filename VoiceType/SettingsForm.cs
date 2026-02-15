@@ -6,6 +6,39 @@ public class SettingsForm : Form
     private const int APPCOMMAND_LAUNCH_APP1 = 17;
     private const int APPCOMMAND_LAUNCH_APP2 = 18;
 
+    private readonly record struct SettingsTheme(
+        bool IsDark,
+        Color WindowBack,
+        Color PanelBack,
+        Color InputBack,
+        Color ReadOnlyInputBack,
+        Color ButtonBack,
+        Color Border,
+        Color Text,
+        Color MutedText);
+
+    private static readonly SettingsTheme LightTheme = new(
+        IsDark: false,
+        WindowBack: SystemColors.Control,
+        PanelBack: SystemColors.Control,
+        InputBack: SystemColors.Window,
+        ReadOnlyInputBack: SystemColors.Control,
+        ButtonBack: SystemColors.Control,
+        Border: SystemColors.ActiveBorder,
+        Text: SystemColors.ControlText,
+        MutedText: Color.DimGray);
+
+    private static readonly SettingsTheme DarkTheme = new(
+        IsDark: true,
+        WindowBack: Color.FromArgb(28, 28, 32),
+        PanelBack: Color.FromArgb(34, 34, 40),
+        InputBack: Color.FromArgb(50, 50, 58),
+        ReadOnlyInputBack: Color.FromArgb(42, 42, 50),
+        ButtonBack: Color.FromArgb(58, 58, 66),
+        Border: Color.FromArgb(90, 90, 102),
+        Text: Color.FromArgb(235, 235, 235),
+        MutedText: Color.FromArgb(170, 170, 170));
+
     private readonly TextBox _apiKeyBox;
     private readonly ComboBox _modelBox;
     private readonly CheckBox _showKeyCheck;
@@ -22,7 +55,9 @@ public class SettingsForm : Form
     private readonly CheckBox _showOverlayBorderCheck;
     private readonly CheckBox _useSimpleMicSpinnerCheck;
     private readonly ComboBox _remoteActionPopupLevelCombo;
+    private readonly CheckBox _enablePastedTextPrefixCheck;
     private readonly TextBox _pastedTextPrefixTextBox;
+    private readonly CheckBox _settingsDarkModeCheck;
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
     private readonly Label _penHotkeyLabel;
@@ -39,6 +74,7 @@ public class SettingsForm : Form
     private readonly Label _uptimeValueLabel;
     private readonly System.Windows.Forms.Timer _uptimeTimer;
     private readonly Icon _formIcon;
+    private bool _settingsDarkModeEnabled;
 
     public SettingsForm()
     {
@@ -181,12 +217,13 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 16,
+            RowCount = 17,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -362,13 +399,21 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 10, 3)
         };
 
+        _enablePastedTextPrefixCheck = new CheckBox
+        {
+            Text = "Enable pasted text prefix",
+            AutoSize = true,
+            Margin = new Padding(0)
+        };
+        _enablePastedTextPrefixCheck.CheckedChanged += (_, _) => UpdatePastedTextPrefixState();
+
         const int PrefixEditorLineCount = 5;
         var prefixEditorMinHeight = (PrefixEditorLineCount * Font.Height) + 8;
 
         _pastedTextPrefixTextBox = new TextBox
         {
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 6, 0, 0),
+            Margin = new Padding(0, 4, 0, 0),
             AutoSize = false,
             Height = prefixEditorMinHeight,
             MinimumSize = new Size(0, prefixEditorMinHeight),
@@ -378,6 +423,30 @@ public class SettingsForm : Form
             AcceptsReturn = true,
             PlaceholderText = "Optional prefix"
         };
+
+        var pastedPrefixPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0, 6, 0, 0),
+            Padding = new Padding(0)
+        };
+        pastedPrefixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        pastedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        pastedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        pastedPrefixPanel.Controls.Add(_enablePastedTextPrefixCheck, 0, 0);
+        pastedPrefixPanel.Controls.Add(_pastedTextPrefixTextBox, 0, 1);
+
+        _settingsDarkModeCheck = new CheckBox
+        {
+            Text = "Dark mode (settings window)",
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0)
+        };
+        _settingsDarkModeCheck.CheckedChanged += (_, _) => ApplySettingsTheme(_settingsDarkModeCheck.Checked);
 
         _enablePenHotkeyCheck = new CheckBox
         {
@@ -444,7 +513,7 @@ public class SettingsForm : Form
         behaviorLayout.Controls.Add(lblRemoteActionPopupLevel, 0, 10);
         behaviorLayout.Controls.Add(_remoteActionPopupLevelCombo, 1, 10);
         behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 11);
-        behaviorLayout.Controls.Add(_pastedTextPrefixTextBox, 1, 11);
+        behaviorLayout.Controls.Add(pastedPrefixPanel, 1, 11);
         behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 12);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
         behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 13);
@@ -453,6 +522,8 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
         behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 15);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
+        behaviorLayout.Controls.Add(_settingsDarkModeCheck, 0, 16);
+        behaviorLayout.SetColumnSpan(_settingsDarkModeCheck, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new GroupBox
@@ -824,7 +895,9 @@ public class SettingsForm : Form
             AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel),
             0,
             _remoteActionPopupLevelCombo.Items.Count - 1);
+        _enablePastedTextPrefixCheck.Checked = config.EnablePastedTextPrefix;
         _pastedTextPrefixTextBox.Text = config.PastedTextPrefix ?? "";
+        _settingsDarkModeCheck.Checked = config.EnableSettingsDarkMode;
         _enablePenHotkeyCheck.Checked = config.EnablePenHotkey;
         _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
         if (_penHotkeyBox.SelectedIndex < 0)
@@ -835,6 +908,7 @@ public class SettingsForm : Form
         _sendVoiceCommandCheck.Checked = config.EnableSendVoiceCommand;
         _showVoiceCommandsVoiceCommandCheck.Checked = config.EnableShowVoiceCommandsVoiceCommand;
         UpdateOverlaySettingsState();
+        UpdatePastedTextPrefixState();
         UpdatePenHotkeySettingsState();
         ValidateVoiceCommandInput();
         WrapWindowToContent(contentPanel, buttonsLayout);
@@ -861,7 +935,9 @@ public class SettingsForm : Form
                 _remoteActionPopupLevelCombo.SelectedIndex,
                 AppConfig.MinRemoteActionPopupLevel,
                 AppConfig.MaxRemoteActionPopupLevel),
+            EnablePastedTextPrefix = _enablePastedTextPrefixCheck.Checked,
             PastedTextPrefix = _pastedTextPrefixTextBox.Text,
+            EnableSettingsDarkMode = _settingsDarkModeCheck.Checked,
             EnablePenHotkey = _enablePenHotkeyCheck.Checked,
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,
@@ -909,7 +985,7 @@ public class SettingsForm : Form
         var candidate = _voiceCommandValidationInput.Text.Trim();
         if (string.IsNullOrWhiteSpace(candidate))
         {
-            _voiceCommandValidationResult.ForeColor = Color.DimGray;
+            _voiceCommandValidationResult.ForeColor = GetMutedTextColor();
             _voiceCommandValidationResult.Text = "Type a phrase to test command recognition.";
             return;
         }
@@ -946,7 +1022,7 @@ public class SettingsForm : Form
             return;
         }
 
-        _voiceCommandValidationResult.ForeColor = Color.DimGray;
+        _voiceCommandValidationResult.ForeColor = GetMutedTextColor();
         _voiceCommandValidationResult.Text = "No command match.";
     }
 
@@ -964,11 +1040,138 @@ public class SettingsForm : Form
         _useSimpleMicSpinnerCheck.Enabled = enabled;
     }
 
+    private void UpdatePastedTextPrefixState()
+    {
+        var enabled = _enablePastedTextPrefixCheck.Checked;
+        _pastedTextPrefixTextBox.ReadOnly = !enabled;
+        _pastedTextPrefixTextBox.TabStop = enabled;
+
+        var theme = GetActiveTheme();
+        _pastedTextPrefixTextBox.BackColor = _pastedTextPrefixTextBox.ReadOnly ? theme.ReadOnlyInputBack : theme.InputBack;
+        _pastedTextPrefixTextBox.ForeColor = theme.Text;
+    }
+
     private void UpdatePenHotkeySettingsState()
     {
         var enabled = _enablePenHotkeyCheck.Checked;
         _penHotkeyLabel.Enabled = enabled;
         _penHotkeyBox.Enabled = enabled;
+    }
+
+    private SettingsTheme GetActiveTheme() => _settingsDarkModeEnabled ? DarkTheme : LightTheme;
+
+    private Color GetMutedTextColor() => GetActiveTheme().MutedText;
+
+    private void ApplySettingsTheme(bool dark)
+    {
+        _settingsDarkModeEnabled = dark;
+        var theme = GetActiveTheme();
+
+        SuspendLayout();
+        try
+        {
+            BackColor = theme.WindowBack;
+            ForeColor = theme.Text;
+
+            ApplyThemeToControlsRecursive(this, theme);
+            UpdatePastedTextPrefixState();
+
+            // Keep the current validation state, but update "muted" text to match the theme.
+            if (_voiceCommandValidationResult.ForeColor == Color.DimGray ||
+                _voiceCommandValidationResult.ForeColor == SystemColors.GrayText ||
+                _voiceCommandValidationResult.ForeColor == DarkTheme.MutedText)
+            {
+                _voiceCommandValidationResult.ForeColor = theme.MutedText;
+            }
+        }
+        finally
+        {
+            ResumeLayout(performLayout: true);
+            Invalidate(true);
+        }
+    }
+
+    private static void ApplyThemeToControlsRecursive(Control root, SettingsTheme theme)
+    {
+        foreach (Control child in root.Controls)
+        {
+            ApplyThemeToControl(child, theme);
+            ApplyThemeToControlsRecursive(child, theme);
+        }
+    }
+
+    private static void ApplyThemeToControl(Control control, SettingsTheme theme)
+    {
+        var parentBack = control.Parent?.BackColor ?? theme.WindowBack;
+
+        switch (control)
+        {
+            case GroupBox groupBox:
+                groupBox.BackColor = theme.PanelBack;
+                groupBox.ForeColor = theme.Text;
+                return;
+            case Panel or TableLayoutPanel or FlowLayoutPanel:
+                control.BackColor = parentBack;
+                control.ForeColor = theme.Text;
+                return;
+            case Label label:
+                label.BackColor = parentBack;
+                if (label.ForeColor == Color.DimGray ||
+                    label.ForeColor == SystemColors.GrayText ||
+                    label.ForeColor == DarkTheme.MutedText)
+                {
+                    label.ForeColor = theme.MutedText;
+                }
+                else if (label.ForeColor == Color.ForestGreen || label.ForeColor == Color.DarkOrange)
+                {
+                    // Preserve semantic validation colors.
+                }
+                else
+                {
+                    label.ForeColor = theme.Text;
+                }
+                return;
+            case CheckBox or RadioButton:
+                control.BackColor = parentBack;
+                control.ForeColor = theme.Text;
+                return;
+            case TextBox textBox:
+                textBox.BackColor = textBox.ReadOnly ? theme.ReadOnlyInputBack : theme.InputBack;
+                textBox.ForeColor = theme.Text;
+                return;
+            case ComboBox comboBox:
+                comboBox.BackColor = theme.InputBack;
+                comboBox.ForeColor = theme.Text;
+                return;
+            case NumericUpDown numericUpDown:
+                numericUpDown.BackColor = theme.InputBack;
+                numericUpDown.ForeColor = theme.Text;
+                return;
+            case Button button:
+                if (theme.IsDark)
+                {
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.UseVisualStyleBackColor = false;
+                    button.BackColor = theme.ButtonBack;
+                    button.ForeColor = theme.Text;
+                    button.FlatAppearance.BorderColor = theme.Border;
+                    button.FlatAppearance.BorderSize = 1;
+                    button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.ButtonBack, 0.12f);
+                    button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(theme.ButtonBack, 0.12f);
+                }
+                else
+                {
+                    button.FlatStyle = FlatStyle.Standard;
+                    button.UseVisualStyleBackColor = true;
+                    button.BackColor = SystemColors.Control;
+                    button.ForeColor = SystemColors.ControlText;
+                }
+                return;
+            default:
+                control.BackColor = parentBack;
+                control.ForeColor = theme.Text;
+                return;
+        }
     }
 
     private void OnSettingsKeyDown(object? sender, KeyEventArgs e)

@@ -79,7 +79,9 @@ public class AppConfig
     public bool EnableSendVoiceCommand { get; set; } = true;
     public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
     public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
+    public bool EnablePastedTextPrefix { get; set; } = true;
     public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
+    public bool EnableSettingsDarkMode { get; set; }
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -110,7 +112,9 @@ public class AppConfig
         public bool EnableSendVoiceCommand { get; set; } = true;
         public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
         public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
+        public bool EnablePastedTextPrefix { get; set; } = true;
         public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
+        public bool EnableSettingsDarkMode { get; set; }
     }
 
     public static AppConfig Load()
@@ -146,7 +150,9 @@ public class AppConfig
                 EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
                 EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
                 RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(configFile.RemoteActionPopupLevel),
-                PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix
+                EnablePastedTextPrefix = configFile.EnablePastedTextPrefix,
+                PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix,
+                EnableSettingsDarkMode = configFile.EnableSettingsDarkMode
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -182,7 +188,9 @@ public class AppConfig
                 EnableSendVoiceCommand = EnableSendVoiceCommand,
                 EnableShowVoiceCommandsVoiceCommand = EnableShowVoiceCommandsVoiceCommand,
                 RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(RemoteActionPopupLevel),
-                PastedTextPrefix = PastedTextPrefix ?? DefaultPastedTextPrefix
+                EnablePastedTextPrefix = EnablePastedTextPrefix,
+                PastedTextPrefix = PastedTextPrefix ?? DefaultPastedTextPrefix,
+                EnableSettingsDarkMode = EnableSettingsDarkMode
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);

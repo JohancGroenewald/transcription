@@ -83,6 +83,7 @@ public class TrayContext : ApplicationContext
     private string _remoteActionPopupMessage = string.Empty;
     private Color _remoteActionPopupColor = RemoteActionPopupTextColor;
     private DateTime _remoteActionPopupExpiresUtc;
+    private bool _enablePastedTextPrefix = true;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
     private bool _useSimpleMicSpinner;
@@ -168,8 +169,9 @@ public class TrayContext : ApplicationContext
         _enableSendVoiceCommand = config.EnableSendVoiceCommand;
         _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
         _remoteActionPopupLevel = AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel);
+        _enablePastedTextPrefix = config.EnablePastedTextPrefix;
         _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
-                _useSimpleMicSpinner = config.UseSimpleMicSpinner;
+        _useSimpleMicSpinner = config.UseSimpleMicSpinner;
                 if (!string.IsNullOrWhiteSpace(config.ApiKey))
                     _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
                 else
@@ -746,11 +748,19 @@ public class TrayContext : ApplicationContext
         string text,
         bool targetHasExistingText)
     {
-        // Temporarily disabled: keep existing-text detection (for preview color),
-        // but do not prepend the configured prefix while testing.
-        return (text, null);
+        if (!_enablePastedTextPrefix)
+            return (text, null);
 
-        // TODO: Re-enable prefix logic behind a config toggle when testing completes.
+        if (_ignorePastedTextPrefixForNextTranscription)
+            return (text, null);
+
+        if (string.IsNullOrWhiteSpace(_pastedTextPrefix))
+            return (text, null);
+
+        if (targetHasExistingText)
+            return (text, null);
+
+        return (GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text), _pastedTextPrefix.TrimEnd('\r', '\n'));
     }
 
     private static string GetTextWithNormalizedPrefixSpacing(string prefix, string text)

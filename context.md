@@ -31,6 +31,10 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- New request (2026-02-15): re-enable pasted-text prefix injection, but add a Settings checkbox so the prefix feature can be enabled/disabled without deleting the prefix text.
+- New request (2026-02-15): add a dark mode toggle for the Settings screen and persist it in config.
+- Implemented (2026-02-15): re-enabled pasted-text prefix injection and added a Settings checkbox (`Enable pasted text prefix`) that controls whether the prefix is applied (prefix text is still stored even when disabled).
+- Implemented (2026-02-15): added a Settings dark mode toggle (`Dark mode (settings window)`) that re-themes the Settings form immediately and persists via `EnableSettingsDarkMode` in config.
 - Implemented (2026-02-15): explicitly ignore the VS Code Copilot Chat empty-prompt text "Ask for follow-up changes" returned by UIA `TextPattern` so empty inputs no longer get misdetected as containing text.
 - Implemented (2026-02-15): broaden ProseMirror placeholder detection beyond strict equality against UIA `HelpText`/`Name`/`ItemStatus` by normalizing invisible characters/whitespace and handling common placeholder+keybinding formats, so empty VS Code chat inputs stop being misdetected as non-empty (`textLen=26` placeholder case).
 - Implemented (2026-02-15): roll file logging on VoiceType startup so each app run gets its own `voicetype.log` and previous logs are preserved as timestamped archives.
