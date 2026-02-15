@@ -18,6 +18,7 @@ Latest applied change
 - Fixed prefix visibility regression by changing detection to only skip prepends when a detected **text-input control** appears to already contain content (instead of treating any focused window with title text as occupied).
 - User reported: pasted prefix appears twice in preview; plan is to keep prefix only in dedicated faded preview line and remove duplicate from main preview body.
 - New request: when existing text is detected in focused field, show transcribed preview in a yellow tone (instead of green) to indicate prefix was skipped.
+- Existing-text detection was updated to use foreground-thread focus information and child-control fallback instead of thread-local `GetFocus`.
 
 Current request
 ---------------
@@ -40,7 +41,12 @@ Current request
 - Verify line-ending normalization status after renormalize.
 - Verify why the pasted-text prefix preview is not visible and adjust detection if needed.
 - Fix prefix preview duplication by displaying raw dictated text in the body and prefix only in the separate preview line.
-- If existing text is detected in the target field, display pasted-text preview with a non-green color (yellow).
+ - If existing text is detected in the target field, display pasted-text preview with a non-green color (yellow).
+ - Current issue: prefix still applies when target text already exists, likely because focus detection for existing-text checks uses `GetFocus` (thread-local) rather than the active foreground thread focus.
+ - Planned update: switch target-text detection to `GetGUIThreadInfo` on the foreground thread, and continue to suppress prefix when that focused control reports existing text.
+ - Completed: `TextInjector` now resolves the focused control using `GetGUIThreadInfo` from the foreground thread, with a direct-child text-input fallback for reliable existing-text detection.
+- Commit requested: finalize these changes by committing `TextInjector` detection updates and pushing for immediate local test.
+
 
 VoiceType CLI actions (VoiceType.exe)
 ====================================
@@ -103,3 +109,5 @@ Running instance behavior:
 - `RemoteActionPopupLevel: 0` (Off): do not show a popup for remote actions.
 - `RemoteActionPopupLevel: 1` (Basic): show a short popup for remote `--listen`, `--submit`, and `--close`.
 - `RemoteActionPopupLevel: 2` (Detailed): same as Basic, plus action-detail text when available (e.g., `listen --ignore-prefix`).
+
+

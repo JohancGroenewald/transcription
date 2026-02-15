@@ -30,7 +30,13 @@ public static class TextInjector
     private static extern int GetWindowTextLength(IntPtr hWnd);
 
     [DllImport("user32.dll")]
-    private static extern IntPtr GetFocus();
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
     private const byte VK_CONTROL = 0x11;
     private const byte VK_V = 0x56;
@@ -42,6 +48,31 @@ public static class TextInjector
     private const int TargetRetryAttempts = 4;
     private const int TargetRetryDelayMs = 35;
     private const int WM_GETTEXTLENGTH = 0x000E;
+    private const int GW_CHILD = 5;
+    private const int GW_HWNDNEXT = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GUITHREADINFO
+    {
+        public uint cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -81,7 +112,11 @@ public static class TextInjector
     public static bool TargetHasExistingText()
     {
         var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
-        return DoesWindowHaveTextInTextInputTarget(target);
+        if (target == IntPtr.Zero)
+            return false;
+
+        var focusedWindow = GetFocusedWindowInForegroundThread(target);
+        return DoesWindowHaveTextInTextInputTarget(focusedWindow == IntPtr.Zero ? target : focusedWindow);
     }
 
     /// <summary>
@@ -172,14 +207,51 @@ public static class TextInjector
         if (targetWindow == IntPtr.Zero)
             return false;
 
-        var focusedWindow = GetFocus();
-        if (focusedWindow != IntPtr.Zero && IsLikelyTextInputWindow(focusedWindow))
-            return DoesWindowHaveText(focusedWindow);
-
         if (IsLikelyTextInputWindow(targetWindow))
             return DoesWindowHaveText(targetWindow);
 
         return false;
+    }
+
+    private static IntPtr GetFocusedWindowInForegroundThread(IntPtr fallbackWindow)
+    {
+        var foregroundWindow = GetForegroundWindow();
+        if (foregroundWindow == IntPtr.Zero)
+            return FindLikelyTextInputWindowOrFallback(fallbackWindow);
+
+        var foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, out _);
+        if (foregroundThreadId == 0)
+            return FindLikelyTextInputWindowOrFallback(fallbackWindow);
+
+        var guiInfo = new GUITHREADINFO
+        {
+            cbSize = (uint)Marshal.SizeOf<GUITHREADINFO>()
+        };
+
+        if (!GetGUIThreadInfo(foregroundThreadId, ref guiInfo))
+            return FindLikelyTextInputWindowOrFallback(fallbackWindow);
+
+        if (guiInfo.hwndFocus != IntPtr.Zero && IsLikelyTextInputWindow(guiInfo.hwndFocus))
+            return guiInfo.hwndFocus;
+
+        return FindLikelyTextInputWindowOrFallback(fallbackWindow);
+    }
+
+    private static IntPtr FindLikelyTextInputWindowOrFallback(IntPtr fallbackWindow)
+    {
+        if (fallbackWindow == IntPtr.Zero)
+            return IntPtr.Zero;
+
+        var directChild = GetWindow(fallbackWindow, GW_CHILD);
+        while (directChild != IntPtr.Zero)
+        {
+            if (IsLikelyTextInputWindow(directChild))
+                return directChild;
+
+            directChild = GetWindow(directChild, GW_HWNDNEXT);
+        }
+
+        return fallbackWindow;
     }
 
     private static bool IsLikelyTextInputWindow(IntPtr handle)
@@ -197,10 +269,16 @@ public static class TextInjector
         if (className.StartsWith("WindowsForms10.EDIT", StringComparison.OrdinalIgnoreCase))
             return true;
 
+        if (className.Contains("Chrome_RenderWidgetHost", StringComparison.OrdinalIgnoreCase))
+            return true;
+
         if (className.Contains("RICHEDIT", StringComparison.OrdinalIgnoreCase))
             return true;
 
         if (className.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (className.Contains("SCINTILLA", StringComparison.OrdinalIgnoreCase))
             return true;
 
         return className.Contains("TEXT", StringComparison.OrdinalIgnoreCase);
