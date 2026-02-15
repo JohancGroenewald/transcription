@@ -36,6 +36,8 @@ Current request
 - New request (2026-02-15): make ComboBox dropdown lists (the opened list items) dark-mode friendly as well, not just the closed control.
 - New request (2026-02-15): fix pasted-text prefix enable/disable checkbox not being honored at runtime.
 - New request (2026-02-15): fix the Settings screen GroupBox frame overlap artifact between "Voice Commands" and the group below it (border line segments appear to overlap/linger).
+- New request (2026-02-15): fix the "Surface Pen key" label in Settings not being readable in dark mode when the pen hotkey feature is disabled (WinForms disabled label rendering ignores our theme).
+- Implemented (2026-02-15): updated Settings so labels are never disabled (WinForms draws disabled labels with non-theme-aware gray). Instead, we keep labels enabled and switch to the theme muted color when their associated setting is disabled (fixes the "Surface Pen key" label in dark mode).
 - Implemented (2026-02-15): ComboBox dropdown items are now drawn with the active theme and we apply best-effort Windows dark-mode theming (`DarkMode_Explorer`) to the native dropdown list window on open, improving dark-mode consistency inside dropdown lists.
 - Implemented (2026-02-15): added detailed logging around pasted-text prefix decisions (disabled via settings vs ignored via `--ignore-prefix` vs suppressed due to existing target text) to debug cases where the prefix enable/disable toggle appears not to apply.
 - Implemented (2026-02-15): replaced WinForms `GroupBox` controls in Settings with a custom double-buffered, background-painting `ThemedGroupBox` (UserPaint) to eliminate border-line artifacts/overlaps in dark mode.

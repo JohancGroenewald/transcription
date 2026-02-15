@@ -1100,14 +1100,21 @@ public class SettingsForm : Form
     {
         var enabled = _enableOverlayPopupsCheck.Checked;
         _overlayDurationMsInput.Enabled = enabled;
-        _overlayOpacityLabel.Enabled = enabled;
         _overlayOpacityInput.Enabled = enabled;
-        _overlayWidthLabel.Enabled = enabled;
         _overlayWidthInput.Enabled = enabled;
-        _overlayFontSizeLabel.Enabled = enabled;
         _overlayFontSizeInput.Enabled = enabled;
         _showOverlayBorderCheck.Enabled = enabled;
         _useSimpleMicSpinnerCheck.Enabled = enabled;
+
+        // Labels do not render theme-aware when disabled; keep them enabled and adjust color instead.
+        var theme = GetActiveTheme();
+        var labelColor = enabled ? theme.Text : theme.MutedText;
+        _overlayOpacityLabel.Enabled = true;
+        _overlayOpacityLabel.ForeColor = labelColor;
+        _overlayWidthLabel.Enabled = true;
+        _overlayWidthLabel.ForeColor = labelColor;
+        _overlayFontSizeLabel.Enabled = true;
+        _overlayFontSizeLabel.ForeColor = labelColor;
     }
 
     private void UpdatePastedTextPrefixState()
@@ -1124,7 +1131,9 @@ public class SettingsForm : Form
     private void UpdatePenHotkeySettingsState()
     {
         var enabled = _enablePenHotkeyCheck.Checked;
-        _penHotkeyLabel.Enabled = enabled;
+        // Labels do not render theme-aware when disabled; keep them enabled and adjust color instead.
+        _penHotkeyLabel.Enabled = true;
+        _penHotkeyLabel.ForeColor = enabled ? GetActiveTheme().Text : GetMutedTextColor();
         _penHotkeyBox.Enabled = enabled;
     }
 
