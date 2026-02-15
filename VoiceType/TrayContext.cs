@@ -255,7 +255,11 @@ public class TrayContext : ApplicationContext
 
                 using var transcriptionCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
                 transcriptionCts.CancelAfter(TranscriptionTimeout);
-                var text = await _transcriptionService.TranscribeAsync(audioData, transcriptionCts.Token);
+                var rawText = await _transcriptionService.TranscribeAsync(audioData, transcriptionCts.Token);
+                var text = PretextDetector.StripFlowDirectives(rawText);
+                if (!string.Equals(rawText, text, StringComparison.Ordinal))
+                    Log.Info($"Flow directives stripped from transcription ({rawText.Length} -> {text.Length} chars).");
+
                 Log.Info($"Transcription completed ({text.Length} chars)");
 
                 if (!string.IsNullOrWhiteSpace(text))
