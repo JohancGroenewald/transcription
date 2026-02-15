@@ -183,6 +183,8 @@ static class Program
         {
             EnsureConsoleForCliOutput();
             var testConfig = AppConfig.Load();
+            if (testConfig.EnableDebugLogging)
+                Log.RollOnStartup();
             Log.Configure(testConfig.EnableDebugLogging);
             Environment.ExitCode = RunTest().GetAwaiter().GetResult();
             return;
@@ -275,6 +277,8 @@ static class Program
             _submitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SubmitEventName);
 
             var config = AppConfig.Load();
+            if (config.EnableDebugLogging)
+                Log.RollOnStartup();
             Log.Configure(config.EnableDebugLogging);
 
             ApplicationConfiguration.Initialize();
