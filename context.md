@@ -1,7 +1,6 @@
 Workflow
 --------
 - After making any repository changes, always commit and push them.
-
 Latest applied change
 ---------------------
 - Remote action indicators now render in a dedicated overlay window (`_actionOverlay`) that is positioned above the live listening HUD, so they do not get repositioned by listening text updates and do not obstruct the listening text.
@@ -19,10 +18,11 @@ Latest applied change
 - User reported: pasted prefix appears twice in preview; plan is to keep prefix only in dedicated faded preview line and remove duplicate from main preview body.
 - New request: when existing text is detected in focused field, show transcribed preview in a yellow tone (instead of green) to indicate prefix was skipped.
 - Existing-text detection was updated to use foreground-thread focus information and child-control fallback instead of thread-local `GetFocus`.
+- Follow-up: still seeing false positives on empty fields; tighten existing-text detection to trust only high-confidence input controls for suppressing prefix.
 - User now reports a false-positive: target field appears empty but is detected as containing text.
 - Interim fix: only treat a control as "non-empty" when queried text contains non-whitespace characters, not just a nonzero reported length.
 - Fix now implemented in `TextInjector`: read actual window text via `GetWindowText` and suppress prefix only when non-whitespace text is present.
-
+- Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
 - Use a multiline editor field for the pasted-text prefix setting instead of a single-line text box.
@@ -44,24 +44,19 @@ Current request
 - Verify line-ending normalization status after renormalize.
 - Verify why the pasted-text prefix preview is not visible and adjust detection if needed.
 - Fix prefix preview duplication by displaying raw dictated text in the body and prefix only in the separate preview line.
- - If existing text is detected in the target field, display pasted-text preview with a non-green color (yellow).
+- If existing text is detected in the target field, display pasted-text preview with a non-green color (yellow).
 - Current issue: prefix still applies when target text already exists, likely because focus detection for existing-text checks uses `GetFocus` (thread-local) rather than the active foreground thread focus.
 - Planned update: switch target-text detection to `GetGUIThreadInfo` on the foreground thread, and continue to suppress prefix when that focused control reports existing text.
 - Completed: `TextInjector` now resolves the focused control using `GetGUIThreadInfo` from the foreground thread, with a direct-child text-input fallback for reliable existing-text detection.
 - New request: fix false positives where empty fields are reported as non-empty by tightening `TextInjector` text-content check to verify actual non-whitespace text.
 - Completed: `TextInjector` now uses `GetWindowText` content checks and only considers non-whitespace text as existing content.
 - Commit requested: finalize these changes by committing `TextInjector` detection updates and pushing for immediate local test.
-
-
 VoiceType CLI actions (VoiceType.exe)
 ====================================
-
 This file tracks available command-line actions and how they interact.
-
 Usage
 -----
 `VoiceType.exe [options]`
-
 General options
 --------------
 - `--help`, `-h`  
@@ -70,7 +65,6 @@ General options
   Show app version and exit.
 - `--test`  
   Run a microphone + configuration dry-run test in console mode.
-
 App launch / remote control actions
 ----------------------------------
 The following actions are treated as the primary launch request and are mutually exclusive:
@@ -84,9 +78,7 @@ The following actions are treated as the primary launch request and are mutually
   Send Enter to the active app, or during an active transcribed preview: paste without auto-send.
 - `--replace-existing`  
   Close a running instance (if any) and start this process as the active instance.
-
 If no launch action is supplied, launching without options starts VoiceType with default behavior (start app or trigger dictation on existing instance).
-
 Utilities (single-action only)
 ------------------------------
 These actions are utility operations and cannot be combined with each other:
@@ -100,19 +92,15 @@ These actions are utility operations and cannot be combined with each other:
   Create `VoiceTypeSubmit.exe.lnk` configured with `--submit`.
 - `--create-listen-ignore-prefix-shortcut`  
   Create `VoiceTypeListenNoPrefix.exe.lnk` configured with `--listen --ignore-prefix`.
-
 Constraint summary
 ------------------
 - `--help` can be combined with `--version`.
 - For launch actions: `--close`, `--listen`, `--submit`, `--replace-existing` are mutually exclusive.
 - `--ignore-prefix` can only be used with `--listen`.
 - For utility actions: one of `--pin-to-taskbar`, `--unpin-from-taskbar`, `--create-activate-shortcut`, `--create-submit-shortcut`, `--create-listen-ignore-prefix-shortcut` may be used at a time.
-
 Remote action popup level
 ------------------------
 Running instance behavior:
 - `RemoteActionPopupLevel: 0` (Off): do not show a popup for remote actions.
 - `RemoteActionPopupLevel: 1` (Basic): show a short popup for remote `--listen`, `--submit`, and `--close`.
 - `RemoteActionPopupLevel: 2` (Detailed): same as Basic, plus action-detail text when available (e.g., `listen --ignore-prefix`).
-
-

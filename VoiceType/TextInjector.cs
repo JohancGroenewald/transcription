@@ -210,8 +210,13 @@ public static class TextInjector
         if (targetWindow == IntPtr.Zero)
             return false;
 
-        if (IsLikelyTextInputWindow(targetWindow))
+        if (IsLikelyTextInputWindow(targetWindow, out var confidence))
+        {
+            if (confidence is not TextInputConfidence.Strong)
+                return false;
+
             return DoesWindowHaveText(targetWindow);
+        }
 
         return false;
     }
@@ -234,8 +239,12 @@ public static class TextInjector
         if (!GetGUIThreadInfo(foregroundThreadId, ref guiInfo))
             return FindLikelyTextInputWindowOrFallback(fallbackWindow);
 
-        if (guiInfo.hwndFocus != IntPtr.Zero && IsLikelyTextInputWindow(guiInfo.hwndFocus))
+        if (guiInfo.hwndFocus != IntPtr.Zero &&
+            IsLikelyTextInputWindow(guiInfo.hwndFocus, out var focusedConfidence) &&
+            focusedConfidence == TextInputConfidence.Strong)
+        {
             return guiInfo.hwndFocus;
+        }
 
         return FindLikelyTextInputWindowOrFallback(fallbackWindow);
     }
@@ -245,46 +254,90 @@ public static class TextInjector
         if (fallbackWindow == IntPtr.Zero)
             return IntPtr.Zero;
 
+        var weakFallback = IntPtr.Zero;
         var directChild = GetWindow(fallbackWindow, GW_CHILD);
         while (directChild != IntPtr.Zero)
         {
-            if (IsLikelyTextInputWindow(directChild))
-                return directChild;
+            if (IsLikelyTextInputWindow(directChild, out var confidence))
+            {
+                if (confidence == TextInputConfidence.Strong)
+                    return directChild;
+
+                if (weakFallback == IntPtr.Zero)
+                    weakFallback = directChild;
+            }
 
             directChild = GetWindow(directChild, GW_HWNDNEXT);
         }
 
-        return fallbackWindow;
+        return weakFallback != IntPtr.Zero ? weakFallback : fallbackWindow;
+    }
+
+    private enum TextInputConfidence
+    {
+        None,
+        Weak,
+        Strong
+    }
+
+    private static bool IsLikelyTextInputWindow(IntPtr handle, out TextInputConfidence confidence)
+    {
+        if (handle == IntPtr.Zero)
+        {
+            confidence = TextInputConfidence.None;
+            return false;
+        }
+
+        var className = GetWindowClassName(handle);
+        if (string.IsNullOrWhiteSpace(className))
+        {
+            confidence = TextInputConfidence.None;
+            return false;
+        }
+
+        if (className.Equals("Edit", StringComparison.OrdinalIgnoreCase))
+        {
+            confidence = TextInputConfidence.Strong;
+            return true;
+        }
+
+        if (className.StartsWith("WindowsForms10.EDIT", StringComparison.OrdinalIgnoreCase))
+        {
+            confidence = TextInputConfidence.Strong;
+            return true;
+        }
+
+        if (className.Contains("RICHEDIT", StringComparison.OrdinalIgnoreCase))
+        {
+            confidence = TextInputConfidence.Strong;
+            return true;
+        }
+
+        if (className.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
+        {
+            confidence = TextInputConfidence.Strong;
+            return true;
+        }
+
+        if (className.Contains("SCINTILLA", StringComparison.OrdinalIgnoreCase))
+        {
+            confidence = TextInputConfidence.Strong;
+            return true;
+        }
+
+        if (className.Contains("Chrome_RenderWidgetHost", StringComparison.OrdinalIgnoreCase))
+        {
+            confidence = TextInputConfidence.Weak;
+            return true;
+        }
+
+        confidence = TextInputConfidence.None;
+        return false;
     }
 
     private static bool IsLikelyTextInputWindow(IntPtr handle)
     {
-        if (handle == IntPtr.Zero)
-            return false;
-
-        var className = GetWindowClassName(handle);
-        if (string.IsNullOrWhiteSpace(className))
-            return false;
-
-        if (className.Equals("Edit", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (className.StartsWith("WindowsForms10.EDIT", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (className.Contains("Chrome_RenderWidgetHost", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (className.Contains("RICHEDIT", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (className.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (className.Contains("SCINTILLA", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return className.Contains("TEXT", StringComparison.OrdinalIgnoreCase);
+        return IsLikelyTextInputWindow(handle, out _);
     }
 
     private static string GetWindowClassName(IntPtr handle)
@@ -326,7 +379,24 @@ public static class TextInjector
             return false;
 
         var text = sb.ToString(0, actualLength);
-        return !string.IsNullOrWhiteSpace(text);
+        return HasMeaningfulText(text);
+    }
+
+    private static bool HasMeaningfulText(string text)
+    {
+        foreach (var ch in text)
+        {
+            if (char.IsWhiteSpace(ch) || char.IsControl(ch))
+                continue;
+
+            // Remove common invisible formatting characters that some controls report.
+            if (ch is '\u200B' or '\u200C' or '\u200D' or '\uFEFF')
+                continue;
+
+            return true;
+        }
+
+        return false;
     }
 
     private static void SendCtrlV()
