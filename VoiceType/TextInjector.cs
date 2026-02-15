@@ -669,7 +669,7 @@ public static class TextInjector
         if (!string.IsNullOrWhiteSpace(helpText))
         {
             var normalizedHelp = NormalizeAutomationText(helpText);
-            if (normalizedHelp.Length > 0 && normalizedText.Equals(normalizedHelp, StringComparison.Ordinal))
+            if (MatchesPlaceholderCandidate(normalizedText, normalizedHelp))
             {
                 text = string.Empty;
                 note = $"placeholder-helptext(len={normalizedText.Length})";
@@ -681,7 +681,7 @@ public static class TextInjector
         if (!string.IsNullOrWhiteSpace(name))
         {
             var normalizedName = NormalizeAutomationText(name);
-            if (normalizedName.Length > 0 && normalizedText.Equals(normalizedName, StringComparison.Ordinal))
+            if (MatchesPlaceholderCandidate(normalizedText, normalizedName))
             {
                 text = string.Empty;
                 note = $"placeholder-name(len={normalizedText.Length})";
@@ -693,7 +693,7 @@ public static class TextInjector
         if (!string.IsNullOrWhiteSpace(itemStatus))
         {
             var normalizedStatus = NormalizeAutomationText(itemStatus);
-            if (normalizedStatus.Length > 0 && normalizedText.Equals(normalizedStatus, StringComparison.Ordinal))
+            if (MatchesPlaceholderCandidate(normalizedText, normalizedStatus))
             {
                 text = string.Empty;
                 note = $"placeholder-itemstatus(len={normalizedText.Length})";
@@ -701,7 +701,80 @@ public static class TextInjector
             }
         }
 
+        if (LooksLikeProseMirrorPlaceholderText(normalizedText))
+        {
+            text = string.Empty;
+            note = $"placeholder-heuristic(len={normalizedText.Length})";
+            return true;
+        }
+
         return false;
+    }
+
+    private static bool MatchesPlaceholderCandidate(string normalizedText, string normalizedCandidate)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedText) || string.IsNullOrWhiteSpace(normalizedCandidate))
+            return false;
+
+        if (normalizedText.Equals(normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Some providers include extra hints/shortcuts in help text. Treat near-equality/containment as placeholder.
+        if (normalizedCandidate.IndexOf(normalizedText, StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (normalizedText.IndexOf(normalizedCandidate, StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+
+        return false;
+    }
+
+    private static bool LooksLikeProseMirrorPlaceholderText(string normalizedText)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedText))
+            return false;
+
+        // Placeholders are short, single-line prompts, often with a keybinding hint.
+        if (normalizedText.Length > 96 || normalizedText.IndexOf('\n') >= 0)
+            return false;
+
+        if (StartsWithPlaceholderPhrase(normalizedText, "Ask Copilot", out var remainder) ||
+            StartsWithPlaceholderPhrase(normalizedText, "Ask a question", out remainder) ||
+            StartsWithPlaceholderPhrase(normalizedText, "Type a message", out remainder) ||
+            StartsWithPlaceholderPhrase(normalizedText, "Write a message", out remainder) ||
+            StartsWithPlaceholderPhrase(normalizedText, "Send a message", out remainder) ||
+            StartsWithPlaceholderPhrase(normalizedText, "Enter a message", out remainder))
+        {
+            // Reject common user content like "Ask Copilot to ..." or "Write a message to ...".
+            return remainder.Length == 0
+                   || remainder.StartsWith("(", StringComparison.Ordinal)
+                   || remainder.StartsWith("...", StringComparison.Ordinal)
+                   || remainder.StartsWith("…", StringComparison.Ordinal);
+        }
+
+        // Fallback: keybinding-style placeholders, e.g. "Ask ... (Ctrl+Shift+I)".
+        if (normalizedText.IndexOf("(Ctrl+", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            normalizedText.EndsWith(")", StringComparison.Ordinal) &&
+            (normalizedText.StartsWith("Ask ", StringComparison.OrdinalIgnoreCase)
+             || normalizedText.StartsWith("Type ", StringComparison.OrdinalIgnoreCase)
+             || normalizedText.StartsWith("Write ", StringComparison.OrdinalIgnoreCase)
+             || normalizedText.StartsWith("Send ", StringComparison.OrdinalIgnoreCase)
+             || normalizedText.StartsWith("Enter ", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool StartsWithPlaceholderPhrase(string text, string phrase, out string remainder)
+    {
+        remainder = string.Empty;
+
+        if (!text.StartsWith(phrase, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        remainder = text.Substring(phrase.Length).TrimStart();
+        return true;
     }
 
     private static bool IsProseMirrorAutomationElement(AutomationElement element)
@@ -712,9 +785,38 @@ public static class TextInjector
 
     private static string NormalizeAutomationText(string text)
     {
-        return string.IsNullOrEmpty(text)
-            ? string.Empty
-            : text.Replace("\r\n", "\n").Trim();
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        var sb = new StringBuilder(text.Length);
+        var previousWasSpace = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+
+            if (ch == '\r')
+                continue;
+
+            if (ch is '\u200B' or '\u200C' or '\u200D' or '\uFEFF')
+                continue;
+
+            if (char.IsControl(ch))
+                continue;
+
+            if (char.IsWhiteSpace(ch))
+            {
+                if (previousWasSpace)
+                    continue;
+                sb.Append(' ');
+                previousWasSpace = true;
+                continue;
+            }
+
+            sb.Append(ch);
+            previousWasSpace = false;
+        }
+
+        return sb.ToString().Trim();
     }
 
     private static bool IsPasswordAutomationElement(AutomationElement element)

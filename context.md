@@ -3,6 +3,7 @@ Workflow
 - After making any repository changes, always commit and push them.
 Latest applied change
 ---------------------
+- ProseMirror placeholder detection was broadened to cover VS Code chat-style placeholders that include keybinding hints (for example `Ask Copilot (Ctrl+...)`) even when UIA does not expose a matching `HelpText`/`Name`/`ItemStatus`, so empty inputs no longer show as "has existing text".
 - Debug log now rolls on app startup: existing `%LOCALAPPDATA%\\VoiceType\\voicetype.log` is renamed to a timestamped archive and a fresh log begins for the new run (with simple retention to avoid unbounded growth).
 - ProseMirror placeholder text is now treated as empty for existing-text detection (UIA `TextPattern` can expose placeholder as text); this allows empty VS Code chat inputs to correctly show the "empty" state (green) while real typed content still shows as "has text" (yellow).
 - Audio recorder stop no longer blocks for seconds waiting for `RecordingStopped`; we now do a short best-effort wait (100ms) and continue without logging a timeout, reducing noisy stop-timeout log spam during debugging.
@@ -29,6 +30,7 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- Implemented (2026-02-15): broaden ProseMirror placeholder detection beyond strict equality against UIA `HelpText`/`Name`/`ItemStatus` by normalizing invisible characters/whitespace and handling common placeholder+keybinding formats, so empty VS Code chat inputs stop being misdetected as non-empty (`textLen=26` placeholder case).
 - Implemented (2026-02-15): roll file logging on VoiceType startup so each app run gets its own `voicetype.log` and previous logs are preserved as timestamped archives.
 - Implemented (2026-02-15): ProseMirror empty inputs were being misdetected as non-empty because UIA `TextPattern` returns placeholder text (for example ~26 chars) even when the editor has no user-typed content; we now detect and strip placeholder by comparing `TextPattern` text against UIA `HelpText`/`Name`/`ItemStatus` for ProseMirror, so empty inputs return `TargetHasExistingText=false`.
 - Implemented (2026-02-15): `TargetHasExistingText()` now treats keyboard-focused ProseMirror contenteditable UIA elements (often `ControlType.Group`) as editable for `TextPattern`, so VS Code/Chromium chat input can be detected as empty vs non-empty.
