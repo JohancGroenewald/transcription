@@ -217,28 +217,14 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 17,
+            RowCount = 18,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (var i = 0; i < behaviorLayout.RowCount; i++)
+            behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var lblModel = new Label
         {
@@ -256,6 +242,7 @@ public class SettingsForm : Form
             MinimumSize = new Size(260, 0)
         };
         _modelBox.Items.AddRange(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
+        SetupThemedComboBox(_modelBox);
 
         _autoEnterCheck = new CheckBox
         {
@@ -390,6 +377,7 @@ public class SettingsForm : Form
             "Basic",
             "Detailed"
         });
+        SetupThemedComboBox(_remoteActionPopupLevelCombo);
 
         var lblPastedTextPrefix = new Label
         {
@@ -403,17 +391,17 @@ public class SettingsForm : Form
         {
             Text = "Enable pasted text prefix",
             AutoSize = true,
-            Margin = new Padding(0)
+            Margin = new Padding(0, 8, 0, 0)
         };
         _enablePastedTextPrefixCheck.CheckedChanged += (_, _) => UpdatePastedTextPrefixState();
 
         const int PrefixEditorLineCount = 5;
         var prefixEditorMinHeight = (PrefixEditorLineCount * Font.Height) + 8;
 
-        _pastedTextPrefixTextBox = new TextBox
-        {
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 4, 0, 0),
+         _pastedTextPrefixTextBox = new TextBox
+         {
+             Dock = DockStyle.Fill,
+             Margin = new Padding(0, 4, 0, 0),
             AutoSize = false,
             Height = prefixEditorMinHeight,
             MinimumSize = new Size(0, prefixEditorMinHeight),
@@ -421,24 +409,8 @@ public class SettingsForm : Form
             ScrollBars = ScrollBars.Vertical,
             WordWrap = true,
             AcceptsReturn = true,
-            PlaceholderText = "Optional prefix"
-        };
-
-        var pastedPrefixPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = new Padding(0, 6, 0, 0),
-            Padding = new Padding(0)
-        };
-        pastedPrefixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        pastedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        pastedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        pastedPrefixPanel.Controls.Add(_enablePastedTextPrefixCheck, 0, 0);
-        pastedPrefixPanel.Controls.Add(_pastedTextPrefixTextBox, 0, 1);
+             PlaceholderText = "Optional prefix"
+         };
 
         _settingsDarkModeCheck = new CheckBox
         {
@@ -472,6 +444,7 @@ public class SettingsForm : Form
             Margin = new Padding(0, 6, 0, 0)
         };
         _penHotkeyBox.Items.AddRange(AppConfig.GetSupportedPenHotkeys().Cast<object>().ToArray());
+        SetupThemedComboBox(_penHotkeyBox);
 
         var penValidationLabel = new Label
         {
@@ -512,17 +485,19 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_useSimpleMicSpinnerCheck, 2);
         behaviorLayout.Controls.Add(lblRemoteActionPopupLevel, 0, 10);
         behaviorLayout.Controls.Add(_remoteActionPopupLevelCombo, 1, 10);
-        behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 11);
-        behaviorLayout.Controls.Add(pastedPrefixPanel, 1, 11);
-        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 12);
+        behaviorLayout.Controls.Add(_enablePastedTextPrefixCheck, 0, 11);
+        behaviorLayout.SetColumnSpan(_enablePastedTextPrefixCheck, 2);
+        behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 12);
+        behaviorLayout.Controls.Add(_pastedTextPrefixTextBox, 1, 12);
+        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 13);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
-        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 13);
-        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 13);
-        behaviorLayout.Controls.Add(penValidationLabel, 0, 14);
+        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 14);
+        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 14);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 15);
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
-        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 15);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 16);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
-        behaviorLayout.Controls.Add(_settingsDarkModeCheck, 0, 16);
+        behaviorLayout.Controls.Add(_settingsDarkModeCheck, 0, 17);
         behaviorLayout.SetColumnSpan(_settingsDarkModeCheck, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
@@ -1100,6 +1075,52 @@ public class SettingsForm : Form
         }
     }
 
+    private void SetupThemedComboBox(ComboBox comboBox)
+    {
+        comboBox.DrawMode = DrawMode.OwnerDrawFixed;
+        comboBox.DrawItem -= OnThemedComboBoxDrawItem;
+        comboBox.DrawItem += OnThemedComboBoxDrawItem;
+    }
+
+    private void OnThemedComboBoxDrawItem(object? sender, DrawItemEventArgs e)
+    {
+        if (sender is not ComboBox combo)
+            return;
+
+        // Owner-draw is needed for consistent dark-mode rendering, especially for DropDownList combo boxes
+        // where the OS may ignore BackColor.
+        var theme = GetActiveTheme();
+        var enabled = combo.Enabled;
+        var selected = (e.State & DrawItemState.Selected) != 0;
+
+        var bg = enabled ? theme.InputBack : theme.ReadOnlyInputBack;
+        var fg = enabled ? theme.Text : theme.MutedText;
+        if (selected)
+        {
+            bg = theme.IsDark ? ControlPaint.Light(theme.InputBack, 0.18f) : SystemColors.Highlight;
+            fg = theme.IsDark ? theme.Text : SystemColors.HighlightText;
+        }
+
+        using (var bgBrush = new SolidBrush(bg))
+            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+
+        var text = e.Index >= 0
+            ? combo.GetItemText(combo.Items[e.Index])
+            : combo.Text;
+
+        var textBounds = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 4, e.Bounds.Height);
+        TextRenderer.DrawText(
+            e.Graphics,
+            text,
+            e.Font,
+            textBounds,
+            fg,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        if ((e.State & DrawItemState.Focus) != 0)
+            e.DrawFocusRectangle();
+    }
+
     private static void ApplyThemeToControl(Control control, SettingsTheme theme)
     {
         var parentBack = control.Parent?.BackColor ?? theme.WindowBack;
@@ -1107,7 +1128,8 @@ public class SettingsForm : Form
         switch (control)
         {
             case GroupBox groupBox:
-                groupBox.BackColor = theme.PanelBack;
+                // Avoid GroupBox caption "cutout" painting artifacts by matching the parent's background.
+                groupBox.BackColor = parentBack;
                 groupBox.ForeColor = theme.Text;
                 return;
             case Panel or TableLayoutPanel or FlowLayoutPanel:
@@ -1142,6 +1164,7 @@ public class SettingsForm : Form
             case ComboBox comboBox:
                 comboBox.BackColor = theme.InputBack;
                 comboBox.ForeColor = theme.Text;
+                comboBox.FlatStyle = theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard;
                 return;
             case NumericUpDown numericUpDown:
                 numericUpDown.BackColor = theme.InputBack;
