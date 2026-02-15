@@ -738,6 +738,7 @@ public static class TextInjector
             return false;
 
         if (StartsWithPlaceholderPhrase(normalizedText, "Ask Copilot", out var remainder) ||
+            StartsWithPlaceholderPhrase(normalizedText, "Ask for follow-up changes", out remainder) ||
             StartsWithPlaceholderPhrase(normalizedText, "Ask a question", out remainder) ||
             StartsWithPlaceholderPhrase(normalizedText, "Type a message", out remainder) ||
             StartsWithPlaceholderPhrase(normalizedText, "Write a message", out remainder) ||
@@ -748,7 +749,7 @@ public static class TextInjector
             return remainder.Length == 0
                    || remainder.StartsWith("(", StringComparison.Ordinal)
                    || remainder.StartsWith("...", StringComparison.Ordinal)
-                   || remainder.StartsWith("…", StringComparison.Ordinal);
+                   || remainder.StartsWith("\u2026", StringComparison.Ordinal);
         }
 
         // Fallback: keybinding-style placeholders, e.g. "Ask ... (Ctrl+Shift+I)".

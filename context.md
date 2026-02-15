@@ -3,6 +3,7 @@ Workflow
 - After making any repository changes, always commit and push them.
 Latest applied change
 ---------------------
+- ProseMirror placeholder detection now explicitly treats the VS Code "Ask for follow-up changes" prompt as empty (this was the `textLen=26` phantom content in UIA `TextPattern` when the box looked empty).
 - ProseMirror placeholder detection was broadened to cover VS Code chat-style placeholders that include keybinding hints (for example `Ask Copilot (Ctrl+...)`) even when UIA does not expose a matching `HelpText`/`Name`/`ItemStatus`, so empty inputs no longer show as "has existing text".
 - Debug log now rolls on app startup: existing `%LOCALAPPDATA%\\VoiceType\\voicetype.log` is renamed to a timestamped archive and a fresh log begins for the new run (with simple retention to avoid unbounded growth).
 - ProseMirror placeholder text is now treated as empty for existing-text detection (UIA `TextPattern` can expose placeholder as text); this allows empty VS Code chat inputs to correctly show the "empty" state (green) while real typed content still shows as "has text" (yellow).
@@ -30,6 +31,7 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- Implemented (2026-02-15): explicitly ignore the VS Code Copilot Chat empty-prompt text "Ask for follow-up changes" returned by UIA `TextPattern` so empty inputs no longer get misdetected as containing text.
 - Implemented (2026-02-15): broaden ProseMirror placeholder detection beyond strict equality against UIA `HelpText`/`Name`/`ItemStatus` by normalizing invisible characters/whitespace and handling common placeholder+keybinding formats, so empty VS Code chat inputs stop being misdetected as non-empty (`textLen=26` placeholder case).
 - Implemented (2026-02-15): roll file logging on VoiceType startup so each app run gets its own `voicetype.log` and previous logs are preserved as timestamped archives.
 - Implemented (2026-02-15): ProseMirror empty inputs were being misdetected as non-empty because UIA `TextPattern` returns placeholder text (for example ~26 chars) even when the editor has no user-typed content; we now detect and strip placeholder by comparing `TextPattern` text against UIA `HelpText`/`Name`/`ItemStatus` for ProseMirror, so empty inputs return `TargetHasExistingText=false`.
