@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace VoiceType;
@@ -111,6 +112,63 @@ public class SettingsForm : Form
     private readonly Icon _formIcon;
     private bool _settingsDarkModeEnabled;
 
+    private sealed class ThemedGroupBox : GroupBox
+    {
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color BorderColor { get; set; } = SystemColors.ActiveBorder;
+
+        public ThemedGroupBox()
+        {
+            SetStyle(
+                ControlStyles.UserPaint |
+                ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.ResizeRedraw,
+                true);
+            DoubleBuffered = true;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(BackColor);
+
+            var text = Text;
+            var hasText = !string.IsNullOrWhiteSpace(text);
+
+            var textSize = hasText
+                ? TextRenderer.MeasureText(g, text, Font, Size.Empty, TextFormatFlags.SingleLine)
+                : Size.Empty;
+
+            var textLeft = 10;
+            var textRect = hasText
+                ? new Rectangle(textLeft, 0, textSize.Width, textSize.Height)
+                : Rectangle.Empty;
+
+            var borderTop = hasText ? (textRect.Height / 2) : 0;
+            var borderRect = new Rectangle(0, borderTop, Width - 1, Height - borderTop - 1);
+
+            using (var borderPen = new Pen(BorderColor))
+                g.DrawRectangle(borderPen, borderRect);
+
+            if (hasText)
+            {
+                // Mask out the border behind the caption text so the line doesn't run through the title.
+                using (var backBrush = new SolidBrush(BackColor))
+                    g.FillRectangle(backBrush, new Rectangle(textRect.Left - 2, textRect.Top, textRect.Width + 4, textRect.Height));
+
+                TextRenderer.DrawText(
+                    g,
+                    text,
+                    Font,
+                    textRect,
+                    ForeColor,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            }
+        }
+    }
+
     public SettingsForm()
     {
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -127,6 +185,7 @@ public class SettingsForm : Form
         MinimizeBox = false;
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
+        DoubleBuffered = true;
         KeyPreview = true;
         Padding = new Padding(12);
         MinimumSize = new Size(760, 520);
@@ -169,7 +228,7 @@ public class SettingsForm : Form
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var grpApi = new GroupBox
+        var grpApi = new ThemedGroupBox
         {
             Text = "OpenAI API",
             Dock = DockStyle.Top,
@@ -236,7 +295,7 @@ public class SettingsForm : Form
         apiLayout.Controls.Add(_showKeyCheck, 2, 1);
         grpApi.Controls.Add(apiLayout);
 
-        var grpBehavior = new GroupBox
+        var grpBehavior = new ThemedGroupBox
         {
             Text = "Behavior",
             Dock = DockStyle.Top,
@@ -536,7 +595,7 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_settingsDarkModeCheck, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
-        var grpVoiceCommands = new GroupBox
+        var grpVoiceCommands = new ThemedGroupBox
         {
             Text = "Voice Commands",
             Dock = DockStyle.Top,
@@ -737,7 +796,7 @@ public class SettingsForm : Form
         voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 3);
         grpVoiceCommands.Controls.Add(voiceLayout);
 
-        var grpAppInfo = new GroupBox
+        var grpAppInfo = new ThemedGroupBox
         {
             Text = "App Info",
             Dock = DockStyle.Top,
@@ -922,6 +981,7 @@ public class SettingsForm : Form
         UpdatePenHotkeySettingsState();
         ValidateVoiceCommandInput();
         WrapWindowToContent(contentPanel, buttonsLayout);
+        Invalidate(true);
     }
 
     private void OnSave(object? sender, EventArgs e)
@@ -1229,6 +1289,8 @@ public class SettingsForm : Form
                 // Avoid GroupBox caption "cutout" painting artifacts by matching the parent's background.
                 groupBox.BackColor = parentBack;
                 groupBox.ForeColor = theme.Text;
+                if (groupBox is ThemedGroupBox themed)
+                    themed.BorderColor = theme.Border;
                 return;
             case Panel or TableLayoutPanel or FlowLayoutPanel:
                 control.BackColor = parentBack;

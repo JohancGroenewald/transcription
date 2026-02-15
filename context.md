@@ -35,8 +35,10 @@ Current request
 - New request (2026-02-15): add a dark mode toggle for the Settings screen and persist it in config.
 - New request (2026-02-15): make ComboBox dropdown lists (the opened list items) dark-mode friendly as well, not just the closed control.
 - New request (2026-02-15): fix pasted-text prefix enable/disable checkbox not being honored at runtime.
+- New request (2026-02-15): fix the Settings screen GroupBox frame overlap artifact between "Voice Commands" and the group below it (border line segments appear to overlap/linger).
 - Implemented (2026-02-15): ComboBox dropdown items are now drawn with the active theme and we apply best-effort Windows dark-mode theming (`DarkMode_Explorer`) to the native dropdown list window on open, improving dark-mode consistency inside dropdown lists.
 - Implemented (2026-02-15): added detailed logging around pasted-text prefix decisions (disabled via settings vs ignored via `--ignore-prefix` vs suppressed due to existing target text) to debug cases where the prefix enable/disable toggle appears not to apply.
+- Implemented (2026-02-15): replaced WinForms `GroupBox` controls in Settings with a custom double-buffered, background-painting `ThemedGroupBox` (UserPaint) to eliminate border-line artifacts/overlaps in dark mode.
 - Implemented (2026-02-15): re-enabled pasted-text prefix injection and added a Settings checkbox (`Enable pasted text prefix`) that controls whether the prefix is applied (prefix text is still stored even when disabled).
 - Implemented (2026-02-15): added a Settings dark mode toggle (`Dark mode (settings window)`) that re-themes the Settings form immediately and persists via `EnableSettingsDarkMode` in config.
 - Implemented (2026-02-15): explicitly ignore the VS Code Copilot Chat empty-prompt text "Ask for follow-up changes" returned by UIA `TextPattern` so empty inputs no longer get misdetected as containing text.
