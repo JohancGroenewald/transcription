@@ -625,10 +625,25 @@ public static class TextInjector
     private static bool IsEditableTextPatternElement(AutomationElement element)
     {
         // Avoid treating focused "document/page" text as an input target; prefer Edit-like UIA controls.
-        var controlType = element.Current.ControlType;
-        if (controlType != ControlType.Edit)
+        // Some Chromium/Electron editors (for example ProseMirror) expose the editable region as a Group/Document
+        // with TextPattern instead of ControlType.Edit.
+        var controlType = SafeGet(() => element.Current.ControlType, null);
+        if (controlType == ControlType.Edit)
+            return true;
+
+        if (controlType != ControlType.Group && controlType != ControlType.Document && controlType != ControlType.Pane)
             return false;
-        return true;
+
+        var hasFocus = SafeGet(() => element.Current.HasKeyboardFocus, false);
+        var focusable = SafeGet(() => element.Current.IsKeyboardFocusable, false);
+        if (!hasFocus || !focusable)
+            return false;
+
+        var className = SafeGet(() => element.Current.ClassName ?? string.Empty, string.Empty);
+        if (className.IndexOf("ProseMirror", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+
+        return false;
     }
 
     private static bool IsPasswordAutomationElement(AutomationElement element)

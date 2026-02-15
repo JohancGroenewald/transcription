@@ -3,6 +3,7 @@ Workflow
 - After making any repository changes, always commit and push them.
 Latest applied change
 ---------------------
+- UIA existing-text detection now recognizes ProseMirror contenteditable editors exposed as `ControlType.Group`/`ControlType.Document`/`ControlType.Pane` with `TextPattern` when keyboard-focused, enabling existing-text detection in VS Code chat input.
 - Remote action indicators now render in a dedicated overlay window (`_actionOverlay`) that is positioned above the live listening HUD, so they do not get repositioned by listening text updates and do not obstruct the listening text.
 - Action overlay is short-lived (carry-over duration) and is hidden when recording stops.
 - Main listening overlay updates now always render without embedded remote action text (`includeRemoteAction: false`) while listening remains on.
@@ -25,6 +26,7 @@ Latest applied change
 - Additional hardening: require non-whitespace, non-control, non-invisible characters before considering a field non-empty, to avoid phantom text flags in empty controls.
 Current request
 ---------------
+- Implemented (2026-02-15): `TargetHasExistingText()` now treats keyboard-focused ProseMirror contenteditable UIA elements (often `ControlType.Group`) as editable for `TextPattern`, so VS Code/Chromium chat input can be detected as empty vs non-empty.
 - New request (2026-02-15): clarify git hook behavior. Solution: repo sets `core.hooksPath=.githooks` so commits run `.githooks/pre-commit` (bumps `<Version>` in `VoiceType/VoiceType.csproj` via `bump-version.ps1`, skippable with `SKIP_VERSION_BUMP=1`) and `.githooks/post-commit` (runs `restart-voicetype.ps1` to close any repo-running VoiceType.exe, build Debug, and relaunch).
 - New request (2026-02-15): add detailed debug logging for `TextInjector.TargetHasExistingText()` so we can see which target window/control is being evaluated (HWND/class/process), whether Win32 text APIs or UI Automation are used, and what text-length/meaningful checks are returning (without logging actual field contents).
 - New request (2026-02-15): disable pasted-text prefix (pre-text paste) injection temporarily to simplify testing. Keep existing-text detection and render the transcribed preview color as: yellow when the focused target already contains text, green when it does not.
