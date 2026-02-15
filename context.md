@@ -17,6 +17,7 @@ Latest applied change
 - Renormalization pass now completes with no mixed `w/mixed` files reported by `git ls-files --eol`; mixed-state warnings are no longer present in the tracked index view.
 - Fixed prefix visibility regression by changing detection to only skip prepends when a detected **text-input control** appears to already contain content (instead of treating any focused window with title text as occupied).
 - User reported: pasted prefix appears twice in preview; plan is to keep prefix only in dedicated faded preview line and remove duplicate from main preview body.
+- New request: when existing text is detected in focused field, show transcribed preview in a yellow tone (instead of green) to indicate prefix was skipped.
 
 Current request
 ---------------
@@ -39,6 +40,7 @@ Current request
 - Verify line-ending normalization status after renormalize.
 - Verify why the pasted-text prefix preview is not visible and adjust detection if needed.
 - Fix prefix preview duplication by displaying raw dictated text in the body and prefix only in the separate preview line.
+- If existing text is detected in the target field, display pasted-text preview with a non-green color (yellow).
 
 VoiceType CLI actions (VoiceType.exe)
 ====================================

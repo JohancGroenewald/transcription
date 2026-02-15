@@ -269,7 +269,7 @@ public class TrayContext : ApplicationContext
                         return;
                     }
 
-                    var (textToInject, prefixTextForPreview) = ApplyPastePrefix(
+                    var (textToInject, prefixTextForPreview, prefixSuppressedForExistingText) = ApplyPastePrefix(
                         text,
                         TextInjector.TargetHasExistingText());
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
@@ -277,7 +277,8 @@ public class TrayContext : ApplicationContext
                     var previewDecision = await ShowCancelableTranscribedPreviewAsync(
                         previewText,
                         adaptiveDurationMs,
-                        prefixTextForPreview);
+                        prefixTextForPreview,
+                        prefixSuppressedForExistingText);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
@@ -738,18 +739,18 @@ public class TrayContext : ApplicationContext
         return Math.Clamp(adaptiveMs, AppConfig.MinOverlayDurationMs, maxMs);
     }
 
-    private (string TextToInject, string? PrefixForPreview) ApplyPastePrefix(
+    private (string TextToInject, string? PrefixForPreview, bool PrefixSuppressedForExistingText) ApplyPastePrefix(
         string text,
         bool targetHasExistingText)
     {
         if (_ignorePastedTextPrefixForNextTranscription)
-            return (text, null);
+            return (text, null, false);
 
         if (string.IsNullOrWhiteSpace(_pastedTextPrefix) || targetHasExistingText)
-            return (text, null);
+            return (text, null, targetHasExistingText);
 
         var normalizedPrefix = _pastedTextPrefix.TrimEnd('\r', '\n');
-        return (GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text), normalizedPrefix);
+        return (GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text), normalizedPrefix, false);
     }
 
     private static string GetTextWithNormalizedPrefixSpacing(string prefix, string text)
@@ -1103,11 +1104,15 @@ public class TrayContext : ApplicationContext
     private async Task<TranscribedPreviewDecision> ShowCancelableTranscribedPreviewAsync(
         string text,
         int durationMs,
-        string? prefixTextForPreview)
+        string? prefixTextForPreview,
+        bool prefixSuppressedForExistingText)
     {
+        var previewColor = prefixSuppressedForExistingText
+            ? Color.Gold
+            : Color.LightGreen;
         var messageId = ShowOverlay(
             text,
-            Color.LightGreen,
+            previewColor,
             durationMs,
             showCountdownBar: true,
             tapToCancel: true,
