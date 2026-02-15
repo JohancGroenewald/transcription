@@ -255,7 +255,7 @@ public class OverlayForm : Form
                 new Size(width - Padding.Horizontal, int.MaxValue),
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
             var actionSize = Size.Empty;
-            var actionHeight = 0;
+            var actionLineHeight = 0;
             if (_lastShowActionLine)
             {
                 _actionLabel.Text = _lastActionText;
@@ -266,7 +266,7 @@ public class OverlayForm : Form
                     _actionLabel.Font,
                     new Size(width - Padding.Horizontal, int.MaxValue),
                     TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                actionHeight = Math.Max(18, actionSize.Height + 2);
+                actionLineHeight = Math.Max(18, actionSize.Height + 2);
             }
             else
             {
@@ -274,10 +274,21 @@ public class OverlayForm : Form
                 _actionLabel.Visible = false;
             }
 
-            var height = Math.Max(MinOverlayHeight, measured.Height + actionHeight + ActionLineSpacing + Padding.Vertical + 8);
+            var height = Math.Max(
+                MinOverlayHeight,
+                measured.Height +
+                (actionLineHeight > 0 ? actionLineHeight + ActionLineSpacing : 0) +
+                Padding.Vertical +
+                8);
 
             Size = new Size(width, height);
-            ConfigureLabelLayout(measured, actionSize, textAlign, centerTextBlock, _lastShowActionLine);
+            ConfigureLabelLayout(
+                measured,
+                actionSize,
+                actionLineHeight,
+                textAlign,
+                centerTextBlock,
+                _lastShowActionLine);
             PositionOnScreen(workingArea);
 
             _fadeTimer.Stop();
@@ -357,28 +368,41 @@ public class OverlayForm : Form
     private void ConfigureLabelLayout(
         Size measuredTextSize,
         Size measuredActionTextSize,
+        int measuredActionLineHeight,
         ContentAlignment textAlign,
         bool centerTextBlock,
         bool hasActionText)
     {
         _actionLabel.Visible = hasActionText;
-        _actionLabel.Dock = DockStyle.Bottom;
+        _label.Dock = DockStyle.None;
+        _actionLabel.Dock = DockStyle.None;
         _actionLabel.TextAlign = ContentAlignment.MiddleRight;
-        var actionAreaHeight = hasActionText
-            ? Math.Max(18, measuredActionTextSize.Height + 2) + ActionLineSpacing
+        var actionLineHeight = Math.Max(0, measuredActionLineHeight);
+        var actionAreaHeight = actionLineHeight > 0
+            ? actionLineHeight + ActionLineSpacing
             : 0;
 
         if (!centerTextBlock)
         {
-            _actionLabel.Height = actionAreaHeight;
-            _actionLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
-            _actionLabel.Left = Padding.Left;
-            _label.Dock = DockStyle.Fill;
+            var labelWidth = Math.Max(1, ClientSize.Width - Padding.Horizontal);
+            var labelHeight = Math.Max(
+                20,
+                ClientSize.Height - Padding.Vertical - actionAreaHeight);
+            _actionLabel.Bounds = new Rectangle(
+                Padding.Left,
+                Padding.Top,
+                labelWidth,
+                actionLineHeight);
+            _actionLabel.Height = actionLineHeight;
+            _label.Bounds = new Rectangle(
+                Padding.Left,
+                Padding.Top + actionAreaHeight,
+                labelWidth,
+                Math.Max(20, labelHeight - ActionLineSpacing));
             _label.TextAlign = textAlign;
             return;
         }
 
-        _label.Dock = DockStyle.None;
         var maxLabelWidth = Math.Max(40, ClientSize.Width - Padding.Horizontal);
         var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical - actionAreaHeight);
         var labelWidth = Math.Clamp(measuredTextSize.Width, 1, maxLabelWidth);
@@ -400,7 +424,7 @@ public class OverlayForm : Form
             actionLeft,
             actionTop,
             actionWidth,
-            Math.Max(18, measuredActionTextSize.Height + 2));
+            actionLineHeight);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)

@@ -617,6 +617,17 @@ public class TrayContext : ApplicationContext
             message += $" ({details})";
 
         SetRemoteActionPopupContext(message, remoteActionColor: RemoteActionPopupTextColor);
+        if (_isRecording && _enableOverlayPopups)
+        {
+            ShowOverlay(
+                BuildListeningOverlayText(),
+                Color.CornflowerBlue,
+                0,
+                remoteActionText: message,
+                remoteActionColor: RemoteActionPopupTextColor);
+            return;
+        }
+
         ShowOverlay(message, Color.CornflowerBlue, 900, includeRemoteAction: false);
     }
 
@@ -722,6 +733,14 @@ public class TrayContext : ApplicationContext
         if (!_isRecording || !_enableOverlayPopups)
             return;
 
+        ShowOverlay(
+            BuildListeningOverlayText(),
+            Color.CornflowerBlue,
+            0);
+    }
+
+    private string BuildListeningOverlayText()
+    {
         var levelPercent = Interlocked.CompareExchange(ref _micLevelPercent, 0, 0);
         var elapsed = DateTime.UtcNow - _recordingStartedAtUtc;
         var elapsedText = elapsed.TotalHours >= 1
@@ -733,18 +752,11 @@ public class TrayContext : ApplicationContext
             var frame = MicSpinnerFrames[_micSpinnerIndex];
             _micSpinnerIndex = (_micSpinnerIndex + 1) % MicSpinnerFrames.Length;
 
-            ShowOverlay(
-                $"Listening {frame} {elapsedText}\nPress {BuildOverlayHotkeyHint()} to stop",
-                Color.CornflowerBlue,
-                0);
-            return;
+            return $"Listening {frame} {elapsedText}\nPress {BuildOverlayHotkeyHint()} to stop";
         }
 
         var meter = BuildMicActivityMeter(levelPercent, 18);
-        ShowOverlay(
-            $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildOverlayHotkeyHint()} to stop",
-            Color.CornflowerBlue,
-            0);
+        return $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildOverlayHotkeyHint()} to stop";
     }
 
     private static string BuildMicActivityMeter(int levelPercent, int segments)
