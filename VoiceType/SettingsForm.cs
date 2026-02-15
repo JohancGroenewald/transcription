@@ -21,6 +21,7 @@ public class SettingsForm : Form
     private readonly NumericUpDown _overlayFontSizeInput;
     private readonly CheckBox _showOverlayBorderCheck;
     private readonly CheckBox _useSimpleMicSpinnerCheck;
+    private readonly TextBox _pastedTextPrefixTextBox;
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
     private readonly Label _penHotkeyLabel;
@@ -179,12 +180,13 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 14,
+            RowCount = 15,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         behaviorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         behaviorLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -329,6 +331,21 @@ public class SettingsForm : Form
             Margin = new Padding(0, 8, 0, 0)
         };
 
+        var lblPastedTextPrefix = new Label
+        {
+            Text = "Pasted text prefix",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _pastedTextPrefixTextBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 6, 0, 0),
+            PlaceholderText = "Optional prefix"
+        };
+
         _enablePenHotkeyCheck = new CheckBox
         {
             Text = "Enable Surface Pen hotkey",
@@ -391,13 +408,15 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_showOverlayBorderCheck, 2);
         behaviorLayout.Controls.Add(_useSimpleMicSpinnerCheck, 0, 9);
         behaviorLayout.SetColumnSpan(_useSimpleMicSpinnerCheck, 2);
-        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 10);
+        behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 10);
+        behaviorLayout.Controls.Add(_pastedTextPrefixTextBox, 1, 10);
+        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 11);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
-        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 11);
-        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 11);
-        behaviorLayout.Controls.Add(penValidationLabel, 0, 12);
+        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 12);
+        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 12);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 13);
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
-        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 13);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 14);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
@@ -766,6 +785,7 @@ public class SettingsForm : Form
         _overlayFontSizeInput.Value = AppConfig.NormalizeOverlayFontSizePt(config.OverlayFontSizePt);
         _showOverlayBorderCheck.Checked = config.ShowOverlayBorder;
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
+        _pastedTextPrefixTextBox.Text = config.PastedTextPrefix ?? "";
         _enablePenHotkeyCheck.Checked = config.EnablePenHotkey;
         _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
         if (_penHotkeyBox.SelectedIndex < 0)
@@ -798,6 +818,7 @@ public class SettingsForm : Form
             OverlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt((int)_overlayFontSizeInput.Value),
             ShowOverlayBorder = _showOverlayBorderCheck.Checked,
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
+            PastedTextPrefix = _pastedTextPrefixTextBox.Text,
             EnablePenHotkey = _enablePenHotkeyCheck.Checked,
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
             EnableOpenSettingsVoiceCommand = _openSettingsVoiceCommandCheck.Checked,

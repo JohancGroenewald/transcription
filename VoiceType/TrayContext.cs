@@ -75,6 +75,7 @@ public class TrayContext : ApplicationContext
     private bool _enableToggleAutoEnterVoiceCommand;
     private bool _enableSendVoiceCommand;
     private bool _enableShowVoiceCommandsVoiceCommand;
+    private string _pastedTextPrefix = string.Empty;
     private bool _useSimpleMicSpinner;
     private int _micLevelPercent;
     private int _micSpinnerIndex;
@@ -147,14 +148,15 @@ public class TrayContext : ApplicationContext
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
-        _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
-        _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
-        _enableSendVoiceCommand = config.EnableSendVoiceCommand;
-        _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
-        _useSimpleMicSpinner = config.UseSimpleMicSpinner;
-        if (!string.IsNullOrWhiteSpace(config.ApiKey))
-            _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
-        else
+                _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
+                _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
+                _enableSendVoiceCommand = config.EnableSendVoiceCommand;
+                _enableShowVoiceCommandsVoiceCommand = config.EnableShowVoiceCommandsVoiceCommand;
+                _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
+                _useSimpleMicSpinner = config.UseSimpleMicSpinner;
+                if (!string.IsNullOrWhiteSpace(config.ApiKey))
+                    _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
+                else
             _transcriptionService = null;
     }
 
@@ -251,8 +253,9 @@ public class TrayContext : ApplicationContext
                         return;
                     }
 
-                    var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(text);
-                    var previewDecision = await ShowCancelableTranscribedPreviewAsync(text, adaptiveDurationMs);
+                    var textToInject = ApplyPastePrefix(text);
+                    var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
+                    var previewDecision = await ShowCancelableTranscribedPreviewAsync(textToInject, adaptiveDurationMs);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
@@ -263,7 +266,7 @@ public class TrayContext : ApplicationContext
                     var autoSend = previewDecision == TranscribedPreviewDecision.PasteWithoutSend
                         ? false
                         : _autoEnter;
-                    var pasted = TextInjector.InjectText(text, autoSend);
+                    var pasted = TextInjector.InjectText(textToInject, autoSend);
                     if (pasted)
                     {
                         if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
@@ -273,7 +276,7 @@ public class TrayContext : ApplicationContext
                     }
                     else
                     {
-                        var fallbackText = text + "\n(copied to clipboard — Ctrl+V to paste)";
+                        var fallbackText = textToInject + "\n(copied to clipboard — Ctrl+V to paste)";
                         Log.Info("No paste target, text on clipboard");
                         ShowOverlay(fallbackText, Color.Gold, adaptiveDurationMs);
                     }
@@ -570,6 +573,11 @@ public class TrayContext : ApplicationContext
         var adaptiveMs = AdaptiveOverlayBaseMs + (words * AdaptiveOverlayMsPerWord);
         var maxMs = Math.Min(AppConfig.MaxOverlayDurationMs, AdaptiveOverlayMaxMs);
         return Math.Clamp(adaptiveMs, AppConfig.MinOverlayDurationMs, maxMs);
+    }
+
+    private string ApplyPastePrefix(string text)
+    {
+        return string.IsNullOrEmpty(_pastedTextPrefix) ? text : _pastedTextPrefix + text;
     }
 
     private void StartListeningOverlay()

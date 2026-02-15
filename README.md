@@ -175,6 +175,7 @@ Available settings:
 - `HUD font size (pt)` (9-22)
 - `Show HUD border line`
 - `Use simple mic spinner (instead of level meter)`
+- `Pasted text prefix`: string to prepend to pasted/copied transcription output
 - `Enable Surface Pen hotkey`
 - `Surface Pen key` (`F13`-`F24`, `LaunchApp1`, `LaunchApp2`; default `F20`)
 - `Pen button validator` (shows last detected pen key while Settings is focused)

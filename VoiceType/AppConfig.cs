@@ -7,6 +7,7 @@ namespace VoiceType;
 public class AppConfig
 {
     private const string DefaultModel = "whisper-1";
+    private const string DefaultPastedTextPrefix = "";
     public const string DefaultPenHotkey = "F20";
     public const int DefaultOverlayDurationMs = 3000;
     public const int MinOverlayDurationMs = 500;
@@ -74,6 +75,7 @@ public class AppConfig
     public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
     public bool EnableSendVoiceCommand { get; set; } = true;
     public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
+    public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -103,6 +105,7 @@ public class AppConfig
         public bool EnableToggleAutoEnterVoiceCommand { get; set; } = true;
         public bool EnableSendVoiceCommand { get; set; } = true;
         public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
+        public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
     }
 
     public static AppConfig Load()
@@ -136,7 +139,8 @@ public class AppConfig
                 EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
                 EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand,
                 EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
-                EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand
+                EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
+                PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -170,7 +174,8 @@ public class AppConfig
                 EnableExitAppVoiceCommand = EnableExitAppVoiceCommand,
                 EnableToggleAutoEnterVoiceCommand = EnableToggleAutoEnterVoiceCommand,
                 EnableSendVoiceCommand = EnableSendVoiceCommand,
-                EnableShowVoiceCommandsVoiceCommand = EnableShowVoiceCommandsVoiceCommand
+                EnableShowVoiceCommandsVoiceCommand = EnableShowVoiceCommandsVoiceCommand,
+                PastedTextPrefix = PastedTextPrefix ?? DefaultPastedTextPrefix
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);
