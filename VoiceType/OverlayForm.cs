@@ -7,6 +7,7 @@ public class OverlayForm : Form
 {
     private static readonly Color DefaultTextColor = Color.FromArgb(174, 255, 188);
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
+    private static readonly Color ActionTextColor = Color.FromArgb(246, 229, 159);
     private const int BottomOffset = 18;
     private const int HorizontalMargin = 20;
     private const int MinOverlayWidth = 460;
@@ -18,6 +19,7 @@ public class OverlayForm : Form
     private const int CountdownTickIntervalMs = 40;
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
+    private const int ActionLineSpacing = 4;
     private static readonly Color CountdownTrackColor = Color.FromArgb(84, 30, 52, 40);
 
     private const int WS_EX_TOPMOST = 0x00000008;
@@ -38,6 +40,7 @@ public class OverlayForm : Form
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
     private readonly Label _label;
+    private readonly Label _actionLabel;
     private readonly System.Windows.Forms.Timer _hideTimer;
     private readonly System.Windows.Forms.Timer _fadeTimer;
     private readonly System.Windows.Forms.Timer _countdownTimer;
@@ -48,7 +51,10 @@ public class OverlayForm : Form
     private int _lastDurationMs = 3000;
     private bool _lastShowCountdownBar;
     private bool _lastTapToCancel;
+    private bool _lastShowActionLine;
     private bool _showCountdownBar;
+    private string _lastActionText = string.Empty;
+    private Color _lastActionColor = ActionTextColor;
     private int _countdownMessageId;
     private DateTime _countdownStartUtc;
     private int _countdownTotalMs;
@@ -95,6 +101,17 @@ public class OverlayForm : Form
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false
         };
+        _actionLabel = new Label
+        {
+            Dock = DockStyle.Bottom,
+            Font = new Font("Consolas", Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Regular),
+            ForeColor = ActionTextColor,
+            TextAlign = ContentAlignment.MiddleRight,
+            AutoEllipsis = false,
+            AutoSize = false,
+            Visible = false
+        };
+        Controls.Add(_actionLabel);
         Controls.Add(_label);
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = 3000 };
@@ -105,6 +122,7 @@ public class OverlayForm : Form
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
         MouseClick += OnOverlayMouseClick;
         _label.MouseClick += OnOverlayMouseClick;
+        _actionLabel.MouseClick += OnOverlayMouseClick;
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -147,6 +165,10 @@ public class OverlayForm : Form
             Opacity = _baseOpacity;
             _hideTimerMessageId = 0;
             _fadeMessageId = 0;
+            _actionLabel.Text = string.Empty;
+            _actionLabel.Visible = false;
+            _lastActionText = string.Empty;
+            _lastShowActionLine = false;
             ResetCountdown();
             ResetTapToCancel();
         }
@@ -184,7 +206,9 @@ public class OverlayForm : Form
         ContentAlignment textAlign = ContentAlignment.MiddleCenter,
         bool centerTextBlock = false,
         bool showCountdownBar = false,
-        bool tapToCancel = false)
+        bool tapToCancel = false,
+        string? actionText = null,
+        Color? actionColor = null)
     {
         if (InvokeRequired)
         {
@@ -195,7 +219,9 @@ public class OverlayForm : Form
                 textAlign,
                 centerTextBlock,
                 showCountdownBar,
-                tapToCancel)));
+                tapToCancel,
+                actionText,
+                actionColor)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -205,6 +231,9 @@ public class OverlayForm : Form
         {
             _label.Text = text;
             _label.ForeColor = color ?? DefaultTextColor;
+            _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
+            _lastActionColor = actionColor ?? ActionTextColor;
+            _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
             _lastDurationMs = durationMs;
             _lastTextAlign = textAlign;
             _lastCenterTextBlock = centerTextBlock;
@@ -225,10 +254,30 @@ public class OverlayForm : Form
                 _label.Font,
                 new Size(width - Padding.Horizontal, int.MaxValue),
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-            var height = Math.Max(MinOverlayHeight, measured.Height + Padding.Vertical + 8);
+            var actionSize = Size.Empty;
+            var actionHeight = 0;
+            if (_lastShowActionLine)
+            {
+                _actionLabel.Text = _lastActionText;
+                _actionLabel.ForeColor = _lastActionColor;
+                _actionLabel.Visible = true;
+                actionSize = TextRenderer.MeasureText(
+                    _lastActionText,
+                    _actionLabel.Font,
+                    new Size(width - Padding.Horizontal, int.MaxValue),
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                actionHeight = Math.Max(18, actionSize.Height + 2);
+            }
+            else
+            {
+                _actionLabel.Text = string.Empty;
+                _actionLabel.Visible = false;
+            }
+
+            var height = Math.Max(MinOverlayHeight, measured.Height + actionHeight + ActionLineSpacing + Padding.Vertical + 8);
 
             Size = new Size(width, height);
-            ConfigureLabelLayout(measured, textAlign, centerTextBlock);
+            ConfigureLabelLayout(measured, actionSize, textAlign, centerTextBlock, _lastShowActionLine);
             PositionOnScreen(workingArea);
 
             _fadeTimer.Stop();
@@ -288,6 +337,9 @@ public class OverlayForm : Form
         var oldFont = _label.Font;
         _label.Font = new Font("Consolas", _overlayFontSizePt, FontStyle.Bold);
         oldFont.Dispose();
+        var oldActionFont = _actionLabel.Font;
+        _actionLabel.Font = new Font("Consolas", Math.Max(9, _overlayFontSizePt - 2), FontStyle.Regular);
+        oldActionFont.Dispose();
 
         if (Visible)
             ShowMessage(
@@ -297,13 +349,30 @@ public class OverlayForm : Form
                 _lastTextAlign,
                 _lastCenterTextBlock,
                 _lastShowCountdownBar,
-                _lastTapToCancel);
-    }
+                _lastTapToCancel,
+                _lastActionText,
+                _lastActionColor);
+        }
 
-    private void ConfigureLabelLayout(Size measuredTextSize, ContentAlignment textAlign, bool centerTextBlock)
+    private void ConfigureLabelLayout(
+        Size measuredTextSize,
+        Size measuredActionTextSize,
+        ContentAlignment textAlign,
+        bool centerTextBlock,
+        bool hasActionText)
     {
+        _actionLabel.Visible = hasActionText;
+        _actionLabel.Dock = DockStyle.Bottom;
+        _actionLabel.TextAlign = ContentAlignment.MiddleRight;
+        var actionAreaHeight = hasActionText
+            ? Math.Max(18, measuredActionTextSize.Height + 2) + ActionLineSpacing
+            : 0;
+
         if (!centerTextBlock)
         {
+            _actionLabel.Height = actionAreaHeight;
+            _actionLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
+            _actionLabel.Left = Padding.Left;
             _label.Dock = DockStyle.Fill;
             _label.TextAlign = textAlign;
             return;
@@ -311,13 +380,27 @@ public class OverlayForm : Form
 
         _label.Dock = DockStyle.None;
         var maxLabelWidth = Math.Max(40, ClientSize.Width - Padding.Horizontal);
-        var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical);
+        var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical - actionAreaHeight);
         var labelWidth = Math.Clamp(measuredTextSize.Width, 1, maxLabelWidth);
         var labelHeight = Math.Clamp(measuredTextSize.Height, 1, maxLabelHeight);
         var left = Math.Max(Padding.Left, (ClientSize.Width - labelWidth) / 2);
-        var top = Math.Max(Padding.Top, (ClientSize.Height - labelHeight) / 2);
+        var top = Math.Max(Padding.Top, (ClientSize.Height - actionAreaHeight - labelHeight) / 2);
         _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
         _label.TextAlign = ContentAlignment.TopLeft;
+
+        if (!hasActionText)
+            return;
+
+        var actionWidth = Math.Clamp(measuredActionTextSize.Width, 1, ClientSize.Width - Padding.Horizontal);
+        var actionLeft = Math.Max(Padding.Left, (ClientSize.Width - actionWidth) / 2);
+        var actionTop = Math.Min(
+            ClientSize.Height - Padding.Bottom - measuredActionTextSize.Height - 2,
+            top + labelHeight + ActionLineSpacing);
+        _actionLabel.Bounds = new Rectangle(
+            actionLeft,
+            actionTop,
+            actionWidth,
+            Math.Max(18, measuredActionTextSize.Height + 2));
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -401,6 +484,9 @@ public class OverlayForm : Form
             _fadeTimer.Stop();
             _fadeMessageId = 0;
             _label.Text = string.Empty;
+            _actionLabel.Text = string.Empty;
+            _actionLabel.Visible = false;
+            _lastShowActionLine = false;
             Hide();
             return;
         }
@@ -454,6 +540,7 @@ public class OverlayForm : Form
         _tapToCancelMessageId = messageId;
         Cursor = Cursors.Hand;
         _label.Cursor = Cursors.Hand;
+        _actionLabel.Cursor = Cursors.Hand;
     }
 
     private bool TryGetCountdownProgress(out double remainingFraction)
@@ -485,6 +572,7 @@ public class OverlayForm : Form
         _tapToCancelMessageId = 0;
         Cursor = Cursors.Default;
         _label.Cursor = Cursors.Default;
+        _actionLabel.Cursor = Cursors.Default;
     }
 
     private void OnOverlayMouseClick(object? sender, MouseEventArgs e)

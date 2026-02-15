@@ -21,6 +21,7 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayMaxMs = 22000;
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
     private const int RemoteActionPopupCarryoverMs = 1400;
+    private static readonly Color RemoteActionPopupTextColor = Color.Goldenrod;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -78,6 +79,7 @@ public class TrayContext : ApplicationContext
     private bool _enableShowVoiceCommandsVoiceCommand;
     private int _remoteActionPopupLevel;
     private string _remoteActionPopupMessage = string.Empty;
+    private Color _remoteActionPopupColor = RemoteActionPopupTextColor;
     private DateTime _remoteActionPopupExpiresUtc;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
@@ -568,7 +570,9 @@ public class TrayContext : ApplicationContext
         bool centerTextBlock = false,
         bool showCountdownBar = false,
         bool tapToCancel = false,
-        bool includeRemoteAction = true)
+        bool includeRemoteAction = true,
+        string? remoteActionText = null,
+        Color? remoteActionColor = null)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -576,21 +580,26 @@ public class TrayContext : ApplicationContext
         var effectiveDurationMs = durationMs.HasValue
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
-        var remoteActionMessage = includeRemoteAction
+        var resolvedRemoteActionMessage = includeRemoteAction
             ? GetActiveRemoteActionPopupMessage()
             : string.Empty;
-        var normalizedText = string.IsNullOrWhiteSpace(remoteActionMessage)
-            ? text
-            : $"{text}\n{remoteActionMessage}";
+        if (!string.IsNullOrWhiteSpace(remoteActionText))
+            resolvedRemoteActionMessage = remoteActionText;
+
+        var resolvedRemoteActionColor = remoteActionColor;
+        if (!resolvedRemoteActionColor.HasValue)
+            resolvedRemoteActionColor = ResolveRemoteActionPopupColor();
 
         return _overlay.ShowMessage(
-            string.IsNullOrWhiteSpace(normalizedText) ? text : normalizedText,
+            text,
             color,
             effectiveDurationMs,
             textAlign,
             centerTextBlock,
             showCountdownBar,
-            tapToCancel);
+            tapToCancel,
+            resolvedRemoteActionMessage,
+            resolvedRemoteActionColor);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -598,6 +607,7 @@ public class TrayContext : ApplicationContext
         if (_remoteActionPopupLevel <= 0)
         {
             _remoteActionPopupMessage = string.Empty;
+            _remoteActionPopupColor = Color.CornflowerBlue;
             _remoteActionPopupExpiresUtc = DateTime.MinValue;
             return;
         }
@@ -606,13 +616,14 @@ public class TrayContext : ApplicationContext
         if (_remoteActionPopupLevel >= 2 && !string.IsNullOrWhiteSpace(details))
             message += $" ({details})";
 
-        SetRemoteActionPopupContext(message);
+        SetRemoteActionPopupContext(message, remoteActionColor: RemoteActionPopupTextColor);
         ShowOverlay(message, Color.CornflowerBlue, 900, includeRemoteAction: false);
     }
 
-    private void SetRemoteActionPopupContext(string message)
+    private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
     {
         _remoteActionPopupMessage = message;
+        _remoteActionPopupColor = remoteActionColor;
         _remoteActionPopupExpiresUtc = DateTime.UtcNow.AddMilliseconds(RemoteActionPopupCarryoverMs);
     }
 
@@ -633,6 +644,17 @@ public class TrayContext : ApplicationContext
         return _remoteActionPopupMessage;
     }
 
+    private Color ResolveRemoteActionPopupColor()
+    {
+        if (_remoteActionPopupLevel <= 0)
+            return Color.CornflowerBlue;
+
+        if (string.IsNullOrWhiteSpace(_remoteActionPopupMessage) || DateTime.UtcNow > _remoteActionPopupExpiresUtc)
+            return Color.CornflowerBlue;
+
+        return _remoteActionPopupColor;
+    }
+
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
     {
         if (string.IsNullOrWhiteSpace(displayedText))
@@ -651,7 +673,25 @@ public class TrayContext : ApplicationContext
         if (_ignorePastedTextPrefixForNextTranscription)
             return text;
 
-        return string.IsNullOrEmpty(_pastedTextPrefix) ? text : _pastedTextPrefix + text;
+        return string.IsNullOrWhiteSpace(_pastedTextPrefix)
+            ? text
+            : GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text);
+    }
+
+    private static string GetTextWithNormalizedPrefixSpacing(string prefix, string text)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+            return text;
+
+        if (text.Length == 0)
+            return prefix;
+
+        var lastPrefixChar = prefix[^1];
+        var firstTextChar = text[0];
+        if (char.IsWhiteSpace(lastPrefixChar) || char.IsWhiteSpace(firstTextChar))
+            return prefix + text;
+
+        return $"{prefix} {text}";
     }
 
     private void StartListeningOverlay()

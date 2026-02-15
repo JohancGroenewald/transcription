@@ -2,6 +2,12 @@ Workflow
 --------
 - After making any repository changes, always commit and push them.
 
+Current request
+---------------
+- Use a multiline editor field for the pasted-text prefix setting instead of a single-line text box.
+- Improve pasted-text prefix spacing so the prefix and dictated text are not merged unintentionally.
+- Render remote action notice text in a distinct color in the existing popup overlay.
+
 VoiceType CLI actions (VoiceType.exe)
 ====================================
 
