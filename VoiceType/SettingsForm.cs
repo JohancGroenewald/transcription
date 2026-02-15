@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace VoiceType;
 
 public class SettingsForm : Form
@@ -5,6 +7,39 @@ public class SettingsForm : Form
     private const int WM_APPCOMMAND = 0x0319;
     private const int APPCOMMAND_LAUNCH_APP1 = 17;
     private const int APPCOMMAND_LAUNCH_APP2 = 18;
+
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct COMBOBOXINFO
+    {
+        public int cbSize;
+        public RECT rcItem;
+        public RECT rcButton;
+        public int stateButton;
+        public IntPtr hwndCombo;
+        public IntPtr hwndItem;
+        public IntPtr hwndList;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetComboBoxInfo(IntPtr hwndCombo, ref COMBOBOXINFO info);
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr hWnd, string? pszSubAppName, string? pszSubIdList);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 
     private readonly record struct SettingsTheme(
         bool IsDark,
@@ -1023,7 +1058,7 @@ public class SettingsForm : Form
 
         var theme = GetActiveTheme();
         _pastedTextPrefixTextBox.BackColor = _pastedTextPrefixTextBox.ReadOnly ? theme.ReadOnlyInputBack : theme.InputBack;
-        _pastedTextPrefixTextBox.ForeColor = theme.Text;
+        _pastedTextPrefixTextBox.ForeColor = enabled ? theme.Text : theme.MutedText;
     }
 
     private void UpdatePenHotkeySettingsState()
@@ -1080,6 +1115,8 @@ public class SettingsForm : Form
         comboBox.DrawMode = DrawMode.OwnerDrawFixed;
         comboBox.DrawItem -= OnThemedComboBoxDrawItem;
         comboBox.DrawItem += OnThemedComboBoxDrawItem;
+        comboBox.DropDown -= OnThemedComboBoxDropDown;
+        comboBox.DropDown += OnThemedComboBoxDropDown;
     }
 
     private void OnThemedComboBoxDrawItem(object? sender, DrawItemEventArgs e)
@@ -1119,6 +1156,67 @@ public class SettingsForm : Form
 
         if ((e.State & DrawItemState.Focus) != 0)
             e.DrawFocusRectangle();
+    }
+
+    private void OnThemedComboBoxDropDown(object? sender, EventArgs e)
+    {
+        if (sender is not ComboBox combo)
+            return;
+
+        ApplyComboBoxDropdownNativeTheme(combo);
+
+        // Combo list window can be created lazily; apply again after the dropdown is actually shown.
+        BeginInvoke(new Action(() => ApplyComboBoxDropdownNativeTheme(combo)));
+    }
+
+    private void ApplyComboBoxDropdownNativeTheme(ComboBox comboBox)
+    {
+        if (!comboBox.IsHandleCreated)
+            return;
+
+        var info = new COMBOBOXINFO
+        {
+            cbSize = Marshal.SizeOf<COMBOBOXINFO>()
+        };
+        if (!GetComboBoxInfo(comboBox.Handle, ref info))
+            return;
+
+        var theme = GetActiveTheme();
+        ApplyNativeTheme(info.hwndList, theme.IsDark);
+        ApplyNativeTheme(info.hwndItem, theme.IsDark);
+        ApplyNativeTheme(info.hwndCombo, theme.IsDark);
+    }
+
+    private static void ApplyNativeTheme(IntPtr hwnd, bool dark)
+    {
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        try
+        {
+            // Best-effort: when supported, this improves dark-mode consistency (scrollbars/borders) for dropdown lists.
+            SetWindowTheme(hwnd, dark ? "DarkMode_Explorer" : null, null);
+        }
+        catch
+        {
+            // Best effort.
+        }
+
+        TrySetImmersiveDarkMode(hwnd, dark);
+    }
+
+    private static void TrySetImmersiveDarkMode(IntPtr hwnd, bool dark)
+    {
+        try
+        {
+            var value = dark ? 1 : 0;
+            if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int)) != 0)
+                _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ref value, sizeof(int));
+        }
+        catch
+        {
+            // Best effort.
+        }
     }
 
     private static void ApplyThemeToControl(Control control, SettingsTheme theme)

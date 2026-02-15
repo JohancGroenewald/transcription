@@ -172,10 +172,21 @@ public class TrayContext : ApplicationContext
         _enablePastedTextPrefix = config.EnablePastedTextPrefix;
         _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
         _useSimpleMicSpinner = config.UseSimpleMicSpinner;
-                if (!string.IsNullOrWhiteSpace(config.ApiKey))
-                    _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
-                else
+        Log.Info(
+            $"Config loaded: model={config.Model}, autoEnter={_autoEnter}, overlayPopups={_enableOverlayPopups}, " +
+            $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
+            $"settingsDarkMode={config.EnableSettingsDarkMode}");
+        if (!string.IsNullOrWhiteSpace(config.ApiKey))
+            _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
+        else
             _transcriptionService = null;
+    }
+
+    private void ReloadPastedTextPrefixSettings()
+    {
+        var config = AppConfig.Load();
+        _enablePastedTextPrefix = config.EnablePastedTextPrefix;
+        _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
     }
 
     private ContextMenuStrip BuildMenu()
@@ -276,6 +287,7 @@ public class TrayContext : ApplicationContext
                     }
 
                     var targetHasExistingText = TextInjector.TargetHasExistingText();
+                    ReloadPastedTextPrefixSettings();
                     var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
                     var previewText = prefixTextForPreview is null ? textToInject : text;
@@ -748,18 +760,32 @@ public class TrayContext : ApplicationContext
         string text,
         bool targetHasExistingText)
     {
+        var prefixLen = _pastedTextPrefix?.Length ?? 0;
         if (!_enablePastedTextPrefix)
+        {
+            Log.Info($"PastePrefix skipped: disabled via settings (prefixLen={prefixLen}).");
             return (text, null);
+        }
 
         if (_ignorePastedTextPrefixForNextTranscription)
+        {
+            Log.Info($"PastePrefix skipped: ignored for this listen request (prefixLen={prefixLen}).");
             return (text, null);
+        }
 
         if (string.IsNullOrWhiteSpace(_pastedTextPrefix))
+        {
+            Log.Info("PastePrefix skipped: prefix text is blank.");
             return (text, null);
+        }
 
         if (targetHasExistingText)
+        {
+            Log.Info($"PastePrefix skipped: target has existing text (prefixLen={prefixLen}).");
             return (text, null);
+        }
 
+        Log.Info($"PastePrefix applied (prefixLen={prefixLen}, textLen={text.Length}).");
         return (GetTextWithNormalizedPrefixSpacing(_pastedTextPrefix, text), _pastedTextPrefix.TrimEnd('\r', '\n'));
     }
 

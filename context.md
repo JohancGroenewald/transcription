@@ -33,6 +33,10 @@ Current request
 ---------------
 - New request (2026-02-15): re-enable pasted-text prefix injection, but add a Settings checkbox so the prefix feature can be enabled/disabled without deleting the prefix text.
 - New request (2026-02-15): add a dark mode toggle for the Settings screen and persist it in config.
+- New request (2026-02-15): make ComboBox dropdown lists (the opened list items) dark-mode friendly as well, not just the closed control.
+- New request (2026-02-15): fix pasted-text prefix enable/disable checkbox not being honored at runtime.
+- Implemented (2026-02-15): ComboBox dropdown items are now drawn with the active theme and we apply best-effort Windows dark-mode theming (`DarkMode_Explorer`) to the native dropdown list window on open, improving dark-mode consistency inside dropdown lists.
+- Implemented (2026-02-15): added detailed logging around pasted-text prefix decisions (disabled via settings vs ignored via `--ignore-prefix` vs suppressed due to existing target text) to debug cases where the prefix enable/disable toggle appears not to apply.
 - Implemented (2026-02-15): re-enabled pasted-text prefix injection and added a Settings checkbox (`Enable pasted text prefix`) that controls whether the prefix is applied (prefix text is still stored even when disabled).
 - Implemented (2026-02-15): added a Settings dark mode toggle (`Dark mode (settings window)`) that re-themes the Settings form immediately and persists via `EnableSettingsDarkMode` in config.
 - Implemented (2026-02-15): explicitly ignore the VS Code Copilot Chat empty-prompt text "Ask for follow-up changes" returned by UIA `TextPattern` so empty inputs no longer get misdetected as containing text.
