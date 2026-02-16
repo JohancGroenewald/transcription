@@ -326,6 +326,7 @@ public class TrayContext : ApplicationContext
 
                     var targetHasExistingText = TextInjector.TargetHasExistingText();
                     var hasPasteTarget = TextInjector.HasPasteTarget();
+                    var hasLikelyPasteTextTarget = TextInjector.HasLikelyTextInputTarget();
                     ReloadPastedTextPrefixSettings();
                     var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
@@ -335,7 +336,7 @@ public class TrayContext : ApplicationContext
                         adaptiveDurationMs,
                         prefixTextForPreview,
                         targetHasExistingText,
-                        hasPasteTarget
+                        hasPasteTarget && hasLikelyPasteTextTarget
                             ? null
                             : ClipboardFallbackActionText);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)

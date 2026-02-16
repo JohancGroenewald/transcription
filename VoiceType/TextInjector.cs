@@ -115,6 +115,23 @@ public static class TextInjector
     }
 
     /// <summary>
+    /// Returns true when focus is on a control that is likely a text-input target.
+    /// </summary>
+    public static bool HasLikelyTextInputTarget()
+    {
+        var target = TryGetSuitableTargetWindow(TargetRetryAttempts, TargetRetryDelayMs);
+        if (target == IntPtr.Zero)
+            return false;
+
+        var focusedWindow = GetFocusedWindowInForegroundThread(target);
+        if (focusedWindow == IntPtr.Zero)
+            return false;
+
+        return IsLikelyTextInputWindow(focusedWindow, out var confidence) &&
+               confidence != TextInputConfidence.None;
+    }
+
+    /// <summary>
     /// Returns true when the active suitable target appears to already contain text.
     /// </summary>
     public static bool TargetHasExistingText()
