@@ -109,7 +109,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? overlayKey = null,
         bool trackInStack = true,
         bool autoPosition = true,
-        bool autoHide = true,
+        bool autoHide = false,
         bool animateHide = false)
     {
         if (string.IsNullOrWhiteSpace(text))

@@ -154,8 +154,7 @@ public class TrayContext : ApplicationContext
                 Color.LightGreen,
                 2000,
                 overlayKey: "hello-overlay",
-                trackInStack: true,
-                autoHide: true);
+                trackInStack: true);
         }
 
         Log.Info("VoiceType started successfully");
@@ -649,7 +648,7 @@ public class TrayContext : ApplicationContext
         string? overlayKey = null,
         bool trackInStack = true,
         bool autoPosition = true,
-        bool autoHide = true,
+        bool autoHide = false,
         bool animateHide = false)
     {
         if (!_enableOverlayPopups)
@@ -717,7 +716,8 @@ public class TrayContext : ApplicationContext
             ContentAlignment.TopLeft,
             centerTextBlock: false,
             showCountdownBar: false,
-            tapToCancel: false);
+            tapToCancel: false,
+            autoHide: false);
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
@@ -966,13 +966,11 @@ public class TrayContext : ApplicationContext
             return;
         }
 
-            var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
-            var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
-            var submittedMessageId = ShowOverlay(sentText, sentColor, 1000);
-            if (submittedMessageId != 0)
-                _overlayManager.FadeVisibleOverlaysTopToBottom();
-            Log.Info("Enter key sent");
-        }
+        var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
+        var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
+        ShowOverlay(sentText, sentColor, 1000);
+        Log.Info("Enter key sent");
+    }
 
     private void SetAutoSend(bool enabled, bool fromVoiceCommand = false)
     {
