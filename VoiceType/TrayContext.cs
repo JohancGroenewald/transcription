@@ -267,8 +267,6 @@ public class TrayContext : ApplicationContext
             StopListeningOverlay();
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
-            _overlayManager.DismissRemoteActionOverlays();
-            _overlayManager.HideOverlay(PastedAutoSendSkippedOverlayKey);
             ShowOverlay("Processing voice...", InfoTextColor, 0, overlayKey: ProcessingVoiceOverlayKey);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
@@ -314,7 +312,6 @@ public class TrayContext : ApplicationContext
                     var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
                     var previewText = prefixTextForPreview is null ? textToInject : text;
-                    HideProcessingVoiceOverlay();
                     var previewDecision = await ShowCancelableTranscribedPreviewAsync(
                         previewText,
                         adaptiveDurationMs,
