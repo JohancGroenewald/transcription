@@ -58,10 +58,10 @@ public class TrayContext : ApplicationContext
     private static readonly TimeSpan TranscriptionTimeout = TimeSpan.FromSeconds(30);
 
     private readonly NotifyIcon _trayIcon;
+    private readonly Control _uiDispatcher;
+    private readonly IOverlayManager _overlayManager;
     private readonly HotkeyWindow _hotkeyWindow;
     private readonly AudioRecorder _recorder;
-    private readonly OverlayForm _overlay;
-    private readonly OverlayForm _actionOverlay;
     private readonly System.Windows.Forms.Timer _listeningOverlayTimer;
     private readonly Icon _appIcon;
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
@@ -83,8 +83,6 @@ public class TrayContext : ApplicationContext
     private string _remoteActionPopupMessage = string.Empty;
     private Color _remoteActionPopupColor = RemoteActionPopupTextColor;
     private DateTime _remoteActionPopupExpiresUtc;
-    private int _overlayStackSequence;
-    private readonly Dictionary<OverlayForm, int> _overlayStackOrder = new();
     private bool _enablePastedTextPrefix = true;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
@@ -102,17 +100,22 @@ public class TrayContext : ApplicationContext
     private readonly CancellationTokenSource _shutdownCancellation = new();
 
     public TrayContext()
+        : this(new OverlayWindowManager())
+    {
+    }
+
+    public TrayContext(IOverlayManager overlayManager)
     {
         Log.Info("VoiceType starting...");
 
+        _overlayManager = overlayManager ?? throw new ArgumentNullException(nameof(overlayManager));
+        _overlayManager.OverlayTapped += OnOverlayTapped;
+        _uiDispatcher = new Control();
+        _ = _uiDispatcher.Handle;
         _recorder = new AudioRecorder();
         _recorder.InputLevelChanged += OnRecorderInputLevelChanged;
         _listeningOverlayTimer = new System.Windows.Forms.Timer { Interval = 120 };
         _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
-        _overlay = new OverlayForm();
-        _actionOverlay = new OverlayForm();
-        _actionOverlay.TopMost = false;
-        _overlay.OverlayTapped += OnOverlayTapped;
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _appIcon = extractedIcon != null
             ? (Icon)extractedIcon.Clone()
@@ -154,12 +157,7 @@ public class TrayContext : ApplicationContext
         _autoEnter = config.AutoEnter;
         _enableOverlayPopups = config.EnableOverlayPopups;
         _overlayDurationMs = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
-        _overlay.ApplyHudSettings(
-            config.OverlayOpacityPercent,
-            config.OverlayWidthPercent,
-            config.OverlayFontSizePt,
-            config.ShowOverlayBorder);
-        _actionOverlay.ApplyHudSettings(
+        _overlayManager.ApplyHudSettings(
             config.OverlayOpacityPercent,
             config.OverlayWidthPercent,
             config.OverlayFontSizePt,
@@ -387,14 +385,14 @@ public class TrayContext : ApplicationContext
 
     private void OpenSettings(bool focusApiKey = false, bool restorePreviousFocus = true)
     {
-        if (_overlay.InvokeRequired)
+        if (_uiDispatcher.InvokeRequired)
         {
-            _overlay.Invoke(new Action(() => OpenSettings(focusApiKey, restorePreviousFocus)));
+            _uiDispatcher.Invoke(new Action(() => OpenSettings(focusApiKey, restorePreviousFocus)));
             return;
         }
 
         var previousForegroundWindow = GetForegroundWindow();
-        _overlay.Hide();
+        _overlayManager.HideAll();
 
         IntPtr settingsWindow = IntPtr.Zero;
         using var dlg = new SettingsForm();
@@ -429,7 +427,7 @@ public class TrayContext : ApplicationContext
 
     public void RequestShutdown(bool fromRemoteAction)
     {
-        if (_overlay.IsDisposed)
+        if (_isShuttingDown)
             return;
 
         Invoke(() =>
@@ -467,7 +465,7 @@ public class TrayContext : ApplicationContext
 
     public void RequestListen(bool ignorePastedTextPrefix)
     {
-        if (_overlay.IsDisposed)
+        if (_isShuttingDown)
             return;
 
         Invoke(() =>
@@ -492,7 +490,7 @@ public class TrayContext : ApplicationContext
 
     public void RequestSubmit()
     {
-        if (_overlay.IsDisposed)
+        if (_isShuttingDown)
             return;
 
         Invoke(() =>
@@ -636,6 +634,7 @@ public class TrayContext : ApplicationContext
         Color? remoteActionColor = null,
         string? prefixText = null,
         Color? prefixColor = null,
+        string? overlayKey = null,
         bool trackInStack = true)
     {
         if (!_enableOverlayPopups)
@@ -654,7 +653,7 @@ public class TrayContext : ApplicationContext
         if (!resolvedRemoteActionColor.HasValue)
             resolvedRemoteActionColor = ResolveRemoteActionPopupColor();
 
-        var messageId = _overlay.ShowMessage(
+        return _overlayManager.ShowMessage(
             text,
             color,
             effectiveDurationMs,
@@ -665,13 +664,9 @@ public class TrayContext : ApplicationContext
             resolvedRemoteActionMessage,
             resolvedRemoteActionColor,
             prefixText,
-            prefixColor);
-
-        if (messageId == 0)
-            return 0;
-
-        TrackOverlayInStack(_overlay, trackInStack);
-        return messageId;
+            prefixColor,
+            overlayKey,
+            trackInStack);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -694,10 +689,10 @@ public class TrayContext : ApplicationContext
 
     private void ShowRemoteActionOverlay(string message)
     {
-        if (!_enableOverlayPopups || _actionOverlay.IsDisposed)
+        if (!_enableOverlayPopups)
             return;
 
-        var messageId = _actionOverlay.ShowMessage(
+        _ = _overlayManager.ShowMessage(
             message,
             RemoteActionPopupTextColor,
             RemoteActionPopupCarryoverMs,
@@ -705,54 +700,6 @@ public class TrayContext : ApplicationContext
             centerTextBlock: false,
             showCountdownBar: false,
             tapToCancel: false);
-
-        if (messageId == 0)
-            return;
-
-        TrackOverlayInStack(_actionOverlay);
-    }
-
-    private void TrackOverlayInStack(OverlayForm overlay, bool bumpInStack = true)
-    {
-        if (overlay.IsDisposed)
-            return;
-
-        var isNewOverlay = !_overlayStackOrder.ContainsKey(overlay);
-        if (isNewOverlay || bumpInStack)
-            _overlayStackOrder[overlay] = ++_overlayStackSequence;
-
-        if (!isNewOverlay && !bumpInStack)
-            return;
-        RepositionOverlaysInStack();
-    }
-
-    private void RepositionOverlaysInStack()
-    {
-        var visibleOverlays = _overlayStackOrder
-            .Where(x => !x.Key.IsDisposed && x.Key.Visible)
-            .OrderBy(x => x.Value)
-            .Select(x => x.Key)
-            .ToList();
-
-        if (visibleOverlays.Count == 0)
-            return;
-
-        var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
-        var cursorY = workingArea.Bottom - 4;
-
-        foreach (var overlay in visibleOverlays)
-        {
-            var width = Math.Clamp(overlay.Width, 260, Math.Max(260, workingArea.Width - 24));
-            var x = Math.Clamp(
-                workingArea.Left + ((workingArea.Width - width) / 2),
-                workingArea.Left + 2,
-                Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
-
-            cursorY -= overlay.Height;
-            overlay.Size = new Size(width, overlay.Height);
-            overlay.Location = new Point(x, cursorY);
-            cursorY -= 4;
-        }
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
@@ -881,6 +828,7 @@ public class TrayContext : ApplicationContext
             Color.CornflowerBlue,
             0,
             includeRemoteAction: false,
+            overlayKey: "listening-overlay",
             trackInStack: false);
     }
 
@@ -1073,8 +1021,8 @@ public class TrayContext : ApplicationContext
 
     private void Invoke(Action action)
     {
-        if (_overlay.InvokeRequired)
-            _overlay.Invoke(action);
+        if (_uiDispatcher.InvokeRequired)
+            _uiDispatcher.Invoke(action);
         else
             action();
     }
@@ -1137,7 +1085,7 @@ public class TrayContext : ApplicationContext
         if (previousWindow == GetDesktopWindow() || previousWindow == GetShellWindow())
             return;
 
-        if (previousWindow == _hotkeyWindow.Handle || previousWindow == _overlay.Handle)
+        if (previousWindow == _hotkeyWindow.Handle)
             return;
 
         var classNameBuilder = new StringBuilder(256);
@@ -1170,12 +1118,12 @@ public class TrayContext : ApplicationContext
             _shutdownCancellation.Dispose();
             _listeningOverlayTimer.Stop();
             _listeningOverlayTimer.Dispose();
-            _overlay.OverlayTapped -= OnOverlayTapped;
+            _overlayManager.OverlayTapped -= OnOverlayTapped;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
-            _overlay.Dispose();
-            _actionOverlay.Dispose();
+            _overlayManager.Dispose();
+            _uiDispatcher.Dispose();
             _recorder.Dispose();
             _appIcon.Dispose();
         }
@@ -1219,9 +1167,9 @@ public class TrayContext : ApplicationContext
         }
     }
 
-    private void OnOverlayTapped(object? sender, OverlayTappedEventArgs e)
+    private void OnOverlayTapped(object? sender, int messageId)
     {
-        _ = TryResolvePendingPastePreviewFromOverlayTap(e.MessageId, "overlay tap");
+        _ = TryResolvePendingPastePreviewFromOverlayTap(messageId, "overlay tap");
     }
 
     private bool TryResolvePendingPastePreview(TranscribedPreviewDecision decision, string source)

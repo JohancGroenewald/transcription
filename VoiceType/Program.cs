@@ -282,7 +282,7 @@ static class Program
             Log.Configure(config.EnableDebugLogging);
 
             ApplicationConfiguration.Initialize();
-            using var trayContext = new TrayContext();
+            using var trayContext = new TrayContext(CreateOverlayManager());
 
             var exitThread = new Thread(() =>
             {
@@ -643,5 +643,10 @@ static class Program
         Console.WriteLine("=== Test Complete ===");
 
         return exitCode;
+    }
+
+    private static IOverlayManager CreateOverlayManager()
+    {
+        return new OverlayWindowManager();
     }
 }
