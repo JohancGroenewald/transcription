@@ -459,6 +459,7 @@ public class TrayContext : ApplicationContext
             }));
         };
         dlg.ShowDialog();
+        ClearActivePreviewCountdownBar();
         LoadTranscriptionService();
         RefreshHotkeyRegistration();
         SetReadyState();
