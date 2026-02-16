@@ -123,7 +123,7 @@ public class OverlayForm : Form
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt, FontStyle.Regular),
+            Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt, FontStyle.Bold),
             ForeColor = DefaultTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -133,7 +133,7 @@ public class OverlayForm : Form
         _actionLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Regular),
+            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
             ForeColor = ActionTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
@@ -145,7 +145,7 @@ public class OverlayForm : Form
         _prefixLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font(OverlayFontFamily, Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Regular),
+            Font = new Font(OverlayFontFamily, Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Bold),
             ForeColor = Color.FromArgb(255, 173, 255, 173),
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
