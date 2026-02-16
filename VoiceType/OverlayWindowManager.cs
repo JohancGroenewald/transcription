@@ -636,7 +636,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
         var maximumStackHeight = Math.Max(0, workingArea.Height - 4);
-        var interOverlaySpacing = 4;
+        const int interOverlaySpacing = 0;
 
         while (visibleOverlays.Count > 0)
         {
@@ -653,20 +653,20 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
 
         var cursorY = workingArea.Bottom - 4;
-        foreach (var overlay in visibleOverlays)
-        {
-            var width = Math.Clamp(overlay.Width, _baseWidthClampMin, Math.Max(_baseWidthClampMin, workingArea.Width - 24));
+            foreach (var overlay in visibleOverlays)
+            {
+                var width = Math.Clamp(overlay.Width, _baseWidthClampMin, Math.Max(_baseWidthClampMin, workingArea.Width - 24));
             var centeredX = workingArea.Left + ((workingArea.Width - width) / 2);
             var x = Math.Clamp(
                 centeredX + _stackHorizontalOffsetPx,
                 workingArea.Left + _horizontalScreenPadding,
                 Math.Max(workingArea.Left + _horizontalScreenPadding, workingArea.Right - width - _horizontalScreenPadding));
 
-            cursorY -= overlay.Height;
-            overlay.Size = new Size(width, overlay.Height);
-            overlay.Location = new Point(x, cursorY);
-            cursorY -= 4;
-        }
+                cursorY -= overlay.Height;
+                overlay.Size = new Size(width, overlay.Height);
+                overlay.Location = new Point(x, cursorY);
+                cursorY -= interOverlaySpacing;
+            }
     }
 
     private int ComputeDurationMs(int durationMs, bool autoHide)

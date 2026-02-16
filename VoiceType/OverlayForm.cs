@@ -944,12 +944,13 @@ public class OverlayForm : Form
             try
             {
                 Clipboard.SetText(textToCopy);
-                ShowCopiedToClipboardActionLine();
             }
             catch
             {
                 // Ignore clipboard failures while preserving overlay interaction behavior.
             }
+
+            ShowCopiedToClipboardActionLine();
         }
 
         if (!_tapToCancelEnabled)
