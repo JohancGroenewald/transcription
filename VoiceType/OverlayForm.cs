@@ -32,7 +32,8 @@ public class OverlayForm : Form
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
     private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
-    private const float CopyTapBorderWidth = 2.4f;
+    private const float CopyTapBorderWidth = 3.0f;
+    private const int CopyTapBorderAlpha = 255;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -997,7 +998,13 @@ public class OverlayForm : Form
             return;
         }
 
-        _activeBorderColor = visible ? EnsureOpaque(_label.ForeColor) : BorderColor;
+        _activeBorderColor = visible
+            ? Color.FromArgb(
+                CopyTapBorderAlpha,
+                _label.ForeColor.R,
+                _label.ForeColor.G,
+                _label.ForeColor.B)
+            : BorderColor;
         _showCopyTapFeedbackBorder = visible;
         Invalidate();
     }
