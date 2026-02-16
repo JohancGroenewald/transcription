@@ -31,8 +31,10 @@ public class OverlayForm : Form
     private const int ListeningMeterInactiveBarAlpha = 55;
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
-    private static readonly Color TextBackdropColor = Color.FromArgb(78, 255, 255, 255);
+    private static readonly Color TextBackdropColor = Color.FromArgb(110, 255, 255, 255);
     private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
+    private const int TextBackdropPaddingX = 8;
+    private const int TextBackdropPaddingY = 4;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -83,6 +85,9 @@ public class OverlayForm : Form
     private int _activeMessageId;
     private int _hideTimerMessageId;
     private int _fadeMessageId;
+    private Rectangle _labelTextBackdrop = Rectangle.Empty;
+    private Rectangle _actionTextBackdrop = Rectangle.Empty;
+    private Rectangle _prefixTextBackdrop = Rectangle.Empty;
     private int _fadeDurationMs = DefaultFadeDurationMs;
     private int _fadeTickIntervalMs = DefaultFadeTickIntervalMs;
     private bool _animateOnAutoHide;
@@ -127,7 +132,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Fill,
             Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt + 1, FontStyle.Bold),
             ForeColor = DefaultTextColor,
-            BackColor = TextBackdropColor,
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
             UseCompatibleTextRendering = false
@@ -137,7 +142,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1), FontStyle.Bold),
             ForeColor = ActionTextColor,
-            BackColor = TextBackdropColor,
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
@@ -149,7 +154,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
             ForeColor = Color.FromArgb(255, 173, 255, 173),
-            BackColor = TextBackdropColor,
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
@@ -231,6 +236,9 @@ public class OverlayForm : Form
             _lastShowPrefixLine = false;
             _showListeningLevelMeter = false;
             _listeningLevelPercent = 0;
+            _labelTextBackdrop = Rectangle.Empty;
+            _actionTextBackdrop = Rectangle.Empty;
+            _prefixTextBackdrop = Rectangle.Empty;
             ResetTapToCancel();
         }
     }
@@ -386,6 +394,8 @@ public class OverlayForm : Form
             Size = new Size(width, height);
             ConfigureLabelLayout(
                 measured,
+                actionSize,
+                prefixSize,
                 actionLineHeight,
                 prefixLineHeight,
                 textAlign,
@@ -554,6 +564,8 @@ public class OverlayForm : Form
 
     private void ConfigureLabelLayout(
         Size measuredTextSize,
+        Size actionTextSize,
+        Size prefixTextSize,
         int measuredActionLineHeight,
         int measuredPrefixLineHeight,
         ContentAlignment textAlign,
@@ -575,29 +587,39 @@ public class OverlayForm : Form
 
         var cursorY = Padding.Top;
 
+        var maxContentWidth = Math.Max(1, ClientSize.Width - Padding.Horizontal);
         if (_lastShowActionLine)
         {
+            var actionWidth = Math.Clamp(Math.Max(actionTextSize.Width, 1), 1, maxContentWidth);
             _actionLabel.Bounds = new Rectangle(
                 Padding.Left,
                 cursorY,
-                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                actionWidth,
                 actionLineHeight);
             cursorY += actionLineHeight + ActionLineSpacing;
+            _actionTextBackdrop = GetTextBackdropRect(_actionLabel.Bounds);
         }
         else
         {
             _actionLabel.Text = string.Empty;
             _actionLabel.Visible = false;
+            _actionTextBackdrop = Rectangle.Empty;
         }
 
         if (hasPrefixText)
         {
+            var prefixWidth = Math.Clamp(prefixTextSize.Width, 1, maxContentWidth);
             _prefixLabel.Bounds = new Rectangle(
                 Padding.Left,
                 cursorY,
-                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                prefixWidth,
                 prefixLineHeight);
             cursorY += prefixLineHeight + ActionLineSpacing;
+            _prefixTextBackdrop = GetTextBackdropRect(_prefixLabel.Bounds);
+        }
+        else
+        {
+            _prefixTextBackdrop = Rectangle.Empty;
         }
 
         var availableHeight = Math.Max(
@@ -606,15 +628,20 @@ public class OverlayForm : Form
 
         if (!centerTextBlock)
         {
-            _actionLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
-            _actionLabel.Height = actionLineHeight;
-            _prefixLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
-            _prefixLabel.Height = prefixLineHeight;
+            if (_lastShowActionLine)
+                _actionLabel.Width = Math.Clamp(Math.Max(actionTextSize.Width, 1), 1, maxContentWidth);
+            if (_prefixLabel.Visible)
+                _prefixLabel.Width = Math.Clamp(Math.Max(prefixTextSize.Width, 1), 1, maxContentWidth);
+            _actionTextBackdrop = _actionLabel.Visible ? GetTextBackdropRect(_actionLabel.Bounds) : Rectangle.Empty;
+            _prefixTextBackdrop = _prefixLabel.Visible ? GetTextBackdropRect(_prefixLabel.Bounds) : Rectangle.Empty;
+
+            var labelLayoutWidth = Math.Clamp(Math.Max(measuredTextSize.Width, 1), 1, maxContentWidth);
             _label.Bounds = new Rectangle(
                 Padding.Left,
                 cursorY,
-                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                labelLayoutWidth,
                 Math.Max(20, availableHeight));
+            _labelTextBackdrop = GetTextBackdropRect(_label.Bounds);
             _label.TextAlign = textAlign;
             _actionLabel.BringToFront();
             return;
@@ -623,6 +650,7 @@ public class OverlayForm : Form
         if (!hasActionText && !hasPrefixText)
         {
             _label.TextAlign = textAlign;
+            _labelTextBackdrop = Rectangle.Empty;
             return;
         }
 
@@ -634,10 +662,19 @@ public class OverlayForm : Form
         var top = Math.Max(Padding.Top, (ClientSize.Height - metaAreaHeight - labelHeight) / 2);
         _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
         _label.TextAlign = ContentAlignment.TopLeft;
+        _labelTextBackdrop = GetTextBackdropRect(_label.Bounds);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
+        using var textBackdropBrush = new SolidBrush(TextBackdropColor);
+        if (!_labelTextBackdrop.IsEmpty)
+            e.Graphics.FillRectangle(textBackdropBrush, _labelTextBackdrop);
+        if (!_actionTextBackdrop.IsEmpty)
+            e.Graphics.FillRectangle(textBackdropBrush, _actionTextBackdrop);
+        if (!_prefixTextBackdrop.IsEmpty)
+            e.Graphics.FillRectangle(textBackdropBrush, _prefixTextBackdrop);
+
         if (_showOverlayBorder)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -741,9 +778,24 @@ public class OverlayForm : Form
                 inputLevel <= 0.02
                     ? ListeningMeterInactiveColor
                     : Color.FromArgb(alpha, ListeningMeterActiveColor));
-            var barBounds = new Rectangle(x, y, barWidth, barHeight);
+        var barBounds = new Rectangle(x, y, barWidth, barHeight);
             graphics.FillRectangle(brush, barBounds);
         }
+    }
+
+    private Rectangle GetTextBackdropRect(Rectangle textBounds)
+    {
+        var paddedWidth = textBounds.Width + (TextBackdropPaddingX * 2);
+        var paddedHeight = textBounds.Height + (TextBackdropPaddingY * 2);
+        var left = Math.Clamp(
+            textBounds.Left - TextBackdropPaddingX,
+            Padding.Left,
+            Math.Max(Padding.Left, ClientSize.Width - Math.Max(1, paddedWidth)));
+        var top = Math.Clamp(textBounds.Top - TextBackdropPaddingY, 0, Math.Max(0, ClientSize.Height - Math.Max(1, paddedHeight)));
+        var width = Math.Max(1, Math.Min(paddedWidth, ClientSize.Width - left - Padding.Right));
+        var height = Math.Max(1, Math.Min(paddedHeight, ClientSize.Height - top - Padding.Bottom));
+
+        return new Rectangle(left, top, width, height);
     }
 
     private void UpdateRoundedRegion()
