@@ -418,6 +418,21 @@ public class OverlayForm : Form
                 _lastPrefixText,
                 _lastPrefixColor);
         }
+    }
+
+    public void PromoteToTopmost()
+    {
+        if (InvokeRequired)
+        {
+            Invoke((Action)PromoteToTopmost);
+            return;
+        }
+
+        if (!HandleCreated || IsDisposed)
+            return;
+
+        _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 
     private void ConfigureLabelLayout(
         Size measuredTextSize,

@@ -628,7 +628,7 @@ public class TrayContext : ApplicationContext
         bool centerTextBlock = false,
         bool showCountdownBar = false,
         bool tapToCancel = false,
-        bool includeRemoteAction = true,
+        bool includeRemoteAction = false,
         string? remoteActionText = null,
         Color? remoteActionColor = null,
         string? prefixText = null,
@@ -700,6 +700,7 @@ public class TrayContext : ApplicationContext
             return;
 
         RepositionActionOverlay();
+        _actionOverlay.PromoteToTopmost();
         _actionOverlay.BringToFront();
     }
 
@@ -710,15 +711,13 @@ public class TrayContext : ApplicationContext
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
         var width = Math.Clamp(_actionOverlay.Width, 260, Math.Max(260, workingArea.Width - 24));
-        var targetTop = workingArea.Top + 2;
-        if (_overlay.Visible && _overlay.IsHandleCreated)
-            targetTop = Math.Min(targetTop, _overlay.Top - _actionOverlay.Height - 10);
+        var targetTop = workingArea.Top + 4;
 
         var x = Math.Clamp(
             workingArea.Left + ((workingArea.Width - width) / 2),
             workingArea.Left + 2,
             Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
-        var y = Math.Clamp(targetTop, workingArea.Top + 2, workingArea.Bottom - _actionOverlay.Height - 2);
+        var y = targetTop;
 
         _actionOverlay.Size = new Size(width, _actionOverlay.Height);
         _actionOverlay.Location = new Point(x, y);
