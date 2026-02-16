@@ -96,6 +96,8 @@ public class OverlayForm : Form
     private bool _dragStarted;
     private int _lastDragScreenX;
     private bool _ignoreNextClickAfterDrag;
+    private bool _pressInProgress;
+    private bool _tapHandledForCurrentPress;
     private const int HorizontalDragActivationThreshold = 1;
     private bool _showCopyTapFeedbackBorder;
     private Color _activeBorderColor = BorderColor;
@@ -1024,6 +1026,12 @@ public class OverlayForm : Form
         if (e.Button != MouseButtons.Left)
             return;
 
+        if (!_pressInProgress)
+        {
+            _pressInProgress = true;
+            _tapHandledForCurrentPress = false;
+        }
+
         _dragStarted = true;
         _isHorizontalDragging = false;
         _ignoreNextClickAfterDrag = false;
@@ -1060,10 +1068,19 @@ public class OverlayForm : Form
             return;
 
         var wasDrag = EndHorizontalDrag();
-        if (wasDrag)
+        if (!_pressInProgress)
             return;
 
-        HandleOverlayTap(sender, e);
+        if (!wasDrag && !_tapHandledForCurrentPress)
+        {
+            HandleOverlayTap(sender, e);
+            _tapHandledForCurrentPress = true;
+        }
+
+        _pressInProgress = false;
+        _tapHandledForCurrentPress = false;
+        if (wasDrag)
+            return;
     }
 
     private void OnMouseCaptureChanged(object? sender, EventArgs e)
