@@ -17,6 +17,7 @@ public readonly record struct AudioCaptureMetrics(
 public class AudioRecorder : IDisposable
 {
     private static readonly TimeSpan MaxRecordingDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan PostStopDrainTimeout = TimeSpan.FromMilliseconds(600);
     private readonly object _sync = new();
     private WaveInEvent? _waveIn;
     private MemoryStream? _audioBuffer;
@@ -77,8 +78,15 @@ public class AudioRecorder : IDisposable
         var stopped = _recordingStopped;
 
         waveIn.StopRecording();
-        if (stopped != null && stopped.Task.Wait(TimeSpan.FromMilliseconds(100)))
+        var stopCompleted = stopped != null && stopped.Task.Wait(PostStopDrainTimeout);
+        if (stopped != null && stopCompleted)
+        {
             stopped.Task.GetAwaiter().GetResult();
+        }
+        else if (stopped != null)
+        {
+            Log.Info($"Recording stop timeout ({PostStopDrainTimeout.TotalMilliseconds:F0} ms). Proceeding with captured audio.");
+        }
 
         byte[] rawAudio;
         lock (_sync)
