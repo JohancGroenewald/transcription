@@ -128,7 +128,7 @@ public class OverlayForm : Form
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
-            UseCompatibleTextRendering = true
+            UseCompatibleTextRendering = false
         };
         _actionLabel = new Label
         {
@@ -140,7 +140,7 @@ public class OverlayForm : Form
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
-            UseCompatibleTextRendering = true
+            UseCompatibleTextRendering = false
         };
         _prefixLabel = new Label
         {
@@ -152,7 +152,7 @@ public class OverlayForm : Form
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
-            UseCompatibleTextRendering = true
+            UseCompatibleTextRendering = false
         };
         Controls.Add(_actionLabel);
         Controls.Add(_prefixLabel);
