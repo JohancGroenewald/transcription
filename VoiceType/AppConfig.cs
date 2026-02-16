@@ -8,6 +8,8 @@ public class AppConfig
 {
     private const string DefaultModel = "whisper-1";
     private const string DefaultPastedTextPrefix = "";
+    private const string DefaultTranscriptionPrompt =
+        "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
     public const string DefaultPenHotkey = "F20";
     public const int DefaultOverlayDurationMs = 3000;
     public const int MinOverlayDurationMs = 500;
@@ -81,6 +83,8 @@ public class AppConfig
     public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
     public bool EnablePastedTextPrefix { get; set; } = true;
     public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
+    public bool EnableTranscriptionPrompt { get; set; } = true;
+    public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
     public bool EnableSettingsDarkMode { get; set; }
 
     private static readonly string ConfigDir = Path.Combine(
@@ -114,6 +118,8 @@ public class AppConfig
         public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
         public bool EnablePastedTextPrefix { get; set; } = true;
         public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
+        public bool EnableTranscriptionPrompt { get; set; } = true;
+        public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
         public bool EnableSettingsDarkMode { get; set; }
     }
 
@@ -152,6 +158,10 @@ public class AppConfig
                 RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(configFile.RemoteActionPopupLevel),
                 EnablePastedTextPrefix = configFile.EnablePastedTextPrefix,
                 PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix,
+                EnableTranscriptionPrompt = configFile.EnableTranscriptionPrompt,
+                TranscriptionPrompt = string.IsNullOrWhiteSpace(configFile.TranscriptionPrompt)
+                    ? DefaultTranscriptionPrompt
+                    : configFile.TranscriptionPrompt,
                 EnableSettingsDarkMode = configFile.EnableSettingsDarkMode
             };
         }
@@ -190,6 +200,10 @@ public class AppConfig
                 RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(RemoteActionPopupLevel),
                 EnablePastedTextPrefix = EnablePastedTextPrefix,
                 PastedTextPrefix = PastedTextPrefix ?? DefaultPastedTextPrefix,
+                EnableTranscriptionPrompt = EnableTranscriptionPrompt,
+                TranscriptionPrompt = string.IsNullOrWhiteSpace(TranscriptionPrompt)
+                    ? DefaultTranscriptionPrompt
+                    : TranscriptionPrompt,
                 EnableSettingsDarkMode = EnableSettingsDarkMode
             };
 

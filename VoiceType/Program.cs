@@ -616,7 +616,11 @@ static class Program
                 {
                     // 3. Test transcription
                     Console.WriteLine("[3/3] Sending audio to OpenAI for transcription...");
-                    var svc = new TranscriptionService(config.ApiKey, config.Model);
+                    var svc = new TranscriptionService(
+                        config.ApiKey,
+                        config.Model,
+                        config.EnableTranscriptionPrompt,
+                        config.TranscriptionPrompt);
                     var text = await svc.TranscribeAsync(audio);
                     if (string.IsNullOrWhiteSpace(text))
                         Console.WriteLine("  WARNING - Transcription returned empty text. Did you speak?");

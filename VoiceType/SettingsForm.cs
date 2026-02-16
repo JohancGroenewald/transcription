@@ -73,6 +73,8 @@ public class SettingsForm : Form
     private readonly ComboBox _remoteActionPopupLevelCombo;
     private readonly CheckBox _enablePastedTextPrefixCheck;
     private readonly TextBox _pastedTextPrefixTextBox;
+    private readonly CheckBox _enableTranscriptionPromptCheck;
+    private readonly TextBox _transcriptionPromptTextBox;
     private readonly CheckBox _settingsDarkModeCheck;
     private readonly CheckBox _enablePenHotkeyCheck;
     private readonly ComboBox _penHotkeyBox;
@@ -292,7 +294,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 18,
+            RowCount = 20,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -473,7 +475,7 @@ public class SettingsForm : Form
         const int PrefixEditorLineCount = 5;
         var prefixEditorMinHeight = (PrefixEditorLineCount * Font.Height) + 8;
 
-         _pastedTextPrefixTextBox = new TextBox
+        _pastedTextPrefixTextBox = new TextBox
          {
              Dock = DockStyle.Fill,
              Margin = new Padding(0, 4, 0, 0),
@@ -486,6 +488,30 @@ public class SettingsForm : Form
             AcceptsReturn = true,
              PlaceholderText = "Optional prefix"
          };
+
+        _enableTranscriptionPromptCheck = new CheckBox
+        {
+            Text = "Enable custom transcription prompt",
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0)
+        };
+        _enableTranscriptionPromptCheck.CheckedChanged += (_, _) => UpdateTranscriptionPromptState();
+
+        const int TranscriptionPromptEditorLineCount = 6;
+        var transcriptionPromptEditorMinHeight = (TranscriptionPromptEditorLineCount * Font.Height) + 8;
+        _transcriptionPromptTextBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 4, 0, 0),
+            AutoSize = false,
+            Height = transcriptionPromptEditorMinHeight,
+            MinimumSize = new Size(0, transcriptionPromptEditorMinHeight),
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = true,
+            AcceptsReturn = true,
+            PlaceholderText = "Optional transcription prompt"
+        };
 
         _settingsDarkModeCheck = new CheckBox
         {
@@ -564,6 +590,10 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_enablePastedTextPrefixCheck, 2);
         behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 12);
         behaviorLayout.Controls.Add(_pastedTextPrefixTextBox, 1, 12);
+        behaviorLayout.Controls.Add(_enableTranscriptionPromptCheck, 0, 18);
+        behaviorLayout.SetColumnSpan(_enableTranscriptionPromptCheck, 2);
+        behaviorLayout.Controls.Add(_transcriptionPromptTextBox, 0, 19);
+        behaviorLayout.SetColumnSpan(_transcriptionPromptTextBox, 2);
         behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 13);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
         behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 14);
@@ -947,6 +977,8 @@ public class SettingsForm : Form
             _remoteActionPopupLevelCombo.Items.Count - 1);
         _enablePastedTextPrefixCheck.Checked = config.EnablePastedTextPrefix;
         _pastedTextPrefixTextBox.Text = config.PastedTextPrefix ?? "";
+        _enableTranscriptionPromptCheck.Checked = config.EnableTranscriptionPrompt;
+        _transcriptionPromptTextBox.Text = config.TranscriptionPrompt ?? "";
         _settingsDarkModeCheck.Checked = config.EnableSettingsDarkMode;
         _enablePenHotkeyCheck.Checked = config.EnablePenHotkey;
         _penHotkeyBox.SelectedItem = AppConfig.NormalizePenHotkey(config.PenHotkey);
@@ -959,6 +991,7 @@ public class SettingsForm : Form
         _showVoiceCommandsVoiceCommandCheck.Checked = config.EnableShowVoiceCommandsVoiceCommand;
         UpdateOverlaySettingsState();
         UpdatePastedTextPrefixState();
+        UpdateTranscriptionPromptState();
         UpdatePenHotkeySettingsState();
         ValidateVoiceCommandInput();
         WrapWindowToContent(contentPanel, buttonsLayout);
@@ -988,6 +1021,8 @@ public class SettingsForm : Form
                 AppConfig.MaxRemoteActionPopupLevel),
             EnablePastedTextPrefix = _enablePastedTextPrefixCheck.Checked,
             PastedTextPrefix = _pastedTextPrefixTextBox.Text,
+            EnableTranscriptionPrompt = _enableTranscriptionPromptCheck.Checked,
+            TranscriptionPrompt = _transcriptionPromptTextBox.Text,
             EnableSettingsDarkMode = _settingsDarkModeCheck.Checked,
             EnablePenHotkey = _enablePenHotkeyCheck.Checked,
             PenHotkey = AppConfig.NormalizePenHotkey(_penHotkeyBox.SelectedItem?.ToString()),
@@ -1109,6 +1144,18 @@ public class SettingsForm : Form
         _pastedTextPrefixTextBox.ForeColor = enabled ? theme.Text : theme.MutedText;
     }
 
+    private void UpdateTranscriptionPromptState()
+    {
+        var enabled = _enableTranscriptionPromptCheck.Checked;
+        _transcriptionPromptTextBox.ReadOnly = !enabled;
+        _transcriptionPromptTextBox.TabStop = enabled;
+
+        var theme = GetActiveTheme();
+        _transcriptionPromptTextBox.BackColor =
+            _transcriptionPromptTextBox.ReadOnly ? theme.ReadOnlyInputBack : theme.InputBack;
+        _transcriptionPromptTextBox.ForeColor = enabled ? theme.Text : theme.MutedText;
+    }
+
     private void UpdatePenHotkeySettingsState()
     {
         var enabled = _enablePenHotkeyCheck.Checked;
@@ -1137,6 +1184,7 @@ public class SettingsForm : Form
 
             ApplyThemeToControlsRecursive(this, theme);
             UpdatePastedTextPrefixState();
+            UpdateTranscriptionPromptState();
 
             // Keep the current validation state, but update "muted" text to match the theme.
             if (_voiceCommandValidationResult.ForeColor == Color.DimGray ||

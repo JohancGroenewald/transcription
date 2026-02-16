@@ -177,7 +177,11 @@ public class TrayContext : ApplicationContext
             $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
             $"settingsDarkMode={config.EnableSettingsDarkMode}");
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
-            _transcriptionService = new TranscriptionService(config.ApiKey, config.Model);
+            _transcriptionService = new TranscriptionService(
+                config.ApiKey,
+                config.Model,
+                config.EnableTranscriptionPrompt,
+                config.TranscriptionPrompt);
         else
             _transcriptionService = null;
     }
