@@ -1205,6 +1205,7 @@ public class TrayContext : ApplicationContext
         }
         finally
         {
+            HideProcessingVoiceOverlay();
             _previewCoordinator.End();
             if (_activeTranscribedPreviewOverlayKey == previewOverlayKey)
                 _activeTranscribedPreviewOverlayKey = null;
