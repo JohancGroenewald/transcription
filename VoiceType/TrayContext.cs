@@ -631,11 +631,10 @@ public class TrayContext : ApplicationContext
         if (!RegisterHotKey(_hotkeyWindow.Handle, PRIMARY_HOTKEY_ID, MOD_CTRL | MOD_SHIFT, VK_SPACE))
         {
             Log.Error($"Failed to register hotkey {PrimaryHotkeyDisplayName}");
-            MessageBox.Show(
+            ShowOverlay(
                 $"Failed to register hotkey {PrimaryHotkeyDisplayName}.\nAnother app may be using it.",
-                "VoiceType",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                ErrorOverlayColor,
+                2200);
         }
         else
         {
@@ -1302,7 +1301,9 @@ public class TrayContext : ApplicationContext
         if (string.IsNullOrWhiteSpace(copiedText))
             return;
 
-        var messageId = ShowOverlay(
+        _overlayManager.DismissCopyActionOverlays();
+
+        ShowOverlay(
             ClipboardFallbackActionText,
             ClipboardFallbackActionColor,
             1500,
@@ -1311,9 +1312,6 @@ public class TrayContext : ApplicationContext
             isClipboardCopyAction: true,
             copyText: copiedText,
             animateHide: false);
-
-        if (messageId > 0)
-            _overlayManager.DismissCopyActionOverlays(messageId);
     }
 
     private bool TryResolvePendingPastePreview(TranscribedPreviewDecision decision, string source)
