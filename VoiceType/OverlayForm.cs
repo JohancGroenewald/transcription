@@ -658,6 +658,23 @@ public class OverlayForm : Form
             return;
         }
 
+        if (_baseOpacity <= 0)
+        {
+            _fadeTimer.Stop();
+            _fadeMessageId = 0;
+            _label.Text = string.Empty;
+            _actionLabel.Text = string.Empty;
+            _actionLabel.Visible = false;
+            _lastShowActionLine = false;
+            _prefixLabel.Text = string.Empty;
+            _prefixLabel.Visible = false;
+            _lastShowPrefixLine = false;
+            _countdownMessageId = 0;
+            _countdownTotalMs = 0;
+            Hide();
+            return;
+        }
+
         var steps = Math.Max(1, FadeDurationMs / FadeTickIntervalMs);
         var nextOpacity = Opacity - (_baseOpacity / steps);
         if (nextOpacity <= 0.02)
