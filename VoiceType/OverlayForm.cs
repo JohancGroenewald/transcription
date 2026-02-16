@@ -29,6 +29,7 @@ public class OverlayForm : Form
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOACTIVATE = 0x0010;
     private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
@@ -432,6 +433,21 @@ public class OverlayForm : Form
             return;
 
         _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    public void DemoteFromTopmost()
+    {
+        if (InvokeRequired)
+        {
+            Invoke((Action)DemoteFromTopmost);
+            return;
+        }
+
+        if (!HandleCreated || IsDisposed)
+            return;
+
+        TopMost = false;
+        _ = SetWindowPos(Handle, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     private void ConfigureLabelLayout(

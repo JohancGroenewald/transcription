@@ -109,6 +109,7 @@ public class TrayContext : ApplicationContext
         _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
         _overlay = new OverlayForm();
         _actionOverlay = new OverlayForm();
+        _actionOverlay.TopMost = false;
         _overlay.OverlayTapped += OnOverlayTapped;
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _appIcon = extractedIcon != null
@@ -700,8 +701,7 @@ public class TrayContext : ApplicationContext
             return;
 
         RepositionActionOverlay();
-        _actionOverlay.PromoteToTopmost();
-        _actionOverlay.BringToFront();
+        _actionOverlay.DemoteFromTopmost();
     }
 
     private void RepositionActionOverlay()
@@ -711,7 +711,7 @@ public class TrayContext : ApplicationContext
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
         var width = Math.Clamp(_actionOverlay.Width, 260, Math.Max(260, workingArea.Width - 24));
-        var targetTop = workingArea.Top + 4;
+        var targetTop = Math.Max(workingArea.Top + 4, workingArea.Bottom - _actionOverlay.Height - 4);
 
         var x = Math.Clamp(
             workingArea.Left + ((workingArea.Width - width) / 2),
@@ -832,7 +832,6 @@ public class TrayContext : ApplicationContext
     {
         _listeningOverlayTimer.Stop();
         Interlocked.Exchange(ref _micLevelPercent, 0);
-        _actionOverlay.Hide();
     }
 
     private void OnRecorderInputLevelChanged(int levelPercent)
@@ -850,8 +849,6 @@ public class TrayContext : ApplicationContext
             Color.CornflowerBlue,
             0,
             includeRemoteAction: false);
-
-        RepositionActionOverlayAboveListening();
     }
 
     private string BuildListeningOverlayText()
