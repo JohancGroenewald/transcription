@@ -22,6 +22,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         public int Sequence { get; set; }
         public int GlobalMessageId { get; set; }
         public int LocalMessageId { get; set; }
+        public bool TrackInStack { get; set; } = true;
         public string? OverlayKey { get; set; }
     }
 
@@ -92,6 +93,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
                 managed.GlobalMessageId = globalMessageId;
                 managed.LocalMessageId = localMessageId;
+                managed.TrackInStack = trackInStack;
                 if (trackInStack)
                     RepositionVisibleOverlaysLocked();
 
@@ -101,7 +103,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = ++_globalMessageId;
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
-                remoteActionColor, prefixText, prefixColor, overlayKey, autoPosition);
+                remoteActionColor, prefixText, prefixColor, overlayKey, autoPosition, trackInStack);
             if (managedOverlay is null)
                 return 0;
 
@@ -216,7 +218,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? prefixText,
         Color? prefixColor,
         string? overlayKey,
-        bool autoPosition)
+        bool autoPosition,
+        bool trackInStack)
     {
         var overlay = _overlayFactory();
         if (!autoPosition)
@@ -227,7 +230,10 @@ public sealed class OverlayWindowManager : IOverlayManager
             _overlayFontSizePt,
             _overlayShowBorder);
 
-        var managed = new ManagedOverlay(overlay, ++_stackSequence, globalMessageId: 0, overlayKey: overlayKey);
+        var managed = new ManagedOverlay(overlay, ++_stackSequence, globalMessageId: 0, overlayKey: overlayKey)
+        {
+            TrackInStack = trackInStack
+        };
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;
 
@@ -324,7 +330,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         var visibleOverlays = _stackOrder
             .Where(x => _activeOverlays.TryGetValue(x, out var managed) &&
                         !managed.Form.IsDisposed &&
-                        managed.Form.Visible)
+                        managed.Form.Visible &&
+                        managed.TrackInStack)
             .OrderBy(x => _activeOverlays[x].Sequence)
             .Select(x => x)
             .ToList();
