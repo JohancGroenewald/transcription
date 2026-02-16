@@ -478,7 +478,7 @@ public class TrayContext : ApplicationContext
             ShowRemoteActionPopup(
                 ignorePastedTextPrefix ? "Listen requested (ignore prefix)" : "Listen requested",
                 ignorePastedTextPrefix ? "listen --ignore-prefix" : "listen");
-            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "remote listen request"))
+            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote listen request"))
                 return;
 
             _ignorePastedTextPrefixForNextTranscription = ignorePastedTextPrefix;
@@ -523,7 +523,7 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
-            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote submit request"))
+            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "remote submit request"))
                 return;
 
             Log.Info("Remote submit requested");
