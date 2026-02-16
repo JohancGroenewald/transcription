@@ -22,12 +22,10 @@ public class OverlayForm : Form
     private const int CountdownTickIntervalMs = 40;
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
-    private const int ListeningMeterWidth = 72;
+    private const int ListeningMeterWidth = 230;
     private const int ListeningMeterHeight = 12;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
-    private const int ListeningMeterLeftPadding = 8;
-    private const int ListeningMeterBottomPadding = 10;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
     private const int ListeningMeterInactiveBarAlpha = 55;
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
@@ -664,17 +662,42 @@ public class OverlayForm : Form
         if (!_showListeningLevelMeter)
             return;
 
-        var meterLeft = Math.Min(
-            Width - ListeningMeterWidth - Padding.Right - 2,
-            Math.Max(Padding.Left, ListeningMeterLeftPadding));
-        var meterBottomPad = Math.Max(
-            CountdownBarBottomMargin + CountdownBarHeight + ListeningMeterBottomPadding,
-            6);
-        var meterTop = Math.Max(Padding.Top, Height - meterBottomPad - ListeningMeterHeight);
+        var labelArea = _label.Bounds.Width > 0 && _label.Bounds.Height > 0
+            ? _label.Bounds
+            : ClientRectangle;
+
+        var lines = _label.Text.Split('\n');
+        var firstLineHeight = Math.Max(
+            _label.Font.Height,
+            TextRenderer.MeasureText(
+                lines.Length > 0 ? lines[0] : string.Empty,
+                _label.Font,
+                new Size(labelArea.Width, int.MaxValue),
+                TextFormatFlags.NoPrefix).Height);
+        var secondLineHeight = lines.Length > 1
+            ? TextRenderer.MeasureText(
+                lines[1],
+                _label.Font,
+                new Size(labelArea.Width, int.MaxValue),
+                TextFormatFlags.NoPrefix).Height
+            : 0;
+
+        var candidateTop = labelArea.Top + Math.Max(0, firstLineHeight) + 4;
+        var minTop = Math.Max(Padding.Top, labelArea.Top + 2);
+        var maxTop = Math.Max(
+            minTop,
+            labelArea.Bottom - Math.Max(16, secondLineHeight) - ListeningMeterHeight - 4);
+        var meterTop = Math.Clamp(candidateTop, minTop, maxTop);
+
+        var meterAreaWidth = Math.Min(ListeningMeterWidth, Math.Max(1, labelArea.Width));
+        var meterLeft = Math.Clamp(
+            labelArea.Left + ((labelArea.Width - meterAreaWidth) / 2),
+            labelArea.Left,
+            Math.Max(labelArea.Left, labelArea.Right - meterAreaWidth));
         var meterArea = new Rectangle(
             meterLeft,
             meterTop,
-            ListeningMeterWidth,
+            meterAreaWidth,
             ListeningMeterHeight);
 
         var maxBarHeight = Math.Max(2, ListeningMeterHeight - 2);

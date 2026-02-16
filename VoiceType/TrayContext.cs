@@ -83,6 +83,7 @@ public class TrayContext : ApplicationContext
     private string _remoteActionPopupMessage = string.Empty;
     private Color _remoteActionPopupColor = RemoteActionPopupTextColor;
     private DateTime _remoteActionPopupExpiresUtc;
+    private string? _activeTranscribedPreviewOverlayKey;
     private bool _enablePastedTextPrefix = true;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
@@ -1140,6 +1141,8 @@ public class TrayContext : ApplicationContext
         var previewColor = targetHasExistingText
             ? Color.Gold
             : Color.LightGreen;
+        var previewOverlayKey = $"{TranscribedPreviewOverlayKey}-{DateTime.UtcNow.Ticks}";
+        _activeTranscribedPreviewOverlayKey = previewOverlayKey;
         var messageId = ShowOverlay(
             text,
             previewColor,
@@ -1149,10 +1152,13 @@ public class TrayContext : ApplicationContext
             includeRemoteAction: false,
             prefixText: prefixTextForPreview,
             prefixColor: PreviewPrefixColor,
-            overlayKey: TranscribedPreviewOverlayKey,
+            overlayKey: previewOverlayKey,
             animateHide: true);
         if (messageId == 0 || durationMs <= 0)
+        {
+            _activeTranscribedPreviewOverlayKey = null;
             return TranscribedPreviewDecision.TimeoutPaste;
+        }
 
         var decisionTask = _previewCoordinator.Begin(messageId);
         try
@@ -1167,6 +1173,8 @@ public class TrayContext : ApplicationContext
         finally
         {
             _previewCoordinator.End();
+            if (_activeTranscribedPreviewOverlayKey == previewOverlayKey)
+                _activeTranscribedPreviewOverlayKey = null;
         }
     }
 
@@ -1181,7 +1189,7 @@ public class TrayContext : ApplicationContext
         if (!resolved)
             return false;
 
-        _overlayManager.ClearCountdownBar(TranscribedPreviewOverlayKey);
+        ClearActivePreviewCountdownBar();
         Log.Info($"Pending paste preview resolved: {decision} via {source}.");
         return true;
     }
@@ -1192,9 +1200,16 @@ public class TrayContext : ApplicationContext
         if (!resolved)
             return false;
 
-        _overlayManager.ClearCountdownBar(TranscribedPreviewOverlayKey);
+        ClearActivePreviewCountdownBar();
         Log.Info($"Pending paste preview resolved: {TranscribedPreviewDecision.Cancel} via {source}.");
         return true;
+    }
+
+    private void ClearActivePreviewCountdownBar()
+    {
+        var activePreviewOverlayKey = _activeTranscribedPreviewOverlayKey;
+        if (!string.IsNullOrWhiteSpace(activePreviewOverlayKey))
+            _overlayManager.ClearCountdownBar(activePreviewOverlayKey);
     }
 }
 
