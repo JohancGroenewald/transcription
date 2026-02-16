@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using NAudio.Wave;
 
 namespace VoiceType;
 
@@ -120,6 +121,8 @@ public class TrayContext : ApplicationContext
     private bool _promptedForApiKeyOnStartup;
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
+    private readonly object _previewPlaybackLock = new();
+    private CancellationTokenSource? _previewPlaybackCancellation;
 
     public TrayContext()
         : this(new OverlayWindowManager())
@@ -337,6 +340,7 @@ public class TrayContext : ApplicationContext
                         adaptiveDurationMs,
                         prefixTextForPreview,
                         targetHasExistingText,
+                        audioData,
                         hasPasteTarget && hasLikelyPasteTextTarget
                             ? null
                             : ClipboardFallbackActionText);
@@ -1210,6 +1214,7 @@ public class TrayContext : ApplicationContext
             UnhookShutdownEvents();
             EnsureTrayIconHidden();
             UnregisterHotkeys();
+            StopPreviewPlayback();
             _shutdownCancellation.Cancel();
             _shutdownCancellation.Dispose();
             _listeningOverlayTimer.Stop();
@@ -1247,6 +1252,7 @@ public class TrayContext : ApplicationContext
         int durationMs,
         string? prefixTextForPreview,
         bool targetHasExistingText,
+        byte[]? audioDataForPlayback,
         string? actionText = null)
     {
         HideTransientOverlaysForTextBox();
@@ -1276,6 +1282,8 @@ public class TrayContext : ApplicationContext
             return TranscribedPreviewDecision.TimeoutPaste;
         }
 
+        StartPreviewPlayback(audioDataForPlayback);
+
         var decisionTask = _previewCoordinator.Begin(messageId);
         try
         {
@@ -1288,10 +1296,90 @@ public class TrayContext : ApplicationContext
         }
         finally
         {
+            StopPreviewPlayback();
             HideProcessingVoiceOverlay();
             _previewCoordinator.End();
             if (_activeTranscribedPreviewOverlayKey == previewOverlayKey)
                 _activeTranscribedPreviewOverlayKey = null;
+        }
+    }
+
+    private void StartPreviewPlayback(byte[]? audioDataForPlayback)
+    {
+        if (_shutdownCancellation.IsCancellationRequested)
+            return;
+
+        if (audioDataForPlayback is null || audioDataForPlayback.Length == 0)
+            return;
+
+        StopPreviewPlayback();
+
+        var playbackCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
+        lock (_previewPlaybackLock)
+        {
+            _previewPlaybackCancellation = playbackCancellation;
+        }
+
+        _ = PlayRecordedPreviewAudioAsync(audioDataForPlayback, playbackCancellation);
+    }
+
+    private async Task PlayRecordedPreviewAudioAsync(
+        byte[] audioData,
+        CancellationTokenSource playbackCancellation)
+    {
+        try
+        {
+            using var audioStream = new MemoryStream(audioData);
+            using var waveReader = new WaveFileReader(audioStream);
+            using var waveOut = new WaveOutEvent();
+            waveOut.Init(waveReader);
+            waveOut.Play();
+
+            while (waveOut.PlaybackState == PlaybackState.Playing)
+            {
+                await Task.Delay(40, playbackCancellation.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when countdown completes or app shuts down.
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to play recorded audio preview.", ex);
+        }
+        finally
+        {
+            lock (_previewPlaybackLock)
+            {
+                if (ReferenceEquals(_previewPlaybackCancellation, playbackCancellation))
+                    _previewPlaybackCancellation = null;
+            }
+
+            playbackCancellation.Dispose();
+        }
+    }
+
+    private void StopPreviewPlayback()
+    {
+        CancellationTokenSource? playbackCancellation;
+        lock (_previewPlaybackLock)
+        {
+            playbackCancellation = _previewPlaybackCancellation;
+            if (ReferenceEquals(_previewPlaybackCancellation, playbackCancellation))
+                _previewPlaybackCancellation = null;
+        }
+
+        if (playbackCancellation is null)
+            return;
+
+        try
+        {
+            playbackCancellation.Cancel();
+        }
+        catch
+        {
+            // Ignore best effort cancellation errors.
         }
     }
 
