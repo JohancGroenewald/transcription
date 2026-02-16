@@ -87,6 +87,9 @@ public class SettingsForm : Form
     private readonly CheckBox _showVoiceCommandsVoiceCommandCheck;
     private readonly TextBox _voiceCommandValidationInput;
     private readonly Label _voiceCommandValidationResult;
+    private readonly Button _voiceCommandsToggle;
+    private readonly TableLayoutPanel _voiceCommandsBody;
+    private bool _voiceCommandsExpanded = true;
     private readonly Label _versionValueLabel;
     private readonly Label _startedAtValueLabel;
     private readonly Label _uptimeValueLabel;
@@ -622,15 +625,44 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 2,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         voiceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        voiceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        _voiceCommandsToggle = new Button
+        {
+            Text = "▾ Voice Commands",
+            AutoSize = false,
+            Height = 24,
+            Dock = DockStyle.Top,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(4, 0, 0, 0),
+            Margin = new Padding(0, 0, 0, 8),
+            FlatStyle = FlatStyle.Flat
+        };
+        _voiceCommandsToggle.Click += (_, _) => SetVoiceCommandsExpanded(!_voiceCommandsExpanded);
+        _voiceCommandsToggle.FlatAppearance.BorderColor = SystemColors.ActiveBorder;
+        _voiceCommandsToggle.FlatAppearance.BorderSize = 1;
+
+        _voiceCommandsBody = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 4,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        _voiceCommandsBody.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        _voiceCommandsBody.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _voiceCommandsBody.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _voiceCommandsBody.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _voiceCommandsBody.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var voiceHelp = new Label
         {
@@ -801,10 +833,13 @@ public class SettingsForm : Form
         _sendVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
         _showVoiceCommandsVoiceCommandCheck.CheckedChanged += (_, _) => ValidateVoiceCommandInput();
 
-        voiceLayout.Controls.Add(voiceHelp, 0, 0);
-        voiceLayout.Controls.Add(voiceCommandTable, 0, 1);
-        voiceLayout.Controls.Add(validatorPanel, 0, 2);
-        voiceLayout.Controls.Add(_voiceCommandValidationResult, 0, 3);
+        _voiceCommandsBody.Controls.Add(voiceHelp, 0, 0);
+        _voiceCommandsBody.Controls.Add(voiceCommandTable, 0, 1);
+        _voiceCommandsBody.Controls.Add(validatorPanel, 0, 2);
+        _voiceCommandsBody.Controls.Add(_voiceCommandValidationResult, 0, 3);
+        voiceLayout.Controls.Add(_voiceCommandsToggle, 0, 0);
+        voiceLayout.Controls.Add(_voiceCommandsBody, 0, 1);
+        SetVoiceCommandsExpanded(_voiceCommandsExpanded);
         grpVoiceCommands.Controls.Add(voiceLayout);
 
         var grpAppInfo = new ThemedGroupBox
@@ -1142,6 +1177,13 @@ public class SettingsForm : Form
         var theme = GetActiveTheme();
         _pastedTextPrefixTextBox.BackColor = _pastedTextPrefixTextBox.ReadOnly ? theme.ReadOnlyInputBack : theme.InputBack;
         _pastedTextPrefixTextBox.ForeColor = enabled ? theme.Text : theme.MutedText;
+    }
+
+    private void SetVoiceCommandsExpanded(bool expanded)
+    {
+        _voiceCommandsExpanded = expanded;
+        _voiceCommandsBody.Visible = expanded;
+        _voiceCommandsToggle.Text = $"{(expanded ? "▾" : "▸")} Voice Commands";
     }
 
     private void UpdateTranscriptionPromptState()
