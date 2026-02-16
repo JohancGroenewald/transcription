@@ -689,7 +689,9 @@ public class TrayContext : ApplicationContext
         bool autoHide = false,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
-        int listeningLevelPercent = 0)
+        int listeningLevelPercent = 0,
+        bool isClipboardCopyAction = false,
+        string? copyText = null)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -724,9 +726,11 @@ public class TrayContext : ApplicationContext
             autoPosition,
             autoHide,
             isRemoteAction: false,
+            isClipboardCopyAction: false,
             animateHide,
             showListeningLevelMeter,
-            listeningLevelPercent);
+            listeningLevelPercent,
+            copyText);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
@@ -1286,13 +1290,30 @@ public class TrayContext : ApplicationContext
     private void OnOverlayCopyTapped(object? sender, OverlayCopyTappedEventArgs e)
     {
         _ = TryResolvePendingPastePreviewFromOverlayTap(e.MessageId, "overlay copy tap");
-        ShowOverlay(
+        if (!string.IsNullOrWhiteSpace(e.CopiedText))
+        {
+            _ = TextInjector.InjectText(e.CopiedText);
+            ShowCopyToClipboardOverlay(e.CopiedText);
+        }
+    }
+
+    private void ShowCopyToClipboardOverlay(string copiedText)
+    {
+        if (string.IsNullOrWhiteSpace(copiedText))
+            return;
+
+        var messageId = ShowOverlay(
             ClipboardFallbackActionText,
             ClipboardFallbackActionColor,
             1500,
             includeRemoteAction: false,
             overlayKey: null,
+            isClipboardCopyAction: true,
+            copyText: copiedText,
             animateHide: false);
+
+        if (messageId > 0)
+            _overlayManager.DismissCopyActionOverlays(messageId);
     }
 
     private bool TryResolvePendingPastePreview(TranscribedPreviewDecision decision, string source)

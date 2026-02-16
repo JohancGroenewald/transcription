@@ -63,6 +63,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         public bool TrackInStack { get; set; } = true;
         public string? OverlayKey { get; set; }
         public bool IsRemoteAction { get; set; }
+        public bool IsClipboardCopyAction { get; set; }
     }
 
     private readonly Func<OverlayForm> _overlayFactory;
@@ -84,6 +85,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     private int _fadeDelayBetweenOverlaysMs;
     private int _overlayFadeDurationMs;
     private int _overlayFadeTickIntervalMs;
+    private OverlayForm? _activeCopyTapBorderOverlay;
 
     public OverlayWindowManager(Func<OverlayForm>? overlayFactory = null)
     {
@@ -114,9 +116,11 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool autoPosition = true,
         bool autoHide = false,
         bool isRemoteAction = false,
+        bool isClipboardCopyAction = false,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
-        int listeningLevelPercent = 0)
+        int listeningLevelPercent = 0,
+        string? copyText = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -150,13 +154,15 @@ public sealed class OverlayWindowManager : IOverlayManager
                     animateHide,
                     autoHide,
                     showListeningLevelMeter,
-                    listeningLevelPercent);
+                    listeningLevelPercent,
+                    copyText);
                 if (localMessageId == 0)
                     return 0;
 
                 managed.GlobalMessageId = globalMessageId;
                 managed.LocalMessageId = localMessageId;
                 managed.TrackInStack = trackInStack;
+                managed.IsClipboardCopyAction = isClipboardCopyAction;
                 if (wasTrackedInStack || trackInStack)
                     RepositionVisibleOverlaysLocked();
 
@@ -166,7 +172,8 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = ++_globalMessageId;
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
-                remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack, isRemoteAction);
+                remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack,
+                isRemoteAction, isClipboardCopyAction);
             if (managedOverlay is null)
                 return 0;
 
@@ -191,7 +198,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 animateHide,
                 autoHide,
                 showListeningLevelMeter,
-                listeningLevelPercent);
+                listeningLevelPercent,
+                copyText);
 
             if (managedOverlay.LocalMessageId == 0)
             {
@@ -408,6 +416,41 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void DismissCopyActionOverlays(int keepGlobalMessageId = 0)
+    {
+        List<ManagedOverlay> copyOverlays;
+        lock (_sync)
+        {
+            copyOverlays = _stackSpine
+                .GetTrackedOverlaysTopToBottom()
+                .Where(managed => managed.IsClipboardCopyAction
+                    && managed.GlobalMessageId != keepGlobalMessageId
+                    && _activeOverlays.ContainsKey(managed.Form))
+                .ToList();
+        }
+
+        if (copyOverlays.Count == 0)
+            return;
+
+        var fadeDurationMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 260
+            : Math.Max(1, _overlayFadeDurationMs);
+        var fadeDelayMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 40
+            : Math.Max(0, _fadeDelayBetweenOverlaysMs);
+        var fadeTickIntervalMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 16
+            : Math.Clamp(_overlayFadeTickIntervalMs, 8, 200);
+
+        for (var index = 0; index < copyOverlays.Count; index++)
+        {
+            copyOverlays[index].Form.FadeOut(
+                index * fadeDelayMs,
+                fadeDurationMs,
+                fadeTickIntervalMs);
+        }
+    }
+
     public void Dispose()
     {
         lock (_sync)
@@ -439,7 +482,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         Color? prefixColor,
         string? overlayKey,
         bool trackInStack,
-        bool isRemoteAction)
+        bool isRemoteAction,
+        bool isClipboardCopyAction)
     {
         var overlay = _overlayFactory();
         overlay.ApplyHudSettings(
@@ -451,7 +495,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         var managed = new ManagedOverlay(overlay, ++_stackSequence, globalMessageId: 0, overlayKey: overlayKey)
         {
             TrackInStack = trackInStack,
-            IsRemoteAction = isRemoteAction
+            IsRemoteAction = isRemoteAction,
+            IsClipboardCopyAction = isClipboardCopyAction
         };
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;
@@ -521,6 +566,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = managed.GlobalMessageId;
         }
 
+        ClearCopyTapBorder();
         OverlayTapped?.Invoke(this, globalMessageId);
     }
 
@@ -541,6 +587,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = managed.GlobalMessageId;
         }
 
+        ApplyCopyTapBorder(overlay);
         OverlayCopyTapped?.Invoke(this, new OverlayCopyTappedEventArgs(globalMessageId, e.CopiedText));
     }
 
@@ -563,6 +610,12 @@ public sealed class OverlayWindowManager : IOverlayManager
     {
         if (!_activeOverlays.Remove(overlay, out var managed))
             return;
+
+        if (ReferenceEquals(_activeCopyTapBorderOverlay, overlay))
+        {
+            _activeCopyTapBorderOverlay = null;
+            overlay.SetCopyTapBorderVisible(false);
+        }
 
         _stackSpine.Remove(managed);
         var overlayKeys = _overlaysByKey
@@ -646,12 +699,30 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 
+    private void ApplyCopyTapBorder(OverlayForm overlay)
+    {
+        if (ReferenceEquals(_activeCopyTapBorderOverlay, overlay))
+            return;
+
+        ClearCopyTapBorder();
+        _activeCopyTapBorderOverlay = overlay;
+        overlay.SetCopyTapBorderVisible(true);
+    }
+
+    private void ClearCopyTapBorder()
+    {
+        if (_activeCopyTapBorderOverlay is null)
+            return;
+
+        _activeCopyTapBorderOverlay.SetCopyTapBorderVisible(false);
+        _activeCopyTapBorderOverlay = null;
+    }
+
     private void RepositionVisibleOverlaysLocked()
     {
         var visibleOverlays = _stackSpine
             .GetTrackedOverlays()
             .Where(managed => _activeOverlays.ContainsKey(managed.Form))
-            .Select(managed => managed.Form)
             .ToList();
 
         if (visibleOverlays.Count == 0)
@@ -663,21 +734,29 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         while (visibleOverlays.Count > 0)
         {
-            var neededHeight = visibleOverlays.Sum(x => x.Height)
+            var neededHeight = visibleOverlays.Sum(x => x.Form.Height)
                 + Math.Max(0, (visibleOverlays.Count - 1) * interOverlaySpacing);
 
             if (neededHeight <= maximumStackHeight)
                 break;
 
-            // Remove the oldest overlay at the bottom of the stack if the stack overflows.
-            var oldestOverlay = visibleOverlays[0];
-            visibleOverlays.RemoveAt(0);
-            FadeAndDismissOverlay(oldestOverlay);
+            var removableOverlay = visibleOverlays
+                .FirstOrDefault(ShouldEvictAsUnnecessaryWhenStackOverflows);
+
+            if (removableOverlay is null)
+            {
+                // Fall back to removing the oldest overlay at the bottom of the stack.
+                removableOverlay = visibleOverlays[0];
+            }
+
+            visibleOverlays.Remove(removableOverlay);
+            FadeAndDismissOverlay(removableOverlay.Form);
         }
 
         var cursorY = workingArea.Bottom - 4;
-            foreach (var overlay in visibleOverlays)
+            foreach (var managed in visibleOverlays)
             {
+                var overlay = managed.Form;
                 var width = Math.Clamp(overlay.Width, _baseWidthClampMin, Math.Max(_baseWidthClampMin, workingArea.Width - 24));
             var centeredX = workingArea.Left + ((workingArea.Width - width) / 2);
             var x = Math.Clamp(
@@ -690,6 +769,14 @@ public sealed class OverlayWindowManager : IOverlayManager
                 overlay.Location = new Point(x, cursorY);
                 cursorY -= interOverlaySpacing;
             }
+    }
+
+    private static bool ShouldEvictAsUnnecessaryWhenStackOverflows(ManagedOverlay managedOverlay)
+    {
+        if (managedOverlay is null)
+            return false;
+
+        return managedOverlay.IsRemoteAction || managedOverlay.IsClipboardCopyAction;
     }
 
     private int ComputeDurationMs(int durationMs, bool autoHide)

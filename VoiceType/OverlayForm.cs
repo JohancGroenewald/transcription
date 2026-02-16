@@ -9,6 +9,7 @@ public class OverlayForm : Form
     private static readonly Color DefaultTextColor = Color.FromArgb(255, 255, 188);
     private const string OverlayFontFamily = "Segoe UI";
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
+    private static readonly Color CopyTapBorderColor = Color.FromArgb(255, 192, 255, 192);
     private static readonly Color ActionTextColor = Color.FromArgb(255, 229, 159);
     private const int BottomOffset = 18;
     private const int HorizontalMargin = 20;
@@ -32,6 +33,7 @@ public class OverlayForm : Form
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
     private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
+    private const float CopyTapBorderWidth = 2.4f;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -75,6 +77,7 @@ public class OverlayForm : Form
     private Color _lastActionColor = ActionTextColor;
     private string _lastPrefixText = string.Empty;
     private Color _lastPrefixColor = DefaultTextColor;
+    private string _copyText = string.Empty;
     private int _countdownMessageId;
     private DateTime _countdownStartUtc;
     private int _countdownTotalMs;
@@ -94,6 +97,8 @@ public class OverlayForm : Form
     private int _lastDragScreenX;
     private bool _ignoreNextClickAfterDrag;
     private const int HorizontalDragActivationThreshold = 1;
+    private bool _showCopyTapFeedbackBorder;
+    private Color _activeBorderColor = BorderColor;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
@@ -240,6 +245,9 @@ public class OverlayForm : Form
             _lastShowPrefixLine = false;
             _showListeningLevelMeter = false;
             _listeningLevelPercent = 0;
+            _copyText = string.Empty;
+            _showCopyTapFeedbackBorder = false;
+            _activeBorderColor = BorderColor;
             ResetTapToCancel();
         }
     }
@@ -285,7 +293,8 @@ public class OverlayForm : Form
         bool animateOnHide = false,
         bool autoHide = false,
         bool showListeningLevelMeter = false,
-        int listeningLevelPercent = 0)
+        int listeningLevelPercent = 0,
+        string? copyText = null)
     {
         if (InvokeRequired)
         {
@@ -305,15 +314,18 @@ public class OverlayForm : Form
                 animateOnHide,
                 autoHide,
                 showListeningLevelMeter,
-                listeningLevelPercent)));
+                listeningLevelPercent,
+                copyText)));
         }
 
         var messageId = unchecked(++_activeMessageId);
+        var resolvedCopyText = string.IsNullOrWhiteSpace(copyText) ? text : copyText;
 
         SuspendLayout();
         try
         {
             _label.Text = text;
+            _copyText = resolvedCopyText ?? string.Empty;
             _label.ForeColor = EnsureOpaque(color ?? DefaultTextColor);
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
@@ -648,10 +660,12 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
-        if (_showOverlayBorder)
+        if (_showOverlayBorder || _showCopyTapFeedbackBorder)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using var pen = new Pen(BorderColor, 1.2f);
+            using var pen = new Pen(
+                _showCopyTapFeedbackBorder ? _activeBorderColor : BorderColor,
+                _showCopyTapFeedbackBorder ? CopyTapBorderWidth : 1.2f);
             var border = new Rectangle(0, 0, Width - 1, Height - 1);
             using var path = CreateRoundedRectanglePath(border, CornerRadius);
             e.Graphics.DrawPath(pen, path);
@@ -973,6 +987,19 @@ public class OverlayForm : Form
         OverlayTapped?.Invoke(this, new OverlayTappedEventArgs(messageId));
     }
 
+    public void SetCopyTapBorderVisible(bool visible)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => SetCopyTapBorderVisible(visible)));
+            return;
+        }
+
+        _activeBorderColor = visible ? CopyTapBorderColor : BorderColor;
+        _showCopyTapFeedbackBorder = visible;
+        Invalidate();
+    }
+
     private bool HandleOverlayTap(object? sender, MouseEventArgs e)
     {
         OnOverlayMouseClick(sender, e);
@@ -981,6 +1008,9 @@ public class OverlayForm : Form
 
     private string GetOverlayTextForCopy(object? sender)
     {
+        if (!string.IsNullOrWhiteSpace(_copyText))
+            return _copyText;
+
         return sender switch
         {
             null => _label.Text,

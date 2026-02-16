@@ -25,9 +25,11 @@ public interface IOverlayManager : IDisposable
         bool autoPosition = true,
         bool autoHide = false,
         bool isRemoteAction = false,
+        bool isClipboardCopyAction = false,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
-        int listeningLevelPercent = 0);
+        int listeningLevelPercent = 0,
+        string? copyText = null);
 
     void ApplyHudSettings(
         int opacityPercent,
@@ -42,6 +44,8 @@ public interface IOverlayManager : IDisposable
     void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);
 
     void DismissRemoteActionOverlays();
+
+    void DismissCopyActionOverlays(int keepGlobalMessageId = 0);
 
     void ClearCountdownBar(string overlayKey);
 
