@@ -23,6 +23,8 @@ public class TrayContext : ApplicationContext
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
     private const int RemoteActionPopupCarryoverMs = 1400;
     private static readonly Color RemoteActionPopupTextColor = Color.Goldenrod;
+    private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
+    private static readonly Color ClipboardFallbackActionColor = Color.Goldenrod;
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
@@ -307,6 +309,7 @@ public class TrayContext : ApplicationContext
                     }
 
                     var targetHasExistingText = TextInjector.TargetHasExistingText();
+                    var hasPasteTarget = TextInjector.HasPasteTarget();
                     ReloadPastedTextPrefixSettings();
                     var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
@@ -315,7 +318,10 @@ public class TrayContext : ApplicationContext
                         previewText,
                         adaptiveDurationMs,
                         prefixTextForPreview,
-                        targetHasExistingText);
+                        targetHasExistingText,
+                        hasPasteTarget
+                            ? null
+                            : ClipboardFallbackActionText);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
@@ -340,9 +346,16 @@ public class TrayContext : ApplicationContext
                     }
                     else
                     {
-                        var fallbackText = textToInject + "\n(copied to clipboard — Ctrl+V to paste)";
+                        var adaptiveColor = targetHasExistingText
+                            ? Color.Gold
+                            : Color.LightGreen;
                         Log.Info("No paste target, text on clipboard");
-                        ShowOverlay(fallbackText, Color.Gold, adaptiveDurationMs);
+                        ShowOverlay(
+                            textToInject,
+                            adaptiveColor,
+                            adaptiveDurationMs,
+                            remoteActionText: ClipboardFallbackActionText,
+                            remoteActionColor: ClipboardFallbackActionColor);
                     }
                 }
                 else
@@ -1169,7 +1182,8 @@ public class TrayContext : ApplicationContext
         string text,
         int durationMs,
         string? prefixTextForPreview,
-        bool targetHasExistingText)
+        bool targetHasExistingText,
+        string? actionText = null)
     {
         var previewColor = targetHasExistingText
             ? Color.Gold
@@ -1183,6 +1197,8 @@ public class TrayContext : ApplicationContext
             showCountdownBar: true,
             tapToCancel: true,
             includeRemoteAction: false,
+            remoteActionText: actionText,
+            remoteActionColor: ClipboardFallbackActionColor,
             prefixText: prefixTextForPreview,
             prefixColor: PreviewPrefixColor,
             overlayKey: previewOverlayKey,
