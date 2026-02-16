@@ -2,6 +2,15 @@
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$REPO_ROOT/.githooks/bump-version.ps1"
+PROJECT="$REPO_ROOT/VoiceType/VoiceType.csproj"
+
+if command -v dotnet >/dev/null 2>&1 && [ -f "$PROJECT" ]; then
+  dotnet build "$PROJECT" -c Debug
+  if [ $? -ne 0 ]; then
+    echo "[pre-commit] Build failed. Please fix compilation errors before committing."
+    exit 1
+  fi
+fi
 
 if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
   exit 0

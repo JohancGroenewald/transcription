@@ -635,7 +635,8 @@ public class TrayContext : ApplicationContext
         string? remoteActionText = null,
         Color? remoteActionColor = null,
         string? prefixText = null,
-        Color? prefixColor = null)
+        Color? prefixColor = null,
+        bool trackInStack = true)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -669,7 +670,7 @@ public class TrayContext : ApplicationContext
         if (messageId == 0)
             return 0;
 
-        TrackOverlayInStack(_overlay);
+        TrackOverlayInStack(_overlay, trackInStack);
         return messageId;
     }
 
@@ -711,12 +712,17 @@ public class TrayContext : ApplicationContext
         TrackOverlayInStack(_actionOverlay);
     }
 
-    private void TrackOverlayInStack(OverlayForm overlay)
+    private void TrackOverlayInStack(OverlayForm overlay, bool bumpInStack = true)
     {
         if (overlay.IsDisposed)
             return;
 
-        _overlayStackOrder[overlay] = ++_overlayStackSequence;
+        var isNewOverlay = !_overlayStackOrder.ContainsKey(overlay);
+        if (isNewOverlay || bumpInStack)
+            _overlayStackOrder[overlay] = ++_overlayStackSequence;
+
+        if (!isNewOverlay && !bumpInStack)
+            return;
         RepositionOverlaysInStack();
     }
 
@@ -874,7 +880,8 @@ public class TrayContext : ApplicationContext
             BuildListeningOverlayText(),
             Color.CornflowerBlue,
             0,
-            includeRemoteAction: false);
+            includeRemoteAction: false,
+            trackInStack: false);
     }
 
     private string BuildListeningOverlayText()

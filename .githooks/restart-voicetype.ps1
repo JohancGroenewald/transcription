@@ -8,15 +8,24 @@ try {
     $repoRoot = Split-Path -Parent $PSScriptRoot
     $projectPath = Join-Path $repoRoot "VoiceType/VoiceType.csproj"
     $debugExePath = Join-Path $repoRoot "VoiceType/bin/Debug/net9.0-windows/VoiceType.exe"
-    $runningCandidates = @()
 
+    if ((Get-Command dotnet -ErrorAction SilentlyContinue) -and (Test-Path $projectPath)) {
+        Write-Info "Building Debug app before restart..."
+        & dotnet build $projectPath -c Debug
+        if ($LASTEXITCODE -ne 0) {
+            Write-Info "Build failed (exit code $LASTEXITCODE). Skipping restart."
+            exit 0
+        }
+    }
+
+    $runningCandidates = @()
     try {
         $runningCandidates = @(Get-CimInstance Win32_Process -Filter "Name='VoiceType.exe'" |
             Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase) } |
             Select-Object -ExpandProperty ExecutablePath -Unique)
     }
     catch {
-        # Best effort discovery
+        # Best effort process discovery
     }
 
     foreach ($runningExe in $runningCandidates) {
