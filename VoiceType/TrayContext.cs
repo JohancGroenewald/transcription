@@ -45,6 +45,7 @@ public class TrayContext : ApplicationContext
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
+    private const string PasteCanceledOverlayKey = "paste-canceled-overlay";
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -342,7 +343,11 @@ public class TrayContext : ApplicationContext
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
-                        ShowOverlay("Paste canceled", NeutralOverlayColor, 1000);
+                        ShowOverlay(
+                            "Paste canceled",
+                            NeutralOverlayColor,
+                            1000,
+                            overlayKey: PasteCanceledOverlayKey);
                         return;
                     }
 
@@ -767,7 +772,8 @@ public class TrayContext : ApplicationContext
         {
             "listening-overlay",
             PastedAutoSendSkippedOverlayKey,
-            ProcessingVoiceOverlayKey
+            ProcessingVoiceOverlayKey,
+            PasteCanceledOverlayKey
         });
         _overlayManager.DismissRemoteActionOverlays();
     }
