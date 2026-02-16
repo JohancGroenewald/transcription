@@ -110,7 +110,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool trackInStack = true,
         bool autoPosition = true,
         bool autoHide = false,
-        bool animateHide = false)
+        bool animateHide = false,
+        bool showListeningLevelMeter = false,
+        int listeningLevelPercent = 0)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -142,7 +144,9 @@ public sealed class OverlayWindowManager : IOverlayManager
                     prefixColor,
                     autoPosition,
                     animateHide,
-                    autoHide);
+                    autoHide,
+                    showListeningLevelMeter,
+                    listeningLevelPercent);
                 if (localMessageId == 0)
                     return 0;
 
@@ -181,7 +185,9 @@ public sealed class OverlayWindowManager : IOverlayManager
                 prefixColor,
                 autoPosition,
                 animateHide,
-                autoHide);
+                autoHide,
+                showListeningLevelMeter,
+                listeningLevelPercent);
 
             if (managedOverlay.LocalMessageId == 0)
             {

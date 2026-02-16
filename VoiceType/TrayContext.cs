@@ -646,7 +646,9 @@ public class TrayContext : ApplicationContext
         bool trackInStack = true,
         bool autoPosition = true,
         bool autoHide = false,
-        bool animateHide = false)
+        bool animateHide = false,
+        bool showListeningLevelMeter = false,
+        int listeningLevelPercent = 0)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -680,7 +682,9 @@ public class TrayContext : ApplicationContext
             trackInStack,
             autoPosition,
             autoHide,
-            animateHide);
+            animateHide,
+            showListeningLevelMeter,
+            listeningLevelPercent);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -845,30 +849,19 @@ public class TrayContext : ApplicationContext
             overlayKey: "listening-overlay",
             trackInStack: true,
             autoPosition: false,
-            animateHide: true);
+            animateHide: true,
+            showListeningLevelMeter: true,
+            listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
     }
 
     private string BuildListeningOverlayText()
     {
-        var levelPercent = Interlocked.CompareExchange(ref _micLevelPercent, 0, 0);
         var elapsed = DateTime.UtcNow - _recordingStartedAtUtc;
         var elapsedText = elapsed.TotalHours >= 1
             ? elapsed.ToString(@"hh\:mm\:ss")
             : elapsed.ToString(@"mm\:ss");
 
-        var meter = BuildMicActivityMeter(levelPercent, 18);
-        return $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildOverlayHotkeyHint()} to stop";
-    }
-
-    private static string BuildMicActivityMeter(int levelPercent, int segments)
-    {
-        var clampedLevel = Math.Clamp(levelPercent, 0, 100);
-        var clampedSegments = Math.Max(6, segments);
-        var filled = (int)Math.Round((clampedLevel / 100.0) * clampedSegments);
-        if (filled > clampedSegments)
-            filled = clampedSegments;
-
-        return "[" + new string('|', filled) + new string('.', clampedSegments - filled) + "]";
+        return $"Listening... {elapsedText}\nPress {BuildOverlayHotkeyHint()} to stop";
     }
 
     private string? ParseVoiceCommand(string text)

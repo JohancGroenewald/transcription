@@ -23,7 +23,9 @@ public interface IOverlayManager : IDisposable
         bool trackInStack = true,
         bool autoPosition = true,
         bool autoHide = false,
-        bool animateHide = false);
+        bool animateHide = false,
+        bool showListeningLevelMeter = false,
+        int listeningLevelPercent = 0);
 
     void ApplyHudSettings(
         int opacityPercent,

@@ -22,6 +22,16 @@ public class OverlayForm : Form
     private const int CountdownTickIntervalMs = 40;
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
+    private const int ListeningMeterWidth = 72;
+    private const int ListeningMeterHeight = 12;
+    private const int ListeningMeterBarCount = 8;
+    private const int ListeningMeterBarSpacing = 2;
+    private const int ListeningMeterLeftPadding = 8;
+    private const int ListeningMeterBottomPadding = 10;
+    private const int ListeningMeterActiveBarBaseAlpha = 150;
+    private const int ListeningMeterInactiveBarAlpha = 55;
+    private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
+    private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
     private static readonly Color TransparentOverlayBackgroundColor = Color.Fuchsia;
 
     private const int WS_EX_TOPMOST = 0x00000008;
@@ -58,6 +68,8 @@ public class OverlayForm : Form
     private bool _lastShowActionLine;
     private bool _lastShowPrefixLine;
     private bool _showCountdownBar;
+    private bool _showListeningLevelMeter;
+    private int _listeningLevelPercent;
     private string _lastActionText = string.Empty;
     private Color _lastActionColor = ActionTextColor;
     private string _lastPrefixText = string.Empty;
@@ -100,7 +112,7 @@ public class OverlayForm : Form
         BackColor = TransparentOverlayBackgroundColor;
         TransparencyKey = TransparentOverlayBackgroundColor;
         ForeColor = DefaultTextColor;
-        Opacity = _baseOpacity;
+        Opacity = 1.0;
         Size = new Size(620, MinOverlayHeight);
         Padding = new Padding(18, 10, 18, 10);
 
@@ -197,7 +209,7 @@ public class OverlayForm : Form
             _hideTimer.Stop();
             _fadeTimer.Stop();
             _countdownTimer.Stop();
-            Opacity = _baseOpacity;
+            Opacity = 1.0;
             _hideTimerMessageId = 0;
             _fadeMessageId = 0;
             ResetCountdown();
@@ -209,6 +221,8 @@ public class OverlayForm : Form
             _prefixLabel.Visible = false;
             _lastPrefixText = string.Empty;
             _lastShowPrefixLine = false;
+            _showListeningLevelMeter = false;
+            _listeningLevelPercent = 0;
             ResetTapToCancel();
         }
     }
@@ -252,7 +266,9 @@ public class OverlayForm : Form
         Color? prefixColor = null,
         bool autoPosition = true,
         bool animateOnHide = false,
-        bool autoHide = false)
+        bool autoHide = false,
+        bool showListeningLevelMeter = false,
+        int listeningLevelPercent = 0)
     {
         if (InvokeRequired)
         {
@@ -270,7 +286,9 @@ public class OverlayForm : Form
                 prefixColor,
                 autoPosition,
                 animateOnHide,
-                autoHide)));
+                autoHide,
+                showListeningLevelMeter,
+                listeningLevelPercent)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -292,6 +310,8 @@ public class OverlayForm : Form
             _lastShowCountdownBar = showCountdownBar;
             _lastTapToCancel = tapToCancel;
             _animateOnAutoHide = animateOnHide;
+            _showListeningLevelMeter = showListeningLevelMeter;
+            _listeningLevelPercent = Math.Clamp(listeningLevelPercent, 0, 100);
 
             var workingArea = GetTargetScreen().WorkingArea;
             var preferredWidth = Math.Clamp(
@@ -367,7 +387,7 @@ public class OverlayForm : Form
             if (autoPosition)
                 PositionOnScreen(workingArea);
 
-            Opacity = _baseOpacity;
+            Opacity = 1.0;
             _countdownTimer.Stop();
             _hideTimer.Stop();
             _fadeTimer.Stop();
@@ -399,7 +419,7 @@ public class OverlayForm : Form
         Update();
 
         if (!wasVisible)
-            Opacity = _baseOpacity;
+            Opacity = 1.0;
 
         // Reassert topmost without activating when newly shown.
         if (!wasVisible)
@@ -432,7 +452,7 @@ public class OverlayForm : Form
         _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 2));
         _showOverlayBorder = showBorder;
         _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
-        Opacity = _baseOpacity;
+        Opacity = 1.0;
 
         var oldFont = _label.Font;
         _label.Font = new Font(OverlayFontFamily, _overlayFontSizePt, FontStyle.Regular);
@@ -619,6 +639,8 @@ public class OverlayForm : Form
             e.Graphics.DrawPath(pen, path);
         }
 
+        DrawListeningLevelMeter(e.Graphics);
+
         if (!TryGetCountdownProgress(out var remainingFraction))
             return;
 
@@ -634,6 +656,60 @@ public class OverlayForm : Form
             var fillColor = Color.FromArgb(220, _label.ForeColor);
             using var fillBrush = new SolidBrush(fillColor);
             e.Graphics.FillRectangle(fillBrush, fillBounds);
+        }
+    }
+
+    private void DrawListeningLevelMeter(Graphics graphics)
+    {
+        if (!_showListeningLevelMeter)
+            return;
+
+        var meterLeft = Math.Min(
+            Width - ListeningMeterWidth - Padding.Right - 2,
+            Math.Max(Padding.Left, ListeningMeterLeftPadding));
+        var meterBottomPad = Math.Max(
+            CountdownBarBottomMargin + CountdownBarHeight + ListeningMeterBottomPadding,
+            6);
+        var meterTop = Math.Max(Padding.Top, Height - meterBottomPad - ListeningMeterHeight);
+        var meterArea = new Rectangle(
+            meterLeft,
+            meterTop,
+            ListeningMeterWidth,
+            ListeningMeterHeight);
+
+        var maxBarHeight = Math.Max(2, ListeningMeterHeight - 2);
+        var barWidth = Math.Max(
+            2,
+            (ListeningMeterWidth - ((ListeningMeterBarCount - 1) * ListeningMeterBarSpacing))
+            / ListeningMeterBarCount);
+        var availableWidth = (barWidth * ListeningMeterBarCount) +
+            (ListeningMeterBarSpacing * (ListeningMeterBarCount - 1));
+        var widthOffset = Math.Max(0, (meterArea.Width - availableWidth) / 2);
+
+        var nowMs = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerMillisecond;
+        var inputLevel = Math.Clamp(_listeningLevelPercent, 0, 100) / 100.0;
+        for (var i = 0; i < ListeningMeterBarCount; i++)
+        {
+            var phase = (nowMs / 90.0) + (i * 0.7);
+            var wave = (Math.Sin(phase) + 1.0) / 2.0;
+            var level = Math.Clamp(inputLevel * (0.65 + (0.35 * wave)), 0.08, 1.0);
+            var barHeight = Math.Max(2, (int)Math.Round(maxBarHeight * level));
+            var x = meterArea.Left + widthOffset + (i * (barWidth + ListeningMeterBarSpacing));
+            var y = meterArea.Bottom - barHeight;
+
+            var alpha = i == 0
+                ? ListeningMeterActiveBarBaseAlpha
+                : Math.Clamp(
+                    ListeningMeterActiveBarBaseAlpha + (int)(55 * level),
+                    ListeningMeterActiveBarBaseAlpha,
+                    255);
+
+            using var brush = new SolidBrush(
+                inputLevel <= 0.02
+                    ? ListeningMeterInactiveColor
+                    : Color.FromArgb(alpha, ListeningMeterActiveColor));
+            var barBounds = new Rectangle(x, y, barWidth, barHeight);
+            graphics.FillRectangle(brush, barBounds);
         }
     }
 
@@ -685,7 +761,7 @@ public class OverlayForm : Form
             return;
         }
 
-        if (_baseOpacity <= 0)
+        if (Opacity <= 0.02)
         {
             _fadeTimer.Stop();
             _fadeMessageId = 0;
@@ -703,7 +779,7 @@ public class OverlayForm : Form
         }
 
         var steps = Math.Max(1, _fadeDurationMs / Math.Max(1, _fadeTickIntervalMs));
-        var nextOpacity = Opacity - (_baseOpacity / steps);
+        var nextOpacity = Opacity - (1.0 / steps);
         if (nextOpacity <= 0.02)
         {
             _fadeTimer.Stop();
