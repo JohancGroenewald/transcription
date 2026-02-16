@@ -222,8 +222,6 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool trackInStack)
     {
         var overlay = _overlayFactory();
-        if (!autoPosition)
-            overlay.Location = Point.Empty;
         overlay.ApplyHudSettings(
             _overlayOpacityPercent,
             _overlayWidthPercent,
