@@ -18,6 +18,7 @@ static class Program
     private const string ListenEventName = MutexName + "_Listen";
     private const string ListenIgnorePrefixEventName = MutexName + "_ListenIgnorePrefix";
     private const string SubmitEventName = MutexName + "_Submit";
+    private const string CloseCompletedEventNamePrefix = MutexName + "_CloseCompleted_";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
@@ -27,6 +28,7 @@ static class Program
     private static EventWaitHandle? _listenEvent;
     private static EventWaitHandle? _listenIgnorePrefixEvent;
     private static EventWaitHandle? _submitEvent;
+    private static EventWaitHandle? _closeCompletedEvent;
 
     [DllImport("kernel32.dll")]
     private static extern bool FreeConsole();
@@ -275,6 +277,10 @@ static class Program
                 EventResetMode.AutoReset,
                 ListenIgnorePrefixEventName);
             _submitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SubmitEventName);
+            _closeCompletedEvent = new EventWaitHandle(
+                false,
+                EventResetMode.ManualReset,
+                $"{CloseCompletedEventNamePrefix}{Environment.ProcessId}");
 
             var config = AppConfig.Load();
             if (config.EnableDebugLogging)
@@ -384,6 +390,9 @@ static class Program
         }
         finally
         {
+            _closeCompletedEvent?.Set();
+            _closeCompletedEvent?.Dispose();
+            _closeCompletedEvent = null;
             _submitEvent?.Dispose();
             _submitEvent = null;
             _listenIgnorePrefixEvent?.Dispose();

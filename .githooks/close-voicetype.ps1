@@ -1,10 +1,10 @@
 param(
-    [int]$MaxWaitMilliseconds = 3000,
-    [int]$RetryDelayMilliseconds = 250,
-    [int]$GracefulWaitExtraMilliseconds = 1500
+    [int]$MaxWaitMilliseconds = 10000,
+    [int]$RetryDelayMilliseconds = 250
 )
 
 $ErrorActionPreference = "Stop"
+$CloseCompletedEventNamePrefix = "VoiceType_SingleInstance_CloseCompleted_"
 
 function Get-VoiceTypeProcesses($repoRoot)
 {
@@ -35,6 +35,7 @@ if ($pids.Count -eq 0)
     exit 0
 }
 
+$closeSignals = @()
 foreach ($voiceTypePid in $pids)
 {
     try
@@ -47,10 +48,26 @@ foreach ($voiceTypePid in $pids)
 
         Write-Host "[close-voicetype] Requesting close for PID $voiceTypePid"
         Start-Process -FilePath $process.Path -ArgumentList "--close" -WindowStyle Hidden | Out-Null
+
+        try
+        {
+            $closeSignal = [System.Threading.EventWaitHandle]::OpenExisting(
+                "$CloseCompletedEventNamePrefix$voiceTypePid")
+            $closeSignals += [PSCustomObject]@{
+                Pid = $voiceTypePid
+                Event = $closeSignal
+                Signaled = $false
+            }
+            Write-Host "[close-voicetype] Will wait for close-completion signal for PID $voiceTypePid."
+        }
+        catch
+        {
+            # Older/mismatched app versions may not emit this event; we still fall back to process polling.
+        }
     }
     catch
     {
-        # Process may have already exited; best-effort continue
+        # Process may have already exited; best-effort continue.
     }
 }
 
@@ -60,42 +77,54 @@ while ([DateTime]::UtcNow -lt $deadline)
     $remaining = Get-VoiceTypeProcesses -repoRoot $repoRoot
     if ($remaining.Count -eq 0)
     {
-        Write-Host "[close-voicetype] VoiceType closed gracefully."
-        exit 0;
-    }
+        foreach ($closeSignal in $closeSignals)
+        {
+            if ($closeSignal.Event -ne $null)
+            {
+                $closeSignal.Event.Dispose();
+            }
+        }
 
-    Start-Sleep -Milliseconds $RetryDelayMilliseconds
-}
-
-Write-Host "[close-voicetype] VoiceType did not close in graceful timeout. Attempting fallback terminate."
-$gracefulWaitDeadline = [DateTime]::UtcNow
-$fallbackDeadline = $gracefulWaitDeadline.AddMilliseconds($GracefulWaitExtraMilliseconds)
-
-$remaining = Get-VoiceTypeProcesses -repoRoot $repoRoot
-foreach ($voiceTypePid in $remaining)
-{
-    try
-    {
-        Write-Host "[close-voicetype] Force-killing PID $voiceTypePid"
-        Stop-Process -Id $voiceTypePid -Force -ErrorAction Stop
-    }
-    catch
-    {
-        # Ignore failures here; still continue checking.
-    }
-}
-
-while ([DateTime]::UtcNow -lt $fallbackDeadline)
-{
-    $remaining = Get-VoiceTypeProcesses -repoRoot $repoRoot
-    if ($remaining.Count -eq 0)
-    {
         Write-Host "[close-voicetype] VoiceType closed."
         exit 0;
     }
 
+    foreach ($closeSignal in @($closeSignals))
+    {
+        if (-not $closeSignal.Signaled -and $closeSignal.Event -ne $null)
+        {
+            try
+            {
+                if ($closeSignal.Event.WaitOne(0))
+                {
+                    $closeSignal.Signaled = $true;
+                }
+            }
+            catch
+            {
+                $closeSignal.Signaled = $true;
+            }
+        }
+    }
+
     Start-Sleep -Milliseconds $RetryDelayMilliseconds
 }
 
-Write-Host "[close-voicetype] Unable to terminate VoiceType in time; continuing to avoid blocking build."
-exit 0
+$remaining = Get-VoiceTypeProcesses -repoRoot $repoRoot
+foreach ($closeSignal in $closeSignals)
+{
+    if ($closeSignal.Event -ne $null)
+    {
+        $closeSignal.Event.Dispose();
+    }
+}
+
+if ($remaining.Count -eq 0)
+{
+    Write-Host "[close-voicetype] VoiceType closed."
+    exit 0;
+}
+
+Write-Host "[close-voicetype] Unable to close VoiceType in time. Remaining PIDs: $($remaining -join ', ')"
+Write-Host "[close-voicetype] Build will not continue while VoiceType is still running to avoid file lock conflicts."
+exit 1
