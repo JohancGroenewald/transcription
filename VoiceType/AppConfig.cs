@@ -90,6 +90,7 @@ public class AppConfig
     public bool ShowOverlayBorder { get; set; } = true;
     public bool UseSimpleMicSpinner { get; set; }
     public bool EnablePreviewPlaybackCleanup { get; set; }
+    public bool EnablePreviewPlayback { get; set; } = true;
     public bool EnablePenHotkey { get; set; }
     public string PenHotkey { get; set; } = DefaultPenHotkey;
     public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
@@ -128,6 +129,7 @@ public class AppConfig
         public bool ShowOverlayBorder { get; set; } = true;
         public bool UseSimpleMicSpinner { get; set; }
         public bool EnablePreviewPlaybackCleanup { get; set; }
+        public bool EnablePreviewPlayback { get; set; } = true;
         public bool EnablePenHotkey { get; set; }
         public string PenHotkey { get; set; } = DefaultPenHotkey;
         public bool EnableOpenSettingsVoiceCommand { get; set; } = true;
@@ -171,6 +173,7 @@ public class AppConfig
                 ShowOverlayBorder = configFile.ShowOverlayBorder,
                 UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
                 EnablePreviewPlaybackCleanup = configFile.EnablePreviewPlaybackCleanup,
+                EnablePreviewPlayback = configFile.EnablePreviewPlayback,
                 EnablePenHotkey = configFile.EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
                 EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
@@ -216,6 +219,7 @@ public class AppConfig
                 ShowOverlayBorder = ShowOverlayBorder,
                 UseSimpleMicSpinner = UseSimpleMicSpinner,
                 EnablePreviewPlaybackCleanup = EnablePreviewPlaybackCleanup,
+                EnablePreviewPlayback = EnablePreviewPlayback,
                 EnablePenHotkey = EnablePenHotkey,
                 PenHotkey = NormalizePenHotkey(PenHotkey),
                 EnableOpenSettingsVoiceCommand = EnableOpenSettingsVoiceCommand,

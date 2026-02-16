@@ -25,6 +25,8 @@ public class TrayContext : ApplicationContext
     private static readonly Color PastedAutoSendSkippedOverlayColor = Color.DarkSeaGreen;
     private static readonly Color ClipboardFallbackActionColor = Color.OrangeRed;
     private static readonly Color PreviewPrefixColor = Color.FromArgb(255, 180, 255, 180);
+    private const string CountdownPlaybackPlayGlyph = "▶";
+    private const string CountdownPlaybackPauseGlyph = "⏸";
 
     private const int PRIMARY_HOTKEY_ID = 1;
     private const int PEN_HOTKEY_ID = 2;
@@ -109,6 +111,7 @@ public class TrayContext : ApplicationContext
     private DateTime _remoteActionPopupExpiresUtc;
     private string? _activeTranscribedPreviewOverlayKey;
     private bool _enablePastedTextPrefix = true;
+    private bool _enablePreviewPlayback = true;
     private bool _enablePreviewPlaybackCleanup;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
@@ -123,6 +126,9 @@ public class TrayContext : ApplicationContext
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
+    private WaveOutEvent? _previewPlaybackOutput;
+    private WaveFileReader? _previewPlaybackReader;
+    private MemoryStream? _previewPlaybackStream;
     private CancellationTokenSource? _previewPlaybackCancellation;
 
     public TrayContext()
@@ -137,6 +143,7 @@ public class TrayContext : ApplicationContext
         _overlayManager = overlayManager ?? throw new ArgumentNullException(nameof(overlayManager));
         _overlayManager.OverlayTapped += OnOverlayTapped;
         _overlayManager.OverlayCopyTapped += OnOverlayCopyTapped;
+        _overlayManager.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recorder = new AudioRecorder();
@@ -203,6 +210,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.SetStackHorizontalOffset(config.OverlayStackHorizontalOffsetPx);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
+        _enablePreviewPlayback = config.EnablePreviewPlayback;
         _enablePreviewPlaybackCleanup = config.EnablePreviewPlaybackCleanup;
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
@@ -214,8 +222,10 @@ public class TrayContext : ApplicationContext
         _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
         Log.Info(
             $"Config loaded: model={config.Model}, autoEnter={_autoEnter}, overlayPopups={_enableOverlayPopups}, " +
+            $"previewPlayback={_enablePreviewPlayback}, " +
             $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
             $"settingsDarkMode={config.EnableSettingsDarkMode}");
+        _overlayManager.ApplyCountdownPlaybackIcon(GetCountdownPlaybackIcon());
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(
                 config.ApiKey,
@@ -703,6 +713,7 @@ public class TrayContext : ApplicationContext
         bool isClipboardCopyAction = false,
         string? copyText = null,
         bool isSubmittedAction = false,
+        string? countdownPlaybackIcon = null,
         bool fullWidthText = false)
     {
         if (!_enableOverlayPopups)
@@ -744,6 +755,7 @@ public class TrayContext : ApplicationContext
             listeningLevelPercent: listeningLevelPercent,
             copyText: copyText,
             isSubmittedAction: isSubmittedAction,
+            countdownPlaybackIcon: countdownPlaybackIcon,
             fullWidthText: fullWidthText);
     }
 
@@ -1223,6 +1235,7 @@ public class TrayContext : ApplicationContext
             _listeningOverlayTimer.Dispose();
             _overlayManager.OverlayTapped -= OnOverlayTapped;
             _overlayManager.OverlayCopyTapped -= OnOverlayCopyTapped;
+            _overlayManager.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
@@ -1276,6 +1289,7 @@ public class TrayContext : ApplicationContext
             remoteActionColor: ClipboardFallbackActionColor,
             prefixText: prefixTextForPreview,
             prefixColor: PreviewPrefixColor,
+            countdownPlaybackIcon: GetCountdownPlaybackIcon(),
             overlayKey: previewOverlayKey,
             animateHide: true,
             fullWidthText: true);
@@ -1326,8 +1340,21 @@ public class TrayContext : ApplicationContext
         }
     }
 
+    private string GetCountdownPlaybackIcon()
+    {
+        return _enablePreviewPlayback ? CountdownPlaybackPauseGlyph : CountdownPlaybackPlayGlyph;
+    }
+
+    private void UpdateCountdownPlaybackIconOnOverlays()
+    {
+        _overlayManager.ApplyCountdownPlaybackIcon(GetCountdownPlaybackIcon());
+    }
+
     private void StartPreviewPlayback(byte[]? audioDataForPlayback)
     {
+        if (!_enablePreviewPlayback)
+            return;
+
         if (_shutdownCancellation.IsCancellationRequested)
             return;
 
@@ -1342,13 +1369,37 @@ public class TrayContext : ApplicationContext
 
         StopPreviewPlayback();
 
+        MemoryStream? playbackStream = null;
+        WaveFileReader? playbackReader = null;
+        WaveOutEvent? playbackOutput = null;
+        try
+        {
+            playbackStream = new MemoryStream(playbackAudio);
+            playbackReader = new WaveFileReader(playbackStream);
+            playbackOutput = new WaveOutEvent();
+            playbackOutput.Init(playbackReader);
+            playbackOutput.Play();
+        }
+        catch (Exception ex)
+        {
+            playbackOutput?.Dispose();
+            playbackReader?.Dispose();
+            playbackStream?.Dispose();
+            Log.Error("Failed to start preview playback.", ex);
+            return;
+        }
+
         var playbackCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
         lock (_previewPlaybackLock)
         {
+            _previewPlaybackStream = playbackStream;
+            _previewPlaybackReader = playbackReader;
+            _previewPlaybackOutput = playbackOutput;
             _previewPlaybackCancellation = playbackCancellation;
         }
 
-        _ = PlayRecordedPreviewAudioAsync(playbackAudio, playbackCancellation);
+        UpdateCountdownPlaybackIconOnOverlays();
+        _ = PlayRecordedPreviewAudioAsync(playbackOutput!, playbackReader!, playbackStream!, playbackCancellation);
     }
 
     private static byte[]? ApplyPreviewCleanupPass(byte[] audioDataForPlayback)
@@ -1415,18 +1466,15 @@ public class TrayContext : ApplicationContext
     }
 
     private async Task PlayRecordedPreviewAudioAsync(
-        byte[] audioData,
+        WaveOutEvent waveOut,
+        WaveFileReader waveReader,
+        MemoryStream audioStream,
         CancellationTokenSource playbackCancellation)
     {
         try
         {
-            using var audioStream = new MemoryStream(audioData);
-            using var waveReader = new WaveFileReader(audioStream);
-            using var waveOut = new WaveOutEvent();
-            waveOut.Init(waveReader);
-            waveOut.Play();
-
-            while (waveOut.PlaybackState == PlaybackState.Playing)
+            while (!playbackCancellation.Token.IsCancellationRequested &&
+                (waveOut.PlaybackState is PlaybackState.Playing or PlaybackState.Paused))
             {
                 await Task.Delay(40, playbackCancellation.Token).ConfigureAwait(false);
             }
@@ -1444,34 +1492,150 @@ public class TrayContext : ApplicationContext
             lock (_previewPlaybackLock)
             {
                 if (ReferenceEquals(_previewPlaybackCancellation, playbackCancellation))
+                {
                     _previewPlaybackCancellation = null;
+                    _previewPlaybackOutput = null;
+                    _previewPlaybackReader = null;
+                    _previewPlaybackStream = null;
+                }
             }
 
+            waveOut.Stop();
+            waveOut.Dispose();
+            waveReader.Dispose();
+            audioStream.Dispose();
             playbackCancellation.Dispose();
         }
     }
 
     private void StopPreviewPlayback()
     {
+        WaveOutEvent? playbackOutput;
+        WaveFileReader? playbackReader;
+        MemoryStream? playbackStream;
         CancellationTokenSource? playbackCancellation;
+
         lock (_previewPlaybackLock)
         {
+            playbackOutput = _previewPlaybackOutput;
+            playbackReader = _previewPlaybackReader;
+            playbackStream = _previewPlaybackStream;
             playbackCancellation = _previewPlaybackCancellation;
-            if (ReferenceEquals(_previewPlaybackCancellation, playbackCancellation))
-                _previewPlaybackCancellation = null;
+            _previewPlaybackOutput = null;
+            _previewPlaybackReader = null;
+            _previewPlaybackStream = null;
+            _previewPlaybackCancellation = null;
         }
 
-        if (playbackCancellation is null)
+        if (playbackCancellation is not null)
+        {
+            try
+            {
+                playbackCancellation.Cancel();
+            }
+            catch
+            {
+                // Ignore best effort cancellation errors.
+            }
+        }
+
+        if (playbackOutput is not null)
+        {
+            try
+            {
+                playbackOutput.Stop();
+            }
+            catch
+            {
+                // Ignore best effort errors while stopping playback.
+            }
+
+            playbackOutput.Dispose();
+        }
+
+        playbackReader?.Dispose();
+        playbackStream?.Dispose();
+        playbackCancellation?.Dispose();
+    }
+
+    private void PausePreviewPlayback()
+    {
+        WaveOutEvent? playbackOutput;
+        lock (_previewPlaybackLock)
+        {
+            playbackOutput = _previewPlaybackOutput;
+        }
+
+        if (playbackOutput is null)
             return;
 
         try
         {
-            playbackCancellation.Cancel();
+            if (playbackOutput.PlaybackState == PlaybackState.Playing)
+                playbackOutput.Pause();
         }
         catch
         {
-            // Ignore best effort cancellation errors.
+            // Ignore best effort errors while pausing playback.
         }
+    }
+
+    private void ResumePreviewPlayback()
+    {
+        WaveOutEvent? playbackOutput;
+        lock (_previewPlaybackLock)
+        {
+            playbackOutput = _previewPlaybackOutput;
+        }
+
+        if (playbackOutput is null)
+            return;
+
+        try
+        {
+            if (playbackOutput.PlaybackState == PlaybackState.Paused)
+                playbackOutput.Play();
+        }
+        catch
+        {
+            // Ignore best effort errors while resuming playback.
+        }
+    }
+
+    private void SetPreviewPlaybackEnabled(bool enabled)
+    {
+        if (_enablePreviewPlayback == enabled)
+            return;
+
+        _enablePreviewPlayback = enabled;
+        if (enabled)
+            ResumePreviewPlayback();
+        else
+            PausePreviewPlayback();
+
+        UpdateCountdownPlaybackIconOnOverlays();
+        PersistPreviewPlaybackSetting();
+    }
+
+    private void PersistPreviewPlaybackSetting()
+    {
+        try
+        {
+            var config = AppConfig.Load();
+            config.EnablePreviewPlayback = _enablePreviewPlayback;
+            config.Save();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to persist preview playback setting.", ex);
+        }
+    }
+
+    private void OnOverlayCountdownPlaybackIconTapped(
+        object? sender,
+        OverlayCountdownPlaybackIconTappedEventArgs e)
+    {
+        SetPreviewPlaybackEnabled(!_enablePreviewPlayback);
     }
 
     private void OnOverlayTapped(object? sender, int messageId)

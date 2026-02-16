@@ -98,6 +98,7 @@ public class SettingsForm : Form
     private readonly Label _uptimeValueLabel;
     private readonly System.Windows.Forms.Timer _uptimeTimer;
     private readonly Icon _formIcon;
+    private bool _enablePreviewPlayback = true;
     private bool _settingsDarkModeEnabled;
     private IntPtr _comboListBackBrush;
 
@@ -1043,6 +1044,7 @@ public class SettingsForm : Form
         _showOverlayBorderCheck.Checked = config.ShowOverlayBorder;
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
         _enablePreviewPlaybackCleanupCheck.Checked = config.EnablePreviewPlaybackCleanup;
+        _enablePreviewPlayback = config.EnablePreviewPlayback;
         _remoteActionPopupLevelCombo.SelectedIndex = Math.Clamp(
             AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel),
             0,
@@ -1092,6 +1094,7 @@ public class SettingsForm : Form
             ShowOverlayBorder = _showOverlayBorderCheck.Checked,
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
             EnablePreviewPlaybackCleanup = _enablePreviewPlaybackCleanupCheck.Checked,
+            EnablePreviewPlayback = _enablePreviewPlayback,
             RemoteActionPopupLevel = Math.Clamp(
                 _remoteActionPopupLevelCombo.SelectedIndex,
                 AppConfig.MinRemoteActionPopupLevel,

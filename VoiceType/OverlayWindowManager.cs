@@ -99,6 +99,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public event EventHandler<int>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
+    public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
 
     public int ShowMessage(
         string text,
@@ -123,6 +124,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         int listeningLevelPercent = 0,
         string? copyText = null,
         bool isSubmittedAction = false,
+        string? countdownPlaybackIcon = null,
         bool fullWidthText = false)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -160,6 +162,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                     listeningLevelPercent,
                     !isClipboardCopyAction,
                     copyText,
+                    countdownPlaybackIcon,
                     fullWidthText);
                 if (localMessageId == 0)
                     return 0;
@@ -207,6 +210,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 listeningLevelPercent,
                 !isClipboardCopyAction,
                 copyText,
+                countdownPlaybackIcon,
                 fullWidthText);
 
             if (managedOverlay.LocalMessageId == 0)
@@ -251,6 +255,20 @@ public sealed class OverlayWindowManager : IOverlayManager
         _fadeDelayBetweenOverlaysMs = profile.DelayBetweenOverlaysMs;
         _overlayFadeDurationMs = profile.FadeDurationMs;
         _overlayFadeTickIntervalMs = profile.FadeTickIntervalMs;
+    }
+
+    public void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon)
+    {
+        List<OverlayForm> trackedOverlays;
+        lock (_sync)
+        {
+            trackedOverlays = _activeOverlays.Keys
+                .Where(x => !x.IsDisposed)
+                .ToList();
+        }
+
+        foreach (var overlay in trackedOverlays)
+            overlay.ApplyCountdownPlaybackIcon(countdownPlaybackIcon);
     }
 
     public void HideAll()
@@ -546,6 +564,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;
         overlay.OverlayCopyTapped += OnOverlayCopyTapped;
+        overlay.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
         overlay.OverlayHorizontalDragged += OnOverlayHorizontalDragged;
 
         _activeOverlays.Add(overlay, managed);
@@ -633,6 +652,28 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         ApplyCopyTapBorder(overlay);
         OverlayCopyTapped?.Invoke(this, new OverlayCopyTappedEventArgs(globalMessageId, e.CopiedText));
+    }
+
+    private void OnOverlayCountdownPlaybackIconTapped(object? sender, OverlayCountdownPlaybackIconTappedEventArgs e)
+    {
+        if (sender is not OverlayForm overlay)
+            return;
+
+        int globalMessageId;
+        lock (_sync)
+        {
+            if (!_activeOverlays.TryGetValue(overlay, out var managed))
+                return;
+
+            if (managed.LocalMessageId != e.MessageId)
+                return;
+
+            globalMessageId = managed.GlobalMessageId;
+        }
+
+        OverlayCountdownPlaybackIconTapped?.Invoke(
+            this,
+            new OverlayCountdownPlaybackIconTappedEventArgs(globalMessageId, e.IconText));
     }
 
     private void OnOverlayHorizontalDragged(object? sender, OverlayHorizontalDraggedEventArgs e)
@@ -740,6 +781,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.VisibleChanged -= OnOverlayVisibleChanged;
         overlay.OverlayTapped -= OnOverlayTapped;
         overlay.OverlayCopyTapped -= OnOverlayCopyTapped;
+        overlay.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
         overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 

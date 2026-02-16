@@ -36,6 +36,7 @@ public class OverlayForm : Form
     private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
     private const float CopyTapBorderWidth = 3.0f;
     private const int CopyTapBorderAlpha = 255;
+    private const int CountdownPlaybackIconGapPx = 10;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -80,6 +81,8 @@ public class OverlayForm : Form
     private string _lastPrefixText = string.Empty;
     private Color _lastPrefixColor = DefaultTextColor;
     private string _copyText = string.Empty;
+    private string _countdownPlaybackIcon = string.Empty;
+    private string _lastCountdownPlaybackIcon = string.Empty;
     private int _countdownMessageId;
     private DateTime _countdownStartUtc;
     private int _countdownTotalMs;
@@ -105,10 +108,12 @@ public class OverlayForm : Form
     private bool _showCopyTapFeedbackBorder;
     private Color _activeBorderColor = BorderColor;
     private bool _allowCopyTap = true;
+    private Rectangle _countdownPlaybackIconBounds = Rectangle.Empty;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     public event EventHandler<OverlayHorizontalDraggedEventArgs>? OverlayHorizontalDragged;
+    public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -252,6 +257,9 @@ public class OverlayForm : Form
             _showListeningLevelMeter = false;
             _listeningLevelPercent = 0;
             _copyText = string.Empty;
+            _countdownPlaybackIcon = string.Empty;
+            _lastCountdownPlaybackIcon = string.Empty;
+            _countdownPlaybackIconBounds = Rectangle.Empty;
             _showCopyTapFeedbackBorder = false;
             _activeBorderColor = BorderColor;
             ResetTapToCancel();
@@ -302,6 +310,7 @@ public class OverlayForm : Form
         int listeningLevelPercent = 0,
         bool allowCopyTap = true,
         string? copyText = null,
+        string? countdownPlaybackIcon = null,
         bool fullWidthText = false)
     {
         if (InvokeRequired)
@@ -325,6 +334,7 @@ public class OverlayForm : Form
                 listeningLevelPercent,
                 allowCopyTap,
                 copyText,
+                countdownPlaybackIcon,
                 fullWidthText)));
         }
 
@@ -337,6 +347,9 @@ public class OverlayForm : Form
             _label.Text = text;
             _copyText = resolvedCopyText ?? string.Empty;
             _label.ForeColor = EnsureOpaque(color ?? DefaultTextColor);
+            _countdownPlaybackIcon = string.IsNullOrWhiteSpace(countdownPlaybackIcon)
+                ? string.Empty
+                : countdownPlaybackIcon;
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
             _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
@@ -353,6 +366,7 @@ public class OverlayForm : Form
             _listeningLevelPercent = Math.Clamp(listeningLevelPercent, 0, 100);
             _allowCopyTap = allowCopyTap;
             _lastUseFullWidthText = fullWidthText;
+            _lastCountdownPlaybackIcon = _countdownPlaybackIcon;
 
             var workingArea = GetTargetScreen().WorkingArea;
             var preferredWidth = Math.Clamp(
@@ -471,6 +485,23 @@ public class OverlayForm : Form
         return messageId;
     }
 
+    public void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => ApplyCountdownPlaybackIcon(countdownPlaybackIcon)));
+            return;
+        }
+
+        _countdownPlaybackIcon = string.IsNullOrWhiteSpace(countdownPlaybackIcon)
+            ? string.Empty
+            : countdownPlaybackIcon;
+        _lastCountdownPlaybackIcon = _countdownPlaybackIcon;
+        _countdownPlaybackIconBounds = Rectangle.Empty;
+        if (_countdownPlaybackIcon is not null && Visible)
+            Invalidate();
+    }
+
     public void ClearCountdownBar()
     {
         if (InvokeRequired)
@@ -520,6 +551,7 @@ public class OverlayForm : Form
                 _lastActionColor,
                 _lastPrefixText,
                 _lastPrefixColor,
+                countdownPlaybackIcon: _lastCountdownPlaybackIcon,
                 fullWidthText: _lastUseFullWidthText);
     }
 
@@ -704,10 +736,32 @@ public class OverlayForm : Form
             DrawFullWidthText(e.Graphics);
 
         if (!TryGetCountdownProgress(out var remainingFraction))
+        {
+            _countdownPlaybackIconBounds = Rectangle.Empty;
             return;
+        }
 
         var trackMargin = Math.Max(8, Padding.Left);
-        var trackWidth = Math.Max(80, Width - (trackMargin * 2));
+        var iconText = _countdownPlaybackIcon;
+        var iconTextSize = Size.Empty;
+        if (!string.IsNullOrWhiteSpace(iconText))
+        {
+            using var iconFont = new Font(
+                OverlayFontFamily,
+                Math.Max(10, _overlayFontSizePt - 1),
+                FontStyle.Regular);
+            iconTextSize = TextRenderer.MeasureText(
+                e.Graphics,
+                iconText,
+                iconFont,
+                new Size(int.MaxValue / 4, int.MaxValue / 4),
+                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        }
+
+        var iconSpacing = string.IsNullOrWhiteSpace(iconText) ? 0 : CountdownPlaybackIconGapPx;
+        var trackWidth = Math.Max(
+            80,
+            Width - (trackMargin * 2) - iconTextSize.Width - iconSpacing);
         var trackTop = Math.Max(2, Height - CountdownBarBottomMargin - CountdownBarHeight);
         var trackBounds = new Rectangle(trackMargin, trackTop, trackWidth, CountdownBarHeight);
         var fillWidth = (int)Math.Round(trackBounds.Width * remainingFraction);
@@ -721,6 +775,37 @@ public class OverlayForm : Form
             using var fillPath = CreateRoundedRectanglePath(fillBounds, fillBounds.Height);
             e.Graphics.FillPath(fillBrush, fillPath);
         }
+
+        if (string.IsNullOrWhiteSpace(iconText))
+        {
+            _countdownPlaybackIconBounds = Rectangle.Empty;
+            return;
+        }
+
+        using var playbackIconFont = new Font(
+            OverlayFontFamily,
+            Math.Max(10, _overlayFontSizePt - 1),
+            FontStyle.Regular);
+        using var iconBrush = new SolidBrush(_label.ForeColor);
+        var iconX = Math.Min(
+            Math.Max(trackBounds.Right + iconSpacing, trackMargin),
+            Math.Max(trackMargin, Width - Padding.Right - iconTextSize.Width));
+        var iconY = Math.Max(
+            0,
+            trackBounds.Top - ((Math.Max(CountdownBarHeight, iconTextSize.Height) - CountdownBarHeight) / 2));
+        var iconBounds = new Rectangle(
+            iconX,
+            iconY,
+            Math.Max(1, iconTextSize.Width),
+            Math.Max(1, Math.Min(Height - iconY - 2, Math.Max(CountdownBarHeight, iconTextSize.Height))));
+        using var iconFormat = new StringFormat
+        {
+            LineAlignment = StringAlignment.Center,
+            Alignment = StringAlignment.Near
+        };
+        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        e.Graphics.DrawString(iconText, playbackIconFont, iconBrush, iconBounds, iconFormat);
+        _countdownPlaybackIconBounds = iconBounds;
     }
 
     private void DrawFullWidthText(Graphics graphics)
@@ -1171,6 +1256,9 @@ public class OverlayForm : Form
             return;
         }
 
+        if (HandleCountdownPlaybackIconTap(sender, e))
+            return;
+
         var textToCopy = GetOverlayTextForCopy(sender);
         if (!string.IsNullOrWhiteSpace(textToCopy))
         {
@@ -1196,6 +1284,29 @@ public class OverlayForm : Form
         var messageId = _tapToCancelMessageId;
         ResetTapToCancel();
         OverlayTapped?.Invoke(this, new OverlayTappedEventArgs(messageId));
+    }
+
+    private bool HandleCountdownPlaybackIconTap(object? sender, MouseEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_countdownPlaybackIcon))
+            return false;
+
+        var clickPoint = TranslateToFormClientPoint(sender, e.Location);
+        if (_countdownPlaybackIconBounds.IsEmpty || !_countdownPlaybackIconBounds.Contains(clickPoint))
+            return false;
+
+        _tapHandledForCurrentPress = true;
+        OverlayCountdownPlaybackIconTapped?.Invoke(
+            this,
+            new OverlayCountdownPlaybackIconTappedEventArgs(_activeMessageId, _countdownPlaybackIcon));
+        return true;
+    }
+
+    private static Point TranslateToFormClientPoint(object? sender, Point point)
+    {
+        return sender is Control control
+            ? control.PointToClient(control.PointToScreen(point))
+            : point;
     }
 
     public void SetCopyTapBorderVisible(bool visible)
@@ -1396,4 +1507,16 @@ public sealed class OverlayHorizontalDraggedEventArgs : EventArgs
     }
 
     public int DeltaX { get; }
+}
+
+public sealed class OverlayCountdownPlaybackIconTappedEventArgs : EventArgs
+{
+    public OverlayCountdownPlaybackIconTappedEventArgs(int messageId, string? iconText)
+    {
+        MessageId = messageId;
+        IconText = iconText;
+    }
+
+    public int MessageId { get; }
+    public string? IconText { get; }
 }

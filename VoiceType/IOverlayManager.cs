@@ -7,6 +7,7 @@ public interface IOverlayManager : IDisposable
 {
     event EventHandler<int>? OverlayTapped;
     event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
+    event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
 
     int ShowMessage(
         string text,
@@ -31,7 +32,10 @@ public interface IOverlayManager : IDisposable
         int listeningLevelPercent = 0,
         string? copyText = null,
         bool isSubmittedAction = false,
+        string? countdownPlaybackIcon = null,
         bool fullWidthText = false);
+
+    void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon);
 
     void ApplyHudSettings(
         int opacityPercent,
