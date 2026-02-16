@@ -8,6 +8,7 @@ public class SettingsForm : Form
     private const int WM_APPCOMMAND = 0x0319;
     private const int APPCOMMAND_LAUNCH_APP1 = 17;
     private const int APPCOMMAND_LAUNCH_APP2 = 18;
+    private const int WM_CTLCOLORLISTBOX = 0x0134;
 
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
@@ -41,6 +42,18 @@ public class SettingsForm : Form
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    [DllImport("gdi32.dll")]
+    private static extern int SetTextColor(IntPtr hdc, int crColor);
+
+    [DllImport("gdi32.dll")]
+    private static extern int SetBkColor(IntPtr hdc, int crColor);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateSolidBrush(int crColor);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr hObject);
 
     private readonly record struct SettingsTheme(
         bool IsDark,
@@ -111,6 +124,8 @@ public class SettingsForm : Form
     private readonly System.Windows.Forms.Timer _uptimeTimer;
     private readonly Icon _formIcon;
     private bool _settingsDarkModeEnabled;
+    private readonly HashSet<IntPtr> _comboListHandles = new();
+    private IntPtr _comboListBackBrush;
 
     private sealed class ThemedGroupBox : GroupBox
     {
@@ -1146,6 +1161,8 @@ public class SettingsForm : Form
         _settingsDarkModeEnabled = dark;
         var theme = GetActiveTheme();
 
+        UpdateComboListBrush(theme);
+
         SuspendLayout();
         try
         {
@@ -1168,6 +1185,18 @@ public class SettingsForm : Form
             ResumeLayout(performLayout: true);
             Invalidate(true);
         }
+    }
+
+    private void UpdateComboListBrush(SettingsTheme theme)
+    {
+        if (_comboListBackBrush != IntPtr.Zero)
+        {
+            DeleteObject(_comboListBackBrush);
+            _comboListBackBrush = IntPtr.Zero;
+        }
+
+        if (theme.IsDark)
+            _comboListBackBrush = CreateSolidBrush(ColorTranslator.ToWin32(theme.InputBack));
     }
 
     private static void ApplyThemeToControlsRecursive(Control root, SettingsTheme theme)
@@ -1203,7 +1232,7 @@ public class SettingsForm : Form
         var fg = enabled ? theme.Text : theme.MutedText;
         if (selected)
         {
-            bg = theme.IsDark ? ControlPaint.Light(theme.InputBack, 0.18f) : SystemColors.Highlight;
+            bg = theme.IsDark ? ControlPaint.Light(theme.InputBack, 0.32f) : SystemColors.Highlight;
             fg = theme.IsDark ? theme.Text : SystemColors.HighlightText;
         }
 
@@ -1249,6 +1278,9 @@ public class SettingsForm : Form
         };
         if (!GetComboBoxInfo(comboBox.Handle, ref info))
             return;
+
+        if (info.hwndList != IntPtr.Zero)
+            _comboListHandles.Add(info.hwndList);
 
         var theme = GetActiveTheme();
         ApplyNativeTheme(info.hwndList, theme.IsDark);
@@ -1333,7 +1365,7 @@ public class SettingsForm : Form
             case ComboBox comboBox:
                 comboBox.BackColor = theme.InputBack;
                 comboBox.ForeColor = theme.Text;
-                comboBox.FlatStyle = theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard;
+                comboBox.FlatStyle = theme.IsDark ? FlatStyle.Popup : FlatStyle.Standard;
                 return;
             case NumericUpDown numericUpDown:
                 numericUpDown.BackColor = theme.InputBack;
@@ -1438,6 +1470,22 @@ public class SettingsForm : Form
 
     protected override void WndProc(ref Message m)
     {
+        if (_settingsDarkModeEnabled &&
+            m.Msg == WM_CTLCOLORLISTBOX &&
+            _comboListBackBrush != IntPtr.Zero)
+        {
+            var listHandle = m.LParam;
+            if (listHandle != IntPtr.Zero && _comboListHandles.Contains(listHandle))
+            {
+                var theme = GetActiveTheme();
+                var hdc = m.WParam;
+                SetTextColor(hdc, ColorTranslator.ToWin32(theme.Text));
+                SetBkColor(hdc, ColorTranslator.ToWin32(theme.InputBack));
+                m.Result = _comboListBackBrush;
+                return;
+            }
+        }
+
         if (m.Msg == WM_APPCOMMAND)
         {
             var appCommand = (int)(((long)m.LParam >> 16) & 0x7FF);
@@ -1462,6 +1510,11 @@ public class SettingsForm : Form
             _uptimeTimer.Stop();
             _uptimeTimer.Dispose();
             _formIcon.Dispose();
+            if (_comboListBackBrush != IntPtr.Zero)
+            {
+                DeleteObject(_comboListBackBrush);
+                _comboListBackBrush = IntPtr.Zero;
+            }
         }
 
         base.Dispose(disposing);
