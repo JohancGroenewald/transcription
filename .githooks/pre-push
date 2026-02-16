@@ -6,9 +6,15 @@ CLOSE_SCRIPT="$REPO_ROOT/.githooks/close-voicetype.ps1"
 
 if [ -f "$CLOSE_SCRIPT" ]; then
   if command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 2500
+    if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
+      echo "[pre-push] close-voicetype did not finish in time."
+      exit 1
+    fi
   elif command -v powershell >/dev/null 2>&1; then
-    powershell -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 2500
+    if ! powershell -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
+      echo "[pre-push] close-voicetype did not finish in time."
+      exit 1
+    fi
   fi
 fi
 
