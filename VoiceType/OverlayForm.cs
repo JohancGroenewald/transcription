@@ -937,11 +937,12 @@ public class OverlayForm : Form
             return;
         }
 
-        if (sender is Label clickedLabel && !string.IsNullOrWhiteSpace(clickedLabel.Text))
+        var textToCopy = GetOverlayTextForCopy(sender);
+        if (!string.IsNullOrWhiteSpace(textToCopy))
         {
             try
             {
-                Clipboard.SetText(clickedLabel.Text);
+                Clipboard.SetText(textToCopy);
             }
             catch
             {
@@ -958,6 +959,16 @@ public class OverlayForm : Form
         var messageId = _tapToCancelMessageId;
         ResetTapToCancel();
         OverlayTapped?.Invoke(this, new OverlayTappedEventArgs(messageId));
+    }
+
+    private string GetOverlayTextForCopy(object? sender)
+    {
+        return sender switch
+        {
+            null => _label.Text,
+            Label => _label.Text,
+            _ => _label.Text
+        };
     }
 
     private void OnOverlayMouseDown(object? sender, MouseEventArgs e)

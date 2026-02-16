@@ -243,7 +243,9 @@ public sealed class OverlayWindowManager : IOverlayManager
             foreach (var overlay in _activeOverlays.Keys.ToList())
             {
                 if (!overlay.IsDisposed && overlay.Visible)
-                    overlay.Hide();
+                    FadeAndDismissOverlay(overlay);
+                else
+                    RemoveOverlayLocked(overlay);
             }
         }
     }
@@ -334,7 +336,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         foreach (var overlay in overlaysToHide)
         {
             if (!overlay.IsDisposed && overlay.Visible)
-                overlay.Hide();
+                FadeAndDismissOverlay(overlay);
+            else
+                RemoveOverlayLocked(overlay);
         }
     }
 
@@ -517,6 +521,30 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.Dispose();
     }
 
+    private void FadeAndDismissOverlay(OverlayForm overlay)
+    {
+        if (overlay.IsDisposed)
+        {
+            RemoveOverlayLocked(overlay);
+            return;
+        }
+
+        if (!overlay.Visible)
+        {
+            RemoveOverlayLocked(overlay);
+            return;
+        }
+
+        var fadeDurationMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 280
+            : Math.Max(1, _overlayFadeDurationMs);
+        var fadeTickIntervalMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 16
+            : Math.Clamp(_overlayFadeTickIntervalMs, 8, 200);
+
+        overlay.FadeOut(0, fadeDurationMs, fadeTickIntervalMs);
+    }
+
     private void UnhookOverlay(OverlayForm overlay)
     {
         overlay.VisibleChanged -= OnOverlayVisibleChanged;
@@ -550,7 +578,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             // Remove the oldest overlay at the bottom of the stack if the stack overflows.
             var oldestOverlay = visibleOverlays[0];
             visibleOverlays.RemoveAt(0);
-            RemoveOverlayLocked(oldestOverlay);
+            FadeAndDismissOverlay(oldestOverlay);
         }
 
         var cursorY = workingArea.Bottom - 4;

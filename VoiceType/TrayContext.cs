@@ -6,8 +6,23 @@ namespace VoiceType;
 
 public class TrayContext : ApplicationContext
 {
-    private static readonly Color CommandOverlayColor = Color.DeepSkyBlue;
-    private static readonly Color InfoTextColor = Color.DeepSkyBlue;
+    private static readonly Color CommandOverlayColor = Color.MediumSlateBlue;
+    private static readonly Color InfoOverlayColor = Color.LightSkyBlue;
+    private static readonly Color ListeningOverlayColor = Color.DodgerBlue;
+    private static readonly Color ProcessingOverlayColor = Color.MediumPurple;
+    private static readonly Color StartupWarningOverlayColor = Color.DarkGoldenrod;
+    private static readonly Color StartupReadyOverlayColor = Color.SpringGreen;
+    private static readonly Color NeutralOverlayColor = Color.SlateGray;
+    private static readonly Color ErrorOverlayColor = Color.IndianRed;
+    private static readonly Color WarningOverlayColor = Color.DarkOrange;
+    private static readonly Color SuccessOverlayColor = Color.MediumSeaGreen;
+    private static readonly Color CommandInfoOverlayColor = Color.CornflowerBlue;
+    private static readonly Color CommandDisabledOverlayColor = Color.DimGray;
+    private static readonly Color VoiceCommandErrorColor = Color.DarkRed;
+    private static readonly Color PreviewNewTextOverlayColor = Color.LimeGreen;
+    private static readonly Color PreviewExistingTextOverlayColor = Color.Gold;
+    private static readonly Color PastedAutoSendSkippedOverlayColor = Color.DarkSeaGreen;
+    private static readonly Color ClipboardFallbackActionColor = Color.OrangeRed;
     private static readonly Color PreviewPrefixColor = Color.FromArgb(255, 180, 255, 180);
 
     private const int PRIMARY_HOTKEY_ID = 1;
@@ -22,9 +37,11 @@ public class TrayContext : ApplicationContext
     private const int AdaptiveOverlayMaxMs = 22000;
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
     private const int RemoteActionPopupCarryoverMs = 1400;
-    private static readonly Color RemoteActionPopupTextColor = Color.Goldenrod;
+    private static readonly Color RemoteActionPopupDefaultColor = Color.Goldenrod;
+    private static readonly Color RemoteActionPopupListenColor = Color.CadetBlue;
+    private static readonly Color RemoteActionPopupSubmitColor = Color.MediumTurquoise;
+    private static readonly Color RemoteActionPopupCloseColor = Color.Crimson;
     private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
-    private static readonly Color ClipboardFallbackActionColor = Color.Goldenrod;
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
@@ -86,7 +103,7 @@ public class TrayContext : ApplicationContext
     private bool _enableShowVoiceCommandsVoiceCommand;
     private int _remoteActionPopupLevel;
     private string _remoteActionPopupMessage = string.Empty;
-    private Color _remoteActionPopupColor = RemoteActionPopupTextColor;
+    private Color _remoteActionPopupColor = RemoteActionPopupDefaultColor;
     private DateTime _remoteActionPopupExpiresUtc;
     private string? _activeTranscribedPreviewOverlayKey;
     private bool _enablePastedTextPrefix = true;
@@ -145,7 +162,7 @@ public class TrayContext : ApplicationContext
             Log.Info("No API key configured");
             ShowOverlay(
                 "No API key — right-click tray icon > Settings",
-                Color.Orange,
+                StartupWarningOverlayColor,
                 5000,
                 overlayKey: "startup-overlay",
                 trackInStack: true);
@@ -155,7 +172,7 @@ public class TrayContext : ApplicationContext
         {
             ShowOverlay(
                 $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
-                Color.LightGreen,
+                StartupReadyOverlayColor,
                 2000,
                 overlayKey: "hello-overlay",
                 trackInStack: true);
@@ -250,13 +267,13 @@ public class TrayContext : ApplicationContext
                     return;
             }
 
-            ShowOverlay("Still processing previous dictation...", InfoTextColor, 2000);
+            ShowOverlay("Still processing previous dictation...", InfoOverlayColor, 2000);
             return;
         }
 
         if (_transcriptionService == null)
         {
-            ShowOverlay("No API key configured — check Settings", Color.Orange);
+            ShowOverlay("No API key configured — check Settings", WarningOverlayColor);
             return;
         }
 
@@ -267,7 +284,7 @@ public class TrayContext : ApplicationContext
             StopListeningOverlay();
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
-            ShowOverlay("Processing voice...", InfoTextColor, 0, overlayKey: ProcessingVoiceOverlayKey);
+            ShowOverlay("Processing voice...", ProcessingOverlayColor, 0, overlayKey: ProcessingVoiceOverlayKey);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
 
@@ -282,7 +299,7 @@ public class TrayContext : ApplicationContext
                 if (metrics.IsLikelySilence)
                 {
                     Log.Info("Skipping transcription because captured audio appears to be silence/noise.");
-                    ShowOverlay("No speech detected", Color.Gray, 2000);
+                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
                     return;
                 }
 
@@ -323,7 +340,7 @@ public class TrayContext : ApplicationContext
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
-                        ShowOverlay("Paste canceled", Color.Gray, 1000);
+                        ShowOverlay("Paste canceled", NeutralOverlayColor, 1000);
                         return;
                     }
 
@@ -336,7 +353,7 @@ public class TrayContext : ApplicationContext
                         if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
                             ShowOverlay(
                                 "Pasted (auto-send skipped)",
-                                Color.LightGreen,
+                                PastedAutoSendSkippedOverlayColor,
                                 1000,
                                 overlayKey: PastedAutoSendSkippedOverlayKey);
 
@@ -345,8 +362,8 @@ public class TrayContext : ApplicationContext
                     else
                     {
                         var adaptiveColor = targetHasExistingText
-                            ? Color.Gold
-                            : Color.LightGreen;
+                            ? PreviewExistingTextOverlayColor
+                            : PreviewNewTextOverlayColor;
                         Log.Info("No paste target, text on clipboard");
                         ShowOverlay(
                             textToInject,
@@ -358,22 +375,22 @@ public class TrayContext : ApplicationContext
                 }
                 else
                 {
-                    ShowOverlay("No speech detected", Color.Gray, 2000);
+                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
                 }
             }
             catch (OperationCanceledException)
             {
                 Log.Info("Transcription canceled (shutdown requested or timeout reached).");
-                ShowOverlay("Transcription canceled or timed out", Color.Salmon, 4000);
+                ShowOverlay("Transcription canceled or timed out", ErrorOverlayColor, 4000);
             }
             catch (Exception ex)
             {
                 Log.Error("Transcription failed", ex);
-                ShowOverlay("Error: " + ex.Message, Color.Salmon, 4000);
+                ShowOverlay("Error: " + ex.Message, ErrorOverlayColor, 4000);
                 if (IsLikelyApiKeyError(ex))
                 {
                     Log.Info("Transcription failed with an authentication-like error. Opening settings for API key update.");
-                    ShowOverlay("API key issue detected — opening settings...", Color.Orange, 1800);
+                    ShowOverlay("API key issue detected — opening settings...", ErrorOverlayColor, 1800);
                     _transcriptionService = null;
                     OpenSettings(focusApiKey: true, restorePreviousFocus: false);
                 }
@@ -403,7 +420,7 @@ public class TrayContext : ApplicationContext
                 _isRecording = false;
                 StopListeningOverlay();
                 Log.Error("Failed to start recording", ex);
-                ShowOverlay("Microphone error: " + ex.Message, Color.Salmon, 4000);
+                ShowOverlay("Microphone error: " + ex.Message, ErrorOverlayColor, 4000);
                 CompleteShutdownIfRequested();
             }
         }
@@ -474,14 +491,14 @@ public class TrayContext : ApplicationContext
 
             if (_isRecording)
             {
-                ShowOverlay("Close requested — finishing current recording...", Color.Gold, 0);
+                ShowOverlay("Close requested — finishing current recording...", WarningOverlayColor, 0);
                 OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
                 return;
             }
 
             if (_isTranscribing)
             {
-                ShowOverlay("Close requested — finishing transcription...", Color.Gold, 0);
+                ShowOverlay("Close requested — finishing transcription...", WarningOverlayColor, 0);
                 return;
             }
 
@@ -551,7 +568,7 @@ public class TrayContext : ApplicationContext
                     Log.Error("Failed to stop recorder while canceling on remote submit.", ex);
                 }
 
-                ShowOverlay("Recording canceled", Color.Gray, 1500);
+                ShowOverlay("Recording canceled", NeutralOverlayColor, 1500);
                 return;
             }
 
@@ -637,7 +654,7 @@ public class TrayContext : ApplicationContext
                 Log.Info($"Surface Pen hotkey unavailable: {_penHotkey}");
                 ShowOverlay(
                     $"Could not register Surface Pen hotkey ({_penHotkey})",
-                    Color.Orange,
+                    WarningOverlayColor,
                     3000);
             }
         }
@@ -711,12 +728,12 @@ public class TrayContext : ApplicationContext
             listeningLevelPercent);
     }
 
-    private void ShowRemoteActionPopup(string action, string? details = null)
+    private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
     {
         if (_remoteActionPopupLevel <= 0)
         {
             _remoteActionPopupMessage = string.Empty;
-            _remoteActionPopupColor = InfoTextColor;
+            _remoteActionPopupColor = RemoteActionPopupDefaultColor;
             _remoteActionPopupExpiresUtc = DateTime.MinValue;
             return;
         }
@@ -725,7 +742,9 @@ public class TrayContext : ApplicationContext
         if (_remoteActionPopupLevel >= 2 && !string.IsNullOrWhiteSpace(details))
             message += $" ({details})";
 
-        SetRemoteActionPopupContext(message, remoteActionColor: RemoteActionPopupTextColor);
+        SetRemoteActionPopupContext(
+            message,
+            remoteActionColor ?? ResolveRemoteActionPopupColor(action));
         ShowRemoteActionOverlay(message);
     }
 
@@ -749,7 +768,7 @@ public class TrayContext : ApplicationContext
 
         _ = _overlayManager.ShowMessage(
             message,
-            RemoteActionPopupTextColor,
+            _remoteActionPopupColor,
             RemoteActionPopupCarryoverMs,
             ContentAlignment.TopLeft,
             centerTextBlock: false,
@@ -786,12 +805,30 @@ public class TrayContext : ApplicationContext
     private Color ResolveRemoteActionPopupColor()
     {
         if (_remoteActionPopupLevel <= 0)
-            return InfoTextColor;
+            return InfoOverlayColor;
 
         if (string.IsNullOrWhiteSpace(_remoteActionPopupMessage) || DateTime.UtcNow > _remoteActionPopupExpiresUtc)
-            return InfoTextColor;
+            return InfoOverlayColor;
 
         return _remoteActionPopupColor;
+    }
+
+    private Color ResolveRemoteActionPopupColor(string action)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+            return RemoteActionPopupDefaultColor;
+
+        var lowered = action.ToLowerInvariant();
+        if (lowered.Contains("close"))
+            return RemoteActionPopupCloseColor;
+
+        if (lowered.Contains("submit"))
+            return RemoteActionPopupSubmitColor;
+
+        if (lowered.Contains("listen"))
+            return RemoteActionPopupListenColor;
+
+        return RemoteActionPopupDefaultColor;
     }
 
     private int GetAdaptiveTranscribedOverlayDurationMs(string displayedText)
@@ -881,7 +918,7 @@ public class TrayContext : ApplicationContext
 
         ShowOverlay(
             BuildListeningOverlayText(),
-            InfoTextColor,
+            ListeningOverlayColor,
             0,
             includeRemoteAction: false,
             overlayKey: "listening-overlay",
@@ -967,8 +1004,8 @@ public class TrayContext : ApplicationContext
         ShowOverlay(
             "Voice commands\n- " + string.Join("\n- ", lines) + suffix,
             enabledCount == 0
-            ? Color.Gray
-                : (fromVoiceCommand ? CommandOverlayColor : InfoTextColor),
+            ? CommandDisabledOverlayColor
+                : (fromVoiceCommand ? CommandOverlayColor : CommandInfoOverlayColor),
             5500,
             ContentAlignment.TopLeft,
             centerTextBlock: true);
@@ -981,12 +1018,12 @@ public class TrayContext : ApplicationContext
             var failedText = fromVoiceCommand
                 ? "Command: submit (no target window)"
                 : "No target window to send Enter";
-            ShowOverlay(failedText, Color.Gold, 1800);
+            ShowOverlay(failedText, VoiceCommandErrorColor, 1800);
             return;
         }
 
         var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
-        var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
+            var sentColor = fromVoiceCommand ? CommandOverlayColor : SuccessOverlayColor;
         ShowOverlay(sentText, sentColor, 1000);
         Log.Info("Enter key sent");
     }
@@ -999,7 +1036,7 @@ public class TrayContext : ApplicationContext
             var existingText = fromVoiceCommand
                 ? $"Command: auto-send {existingStateLabel} (already set)"
                 : $"Auto-send already {existingStateLabel}";
-            var existingColor = fromVoiceCommand ? CommandOverlayColor : Color.Gray;
+            var existingColor = fromVoiceCommand ? CommandOverlayColor : CommandDisabledOverlayColor;
             ShowOverlay(existingText, existingColor, 1200);
             return;
         }
@@ -1015,14 +1052,14 @@ public class TrayContext : ApplicationContext
             var stateText = fromVoiceCommand
                 ? $"Command: auto-send {stateLabel}"
                 : $"Auto-send {stateLabel}";
-            var stateColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
+            var stateColor = fromVoiceCommand ? CommandOverlayColor : SuccessOverlayColor;
             ShowOverlay(stateText, stateColor, 1500);
             Log.Info($"Auto-send set via voice command ({stateLabel})");
         }
         catch (Exception ex)
         {
             Log.Error("Failed to update auto-send setting via voice command", ex);
-            ShowOverlay("Failed to update auto-send setting", Color.Salmon, 2000);
+            ShowOverlay("Failed to update auto-send setting", ErrorOverlayColor, 2000);
         }
     }
 
@@ -1194,8 +1231,8 @@ public class TrayContext : ApplicationContext
         HideTransientOverlaysForTextBox();
 
         var previewColor = targetHasExistingText
-            ? Color.Gold
-            : Color.LightGreen;
+            ? PreviewExistingTextOverlayColor
+            : PreviewNewTextOverlayColor;
         var previewOverlayKey = $"{TranscribedPreviewOverlayKey}-{DateTime.UtcNow.Ticks}";
         _activeTranscribedPreviewOverlayKey = previewOverlayKey;
         var messageId = ShowOverlay(
@@ -1308,3 +1345,4 @@ internal sealed class HotkeyPressedEventArgs : EventArgs
 
     public int HotkeyId { get; }
 }
+
