@@ -6,17 +6,7 @@ function Write-Info([string]$message) {
 
 try {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $projectPath = Join-Path $repoRoot "VoiceType/VoiceType.csproj"
     $debugExePath = Join-Path $repoRoot "VoiceType/bin/Debug/net9.0-windows/VoiceType.exe"
-
-    if ((Get-Command dotnet -ErrorAction SilentlyContinue) -and (Test-Path $projectPath)) {
-        Write-Info "Building Debug app before restart..."
-        & dotnet build $projectPath -c Debug
-        if ($LASTEXITCODE -ne 0) {
-            Write-Info "Build failed (exit code $LASTEXITCODE). Skipping restart."
-            exit 0
-        }
-    }
 
     $runningCandidates = @()
     try {
@@ -37,11 +27,6 @@ try {
         }
     }
     Start-Sleep -Milliseconds 900
-
-    if ((Get-Command dotnet -ErrorAction SilentlyContinue) -and (Test-Path $projectPath)) {
-        Write-Info "Building Debug app before restart..."
-        & dotnet build $projectPath -c Debug | Out-Null
-    }
 
     $preferredPaths = @(
         $debugExePath,
