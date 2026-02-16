@@ -635,7 +635,8 @@ public class TrayContext : ApplicationContext
         string? prefixText = null,
         Color? prefixColor = null,
         string? overlayKey = null,
-        bool trackInStack = true)
+        bool trackInStack = true,
+        bool autoPosition = true)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -666,7 +667,8 @@ public class TrayContext : ApplicationContext
             prefixText,
             prefixColor,
             overlayKey,
-            trackInStack);
+            trackInStack,
+            autoPosition);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -829,7 +831,8 @@ public class TrayContext : ApplicationContext
             0,
             includeRemoteAction: false,
             overlayKey: "listening-overlay",
-            trackInStack: false);
+            trackInStack: false,
+            autoPosition: false);
     }
 
     private string BuildListeningOverlayText()

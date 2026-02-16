@@ -232,7 +232,8 @@ public class OverlayForm : Form
         string? actionText = null,
         Color? actionColor = null,
         string? prefixText = null,
-        Color? prefixColor = null)
+        Color? prefixColor = null,
+        bool autoPosition = true)
     {
         if (InvokeRequired)
         {
@@ -247,7 +248,8 @@ public class OverlayForm : Form
                 actionText,
                 actionColor,
                 prefixText,
-                prefixColor)));
+                prefixColor,
+                autoPosition)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -340,7 +342,8 @@ public class OverlayForm : Form
                 centerTextBlock,
                 _lastShowActionLine,
                 _lastShowPrefixLine);
-            PositionOnScreen(workingArea);
+            if (autoPosition)
+                PositionOnScreen(workingArea);
 
             _fadeTimer.Stop();
             _hideTimer.Stop();

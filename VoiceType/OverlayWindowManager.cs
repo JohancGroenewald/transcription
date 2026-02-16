@@ -61,7 +61,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? prefixText = null,
         Color? prefixColor = null,
         string? overlayKey = null,
-        bool trackInStack = true)
+        bool trackInStack = true,
+        bool autoPosition = true)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -84,7 +85,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     remoteActionText,
                     remoteActionColor,
                     prefixText,
-                    prefixColor);
+                    prefixColor,
+                    autoPosition);
                 if (localMessageId == 0)
                 return 0;
 
@@ -99,7 +101,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = ++_globalMessageId;
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
-                remoteActionColor, prefixText, prefixColor, overlayKey);
+                remoteActionColor, prefixText, prefixColor, overlayKey, autoPosition);
             if (managedOverlay is null)
                 return 0;
 
@@ -115,7 +117,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 remoteActionText,
                 remoteActionColor,
                 prefixText,
-                prefixColor);
+                prefixColor,
+                autoPosition);
 
             if (managedOverlay.LocalMessageId == 0)
             {
@@ -212,9 +215,12 @@ public sealed class OverlayWindowManager : IOverlayManager
         Color? remoteActionColor,
         string? prefixText,
         Color? prefixColor,
-        string? overlayKey)
+        string? overlayKey,
+        bool autoPosition)
     {
         var overlay = _overlayFactory();
+        if (!autoPosition)
+            overlay.Location = Point.Empty;
         overlay.ApplyHudSettings(
             _overlayOpacityPercent,
             _overlayWidthPercent,
