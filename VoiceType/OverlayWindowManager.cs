@@ -8,6 +8,44 @@ namespace VoiceType;
 
 public sealed class OverlayWindowManager : IOverlayManager
 {
+    private sealed class OverlayStackSpine
+    {
+        private readonly List<ManagedOverlay> _stack = [];
+
+        public void Register(ManagedOverlay managedOverlay)
+        {
+            if (_stack.Contains(managedOverlay))
+                return;
+
+            _stack.Add(managedOverlay);
+        }
+
+        public void Remove(ManagedOverlay managedOverlay)
+        {
+            _stack.Remove(managedOverlay);
+        }
+
+        public IReadOnlyList<ManagedOverlay> GetTrackedOverlays()
+        {
+            return _stack
+                .Where(x => !x.Form.IsDisposed && x.Form.Visible && x.TrackInStack)
+                .OrderBy(x => x.Sequence)
+                .ToList();
+        }
+
+        public IReadOnlyList<ManagedOverlay> GetTrackedOverlaysTopToBottom()
+        {
+            return GetTrackedOverlays()
+                .OrderByDescending(x => x.Sequence)
+                .ToList();
+        }
+
+        public void Clear()
+        {
+            _stack.Clear();
+        }
+    }
+
     private sealed class ManagedOverlay
     {
         public ManagedOverlay(OverlayForm form, int sequence, int globalMessageId, string? overlayKey)
@@ -30,7 +68,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     private readonly bool _suppressAutoHide = true;
     private readonly Dictionary<OverlayForm, ManagedOverlay> _activeOverlays = new();
     private readonly Dictionary<string, OverlayForm> _overlaysByKey = new(StringComparer.Ordinal);
-    private readonly List<OverlayForm> _stackOrder = [];
+    private readonly OverlayStackSpine _stackSpine = new();
     private readonly object _sync = new();
     private readonly int _baseWidthClampMin = 260;
     private readonly int _horizontalScreenPadding = 2;
@@ -75,6 +113,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 TryGetActiveOverlay(overlayKey, out var managed))
             {
                 globalMessageId = ++_globalMessageId;
+                var wasTrackedInStack = managed.TrackInStack;
                 var localMessageId = managed.Form.ShowMessage(
                     text,
                     color,
@@ -89,12 +128,12 @@ public sealed class OverlayWindowManager : IOverlayManager
                     prefixColor,
                     autoPosition);
                 if (localMessageId == 0)
-                return 0;
+                    return 0;
 
                 managed.GlobalMessageId = globalMessageId;
                 managed.LocalMessageId = localMessageId;
                 managed.TrackInStack = trackInStack;
-                if (trackInStack)
+                if (wasTrackedInStack || trackInStack)
                     RepositionVisibleOverlaysLocked();
 
                 return globalMessageId;
@@ -103,7 +142,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = ++_globalMessageId;
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
-                remoteActionColor, prefixText, prefixColor, overlayKey, autoPosition, trackInStack);
+                remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack);
             if (managedOverlay is null)
                 return 0;
 
@@ -172,20 +211,18 @@ public sealed class OverlayWindowManager : IOverlayManager
     public void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140)
     {
         var delay = Math.Max(0, delayBetweenMs);
-        List<OverlayForm> orderedOverlays;
+        List<ManagedOverlay> orderedOverlays;
         lock (_sync)
         {
-            orderedOverlays = _stackOrder
-                .Where(x => _activeOverlays.TryGetValue(x, out var managed) &&
-                            !managed.Form.IsDisposed &&
-                            managed.Form.Visible)
-                .OrderByDescending(x => _activeOverlays[x].Sequence)
+            orderedOverlays = _stackSpine
+                .GetTrackedOverlaysTopToBottom()
+                .Where(managed => _activeOverlays.ContainsKey(managed.Form))
                 .ToList();
         }
 
         for (var index = 0; index < orderedOverlays.Count; index++)
         {
-            orderedOverlays[index].FadeOut(index * delay);
+            orderedOverlays[index].Form.FadeOut(index * delay);
         }
     }
 
@@ -200,7 +237,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             }
 
             _activeOverlays.Clear();
-            _stackOrder.Clear();
+            _stackSpine.Clear();
             _overlaysByKey.Clear();
         }
     }
@@ -218,7 +255,6 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? prefixText,
         Color? prefixColor,
         string? overlayKey,
-        bool autoPosition,
         bool trackInStack)
     {
         var overlay = _overlayFactory();
@@ -236,7 +272,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayTapped += OnOverlayTapped;
 
         _activeOverlays.Add(overlay, managed);
-        _stackOrder.Add(overlay);
+        _stackSpine.Register(managed);
         if (!string.IsNullOrWhiteSpace(overlayKey))
             _overlaysByKey[overlayKey] = overlay;
 
@@ -303,10 +339,10 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     private void RemoveOverlayLocked(OverlayForm overlay)
     {
-        if (!_activeOverlays.Remove(overlay, out _))
+        if (!_activeOverlays.Remove(overlay, out var managed))
             return;
 
-        _stackOrder.Remove(overlay);
+        _stackSpine.Remove(managed);
         var overlayKeys = _overlaysByKey
             .Where(pair => ReferenceEquals(pair.Value, overlay))
             .Select(pair => pair.Key)
@@ -325,13 +361,10 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     private void RepositionVisibleOverlaysLocked()
     {
-        var visibleOverlays = _stackOrder
-            .Where(x => _activeOverlays.TryGetValue(x, out var managed) &&
-                        !managed.Form.IsDisposed &&
-                        managed.Form.Visible &&
-                        managed.TrackInStack)
-            .OrderBy(x => _activeOverlays[x].Sequence)
-            .Select(x => x)
+        var visibleOverlays = _stackSpine
+            .GetTrackedOverlays()
+            .Where(managed => _activeOverlays.ContainsKey(managed.Form))
+            .Select(managed => managed.Form)
             .ToList();
 
         if (visibleOverlays.Count == 0)
