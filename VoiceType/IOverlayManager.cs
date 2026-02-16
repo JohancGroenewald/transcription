@@ -36,4 +36,6 @@ public interface IOverlayManager : IDisposable
     void HideAll();
 
     void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);
+
+    void ClearCountdownBar(string overlayKey);
 }

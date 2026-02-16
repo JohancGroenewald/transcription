@@ -6,10 +6,10 @@ namespace VoiceType;
 
 public class OverlayForm : Form
 {
-    private static readonly Color DefaultTextColor = Color.FromArgb(174, 255, 188);
+    private static readonly Color DefaultTextColor = Color.FromArgb(255, 255, 188);
     private const string OverlayFontFamily = "Segoe UI";
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
-    private static readonly Color ActionTextColor = Color.FromArgb(246, 229, 159);
+    private static readonly Color ActionTextColor = Color.FromArgb(255, 229, 159);
     private const int BottomOffset = 18;
     private const int HorizontalMargin = 20;
     private const int MinOverlayWidth = 460;
@@ -23,7 +23,6 @@ public class OverlayForm : Form
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
     private static readonly Color TransparentOverlayBackgroundColor = Color.Fuchsia;
-    private static readonly Color CountdownTrackColor = Color.FromArgb(84, 30, 52, 40);
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -113,7 +112,7 @@ public class OverlayForm : Form
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
-            UseCompatibleTextRendering = true
+            UseCompatibleTextRendering = false
         };
         _actionLabel = new Label
         {
@@ -125,7 +124,7 @@ public class OverlayForm : Form
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
-            UseCompatibleTextRendering = true
+            UseCompatibleTextRendering = false
         };
         _prefixLabel = new Label
         {
@@ -137,7 +136,7 @@ public class OverlayForm : Form
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
-            UseCompatibleTextRendering = true
+            UseCompatibleTextRendering = false
         };
         Controls.Add(_actionLabel);
         Controls.Add(_prefixLabel);
@@ -409,6 +408,18 @@ public class OverlayForm : Form
         return messageId;
     }
 
+    public void ClearCountdownBar()
+    {
+        if (InvokeRequired)
+        {
+            Invoke((Action)ClearCountdownBar);
+            return;
+        }
+
+        ResetCountdown();
+        Invalidate();
+    }
+
     public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
     {
         if (InvokeRequired)
@@ -418,7 +429,7 @@ public class OverlayForm : Form
         }
 
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
-        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 1));
+        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 2));
         _showOverlayBorder = showBorder;
         _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
         Opacity = _baseOpacity;
@@ -616,9 +627,6 @@ public class OverlayForm : Form
         var trackTop = Math.Max(2, Height - CountdownBarBottomMargin - CountdownBarHeight);
         var trackBounds = new Rectangle(trackMargin, trackTop, trackWidth, CountdownBarHeight);
         var fillWidth = (int)Math.Round(trackBounds.Width * remainingFraction);
-
-        using var trackBrush = new SolidBrush(CountdownTrackColor);
-        e.Graphics.FillRectangle(trackBrush, trackBounds);
 
         if (fillWidth > 0)
         {

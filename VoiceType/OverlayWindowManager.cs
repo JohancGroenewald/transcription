@@ -239,6 +239,23 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void ClearCountdownBar(string overlayKey)
+    {
+        if (string.IsNullOrWhiteSpace(overlayKey))
+            return;
+
+        lock (_sync)
+        {
+            if (!_overlaysByKey.TryGetValue(overlayKey, out var overlay))
+                return;
+
+            if (overlay.IsDisposed)
+                return;
+
+            overlay.ClearCountdownBar();
+        }
+    }
+
     public void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140)
     {
         var delay = delayBetweenMs < 0

@@ -6,9 +6,8 @@ namespace VoiceType;
 
 public class TrayContext : ApplicationContext
 {
-    private static readonly string[] MicSpinnerFrames = ["|", "/", "-", "\\"];
     private static readonly Color CommandOverlayColor = Color.DeepSkyBlue;
-    private static readonly Color PreviewPrefixColor = Color.FromArgb(120, 180, 255, 180);
+    private static readonly Color PreviewPrefixColor = Color.FromArgb(255, 180, 255, 180);
 
     private const int PRIMARY_HOTKEY_ID = 1;
     private const int PEN_HOTKEY_ID = 2;
@@ -23,6 +22,7 @@ public class TrayContext : ApplicationContext
     private const int TranscribedOverlayCancelWindowPaddingMs = 560;
     private const int RemoteActionPopupCarryoverMs = 1400;
     private static readonly Color RemoteActionPopupTextColor = Color.Goldenrod;
+    private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -86,9 +86,7 @@ public class TrayContext : ApplicationContext
     private bool _enablePastedTextPrefix = true;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
-    private bool _useSimpleMicSpinner;
     private int _micLevelPercent;
-    private int _micSpinnerIndex;
     private DateTime _recordingStartedAtUtc;
     private bool _shutdownRequested;
     private bool _isShuttingDown;
@@ -183,7 +181,6 @@ public class TrayContext : ApplicationContext
         _remoteActionPopupLevel = AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel);
         _enablePastedTextPrefix = config.EnablePastedTextPrefix;
         _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
-        _useSimpleMicSpinner = config.UseSimpleMicSpinner;
         Log.Info(
             $"Config loaded: model={config.Model}, autoEnter={_autoEnter}, overlayPopups={_enableOverlayPopups}, " +
             $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
@@ -820,7 +817,6 @@ public class TrayContext : ApplicationContext
 
         _recordingStartedAtUtc = DateTime.UtcNow;
         Interlocked.Exchange(ref _micLevelPercent, 0);
-        _micSpinnerIndex = 0;
         UpdateListeningOverlay();
         _listeningOverlayTimer.Start();
     }
@@ -859,14 +855,6 @@ public class TrayContext : ApplicationContext
         var elapsedText = elapsed.TotalHours >= 1
             ? elapsed.ToString(@"hh\:mm\:ss")
             : elapsed.ToString(@"mm\:ss");
-
-        if (_useSimpleMicSpinner)
-        {
-            var frame = MicSpinnerFrames[_micSpinnerIndex];
-            _micSpinnerIndex = (_micSpinnerIndex + 1) % MicSpinnerFrames.Length;
-
-            return $"Listening {frame} {elapsedText}\nPress {BuildOverlayHotkeyHint()} to stop";
-        }
 
         var meter = BuildMicActivityMeter(levelPercent, 18);
         return $"Listening... {elapsedText}\nMic {meter} {levelPercent,3}%\nPress {BuildOverlayHotkeyHint()} to stop";
@@ -1168,6 +1156,7 @@ public class TrayContext : ApplicationContext
             includeRemoteAction: false,
             prefixText: prefixTextForPreview,
             prefixColor: PreviewPrefixColor,
+            overlayKey: TranscribedPreviewOverlayKey,
             animateHide: true);
         if (messageId == 0 || durationMs <= 0)
             return TranscribedPreviewDecision.TimeoutPaste;
@@ -1199,6 +1188,7 @@ public class TrayContext : ApplicationContext
         if (!resolved)
             return false;
 
+        _overlayManager.ClearCountdownBar(TranscribedPreviewOverlayKey);
         Log.Info($"Pending paste preview resolved: {decision} via {source}.");
         return true;
     }
@@ -1209,6 +1199,7 @@ public class TrayContext : ApplicationContext
         if (!resolved)
             return false;
 
+        _overlayManager.ClearCountdownBar(TranscribedPreviewOverlayKey);
         Log.Info($"Pending paste preview resolved: {TranscribedPreviewDecision.Cancel} via {source}.");
         return true;
     }
