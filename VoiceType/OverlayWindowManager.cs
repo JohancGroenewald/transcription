@@ -62,6 +62,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         public int LocalMessageId { get; set; }
         public bool TrackInStack { get; set; } = true;
         public string? OverlayKey { get; set; }
+        public bool IsRemoteAction { get; set; }
     }
 
     private readonly Func<OverlayForm> _overlayFactory;
@@ -111,6 +112,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool trackInStack = true,
         bool autoPosition = true,
         bool autoHide = false,
+        bool isRemoteAction = false,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0)
@@ -163,7 +165,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = ++_globalMessageId;
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
-                remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack);
+                remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack, isRemoteAction);
             if (managedOverlay is null)
                 return 0;
 
@@ -296,6 +298,39 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void DismissRemoteActionOverlays()
+    {
+        List<ManagedOverlay> remoteOverlays;
+        lock (_sync)
+        {
+            remoteOverlays = _stackSpine
+                .GetTrackedOverlaysTopToBottom()
+                .Where(managed => managed.IsRemoteAction && _activeOverlays.ContainsKey(managed.Form))
+                .ToList();
+        }
+
+        if (remoteOverlays.Count == 0)
+            return;
+
+        var fadeDurationMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 260
+            : Math.Max(1, _overlayFadeDurationMs);
+        var fadeDelayMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 40
+            : Math.Max(0, _fadeDelayBetweenOverlaysMs);
+        var fadeTickIntervalMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 16
+            : Math.Clamp(_overlayFadeTickIntervalMs, 8, 200);
+
+        for (var index = 0; index < remoteOverlays.Count; index++)
+        {
+            remoteOverlays[index].Form.FadeOut(
+                index * fadeDelayMs,
+                fadeDurationMs,
+                fadeTickIntervalMs);
+        }
+    }
+
     public void Dispose()
     {
         lock (_sync)
@@ -326,7 +361,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? prefixText,
         Color? prefixColor,
         string? overlayKey,
-        bool trackInStack)
+        bool trackInStack,
+        bool isRemoteAction)
     {
         var overlay = _overlayFactory();
         overlay.ApplyHudSettings(
@@ -337,7 +373,8 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         var managed = new ManagedOverlay(overlay, ++_stackSequence, globalMessageId: 0, overlayKey: overlayKey)
         {
-            TrackInStack = trackInStack
+            TrackInStack = trackInStack,
+            IsRemoteAction = isRemoteAction
         };
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;

@@ -261,6 +261,7 @@ public class TrayContext : ApplicationContext
             StopListeningOverlay();
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
+            _overlayManager.DismissRemoteActionOverlays();
             ShowOverlay("Processing voice...", Color.CornflowerBlue, 0);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
@@ -683,6 +684,7 @@ public class TrayContext : ApplicationContext
             trackInStack,
             autoPosition,
             autoHide,
+            isRemoteAction: false,
             animateHide,
             showListeningLevelMeter,
             listeningLevelPercent);
@@ -719,6 +721,7 @@ public class TrayContext : ApplicationContext
             centerTextBlock: false,
             showCountdownBar: false,
             tapToCancel: false,
+            isRemoteAction: true,
             autoHide: false);
     }
 

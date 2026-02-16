@@ -23,6 +23,7 @@ public interface IOverlayManager : IDisposable
         bool trackInStack = true,
         bool autoPosition = true,
         bool autoHide = false,
+        bool isRemoteAction = false,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0);
@@ -38,6 +39,8 @@ public interface IOverlayManager : IDisposable
     void HideAll();
 
     void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);
+
+    void DismissRemoteActionOverlays();
 
     void ClearCountdownBar(string overlayKey);
 }

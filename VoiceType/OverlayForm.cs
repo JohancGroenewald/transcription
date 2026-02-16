@@ -23,7 +23,7 @@ public class OverlayForm : Form
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
     private const int ListeningMeterWidth = 230;
-    private const int ListeningMeterHeight = 20;
+    private const int ListeningMeterHeight = 22;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
@@ -165,21 +165,10 @@ public class OverlayForm : Form
         _countdownTimer = new System.Windows.Forms.Timer { Interval = CountdownTickIntervalMs };
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
         MouseClick += OnOverlayMouseClick;
-        MouseDown += OnOverlayMouseDown;
-        MouseMove += OnOverlayMouseMove;
-        MouseUp += OnOverlayMouseUp;
+        RegisterDragHandlers(this);
         _label.MouseClick += OnOverlayMouseClick;
-        _label.MouseDown += OnOverlayMouseDown;
-        _label.MouseMove += OnOverlayMouseMove;
-        _label.MouseUp += OnOverlayMouseUp;
         _actionLabel.MouseClick += OnOverlayMouseClick;
-        _actionLabel.MouseDown += OnOverlayMouseDown;
-        _actionLabel.MouseMove += OnOverlayMouseMove;
-        _actionLabel.MouseUp += OnOverlayMouseUp;
         _prefixLabel.MouseClick += OnOverlayMouseClick;
-        _prefixLabel.MouseDown += OnOverlayMouseDown;
-        _prefixLabel.MouseMove += OnOverlayMouseMove;
-        _prefixLabel.MouseUp += OnOverlayMouseUp;
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -996,6 +985,16 @@ public class OverlayForm : Form
         _dragStarted = false;
         _isHorizontalDragging = false;
         Cursor = Cursors.Default;
+    }
+
+    private void RegisterDragHandlers(Control control)
+    {
+        control.MouseDown += OnOverlayMouseDown;
+        control.MouseMove += OnOverlayMouseMove;
+        control.MouseUp += OnOverlayMouseUp;
+
+        foreach (Control child in control.Controls)
+            RegisterDragHandlers(child);
     }
 
     private static Color EnsureOpaque(Color color)
