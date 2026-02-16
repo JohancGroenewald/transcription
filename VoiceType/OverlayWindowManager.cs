@@ -71,6 +71,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     private readonly object _sync = new();
     private readonly int _baseWidthClampMin = 260;
     private readonly int _horizontalScreenPadding = 2;
+    private int _stackHorizontalOffsetPx;
 
     private int _stackSequence;
     private int _globalMessageId;
@@ -308,6 +309,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             _activeOverlays.Clear();
             _stackSpine.Clear();
             _overlaysByKey.Clear();
+            _stackHorizontalOffsetPx = 0;
         }
     }
 
@@ -339,6 +341,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         };
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;
+        overlay.OverlayHorizontalDragged += OnOverlayHorizontalDragged;
 
         _activeOverlays.Add(overlay, managed);
         _stackSpine.Register(managed);
@@ -406,6 +409,21 @@ public sealed class OverlayWindowManager : IOverlayManager
         OverlayTapped?.Invoke(this, globalMessageId);
     }
 
+    private void OnOverlayHorizontalDragged(object? sender, OverlayHorizontalDraggedEventArgs e)
+    {
+        if (sender is not OverlayForm overlay)
+            return;
+
+        if (!_activeOverlays.ContainsKey(overlay))
+            return;
+
+        if (e.DeltaX == 0)
+            return;
+
+        _stackHorizontalOffsetPx += e.DeltaX;
+        RepositionVisibleOverlaysLocked();
+    }
+
     private void RemoveOverlayLocked(OverlayForm overlay)
     {
         if (!_activeOverlays.Remove(overlay, out var managed))
@@ -426,6 +444,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     {
         overlay.VisibleChanged -= OnOverlayVisibleChanged;
         overlay.OverlayTapped -= OnOverlayTapped;
+        overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 
     private void RepositionVisibleOverlaysLocked()
@@ -437,7 +456,10 @@ public sealed class OverlayWindowManager : IOverlayManager
             .ToList();
 
         if (visibleOverlays.Count == 0)
+        {
+            _stackHorizontalOffsetPx = 0;
             return;
+        }
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
         var maximumStackHeight = Math.Max(0, workingArea.Height - 4);
@@ -461,8 +483,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         foreach (var overlay in visibleOverlays)
         {
             var width = Math.Clamp(overlay.Width, _baseWidthClampMin, Math.Max(_baseWidthClampMin, workingArea.Width - 24));
+            var centeredX = workingArea.Left + ((workingArea.Width - width) / 2);
             var x = Math.Clamp(
-                workingArea.Left + ((workingArea.Width - width) / 2),
+                centeredX + _stackHorizontalOffsetPx,
                 workingArea.Left + _horizontalScreenPadding,
                 Math.Max(workingArea.Left + _horizontalScreenPadding, workingArea.Right - width - _horizontalScreenPadding));
 

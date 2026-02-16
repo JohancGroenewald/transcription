@@ -23,7 +23,7 @@ public class OverlayForm : Form
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
     private const int ListeningMeterWidth = 230;
-    private const int ListeningMeterHeight = 12;
+    private const int ListeningMeterHeight = 20;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
@@ -86,8 +86,14 @@ public class OverlayForm : Form
     private bool _animateOnAutoHide;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastCenterTextBlock;
+    private bool _isHorizontalDragging;
+    private bool _dragStarted;
+    private int _lastDragScreenX;
+    private bool _ignoreNextClickAfterDrag;
+    private const int HorizontalDragActivationThreshold = 3;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
+    public event EventHandler<OverlayHorizontalDraggedEventArgs>? OverlayHorizontalDragged;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -122,7 +128,7 @@ public class OverlayForm : Form
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
-            UseCompatibleTextRendering = false
+            UseCompatibleTextRendering = true
         };
         _actionLabel = new Label
         {
@@ -134,19 +140,19 @@ public class OverlayForm : Form
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
-            UseCompatibleTextRendering = false
+            UseCompatibleTextRendering = true
         };
         _prefixLabel = new Label
         {
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Regular),
-            ForeColor = Color.FromArgb(150, 173, 255, 173),
+            ForeColor = Color.FromArgb(255, 173, 255, 173),
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
-            UseCompatibleTextRendering = false
+            UseCompatibleTextRendering = true
         };
         Controls.Add(_actionLabel);
         Controls.Add(_prefixLabel);
@@ -159,9 +165,21 @@ public class OverlayForm : Form
         _countdownTimer = new System.Windows.Forms.Timer { Interval = CountdownTickIntervalMs };
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
         MouseClick += OnOverlayMouseClick;
+        MouseDown += OnOverlayMouseDown;
+        MouseMove += OnOverlayMouseMove;
+        MouseUp += OnOverlayMouseUp;
         _label.MouseClick += OnOverlayMouseClick;
+        _label.MouseDown += OnOverlayMouseDown;
+        _label.MouseMove += OnOverlayMouseMove;
+        _label.MouseUp += OnOverlayMouseUp;
         _actionLabel.MouseClick += OnOverlayMouseClick;
+        _actionLabel.MouseDown += OnOverlayMouseDown;
+        _actionLabel.MouseMove += OnOverlayMouseMove;
+        _actionLabel.MouseUp += OnOverlayMouseUp;
         _prefixLabel.MouseClick += OnOverlayMouseClick;
+        _prefixLabel.MouseDown += OnOverlayMouseDown;
+        _prefixLabel.MouseMove += OnOverlayMouseMove;
+        _prefixLabel.MouseUp += OnOverlayMouseUp;
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -295,12 +313,12 @@ public class OverlayForm : Form
         try
         {
             _label.Text = text;
-            _label.ForeColor = color ?? DefaultTextColor;
+            _label.ForeColor = EnsureOpaque(color ?? DefaultTextColor);
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
-            _lastActionColor = actionColor ?? ActionTextColor;
+            _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
             _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
             _lastPrefixText = string.IsNullOrWhiteSpace(prefixText) ? string.Empty : prefixText;
-            _lastPrefixColor = prefixColor ?? DefaultTextColor;
+            _lastPrefixColor = EnsureOpaque(prefixColor ?? DefaultTextColor);
             _lastShowPrefixLine = !string.IsNullOrWhiteSpace(_lastPrefixText);
             _lastDurationMs = durationMs;
             _lastTextAlign = textAlign;
@@ -921,6 +939,12 @@ public class OverlayForm : Form
         if (e.Button != MouseButtons.Left)
             return;
 
+        if (_ignoreNextClickAfterDrag)
+        {
+            _ignoreNextClickAfterDrag = false;
+            return;
+        }
+
         if (!_tapToCancelEnabled)
             return;
 
@@ -930,6 +954,53 @@ public class OverlayForm : Form
         var messageId = _tapToCancelMessageId;
         ResetTapToCancel();
         OverlayTapped?.Invoke(this, new OverlayTappedEventArgs(messageId));
+    }
+
+    private void OnOverlayMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left)
+            return;
+
+        _dragStarted = true;
+        _isHorizontalDragging = false;
+        _ignoreNextClickAfterDrag = false;
+        _lastDragScreenX = PointToScreen(e.Location).X;
+    }
+
+    private void OnOverlayMouseMove(object? sender, MouseEventArgs e)
+    {
+        if (!_dragStarted)
+            return;
+
+        var screenX = PointToScreen(e.Location).X;
+        var deltaX = screenX - _lastDragScreenX;
+        if (!_isHorizontalDragging)
+        {
+            if (Math.Abs(deltaX) < HorizontalDragActivationThreshold)
+                return;
+
+            _isHorizontalDragging = true;
+            Cursor = Cursors.SizeWE;
+        }
+
+        _lastDragScreenX = screenX;
+        OverlayHorizontalDragged?.Invoke(this, new OverlayHorizontalDraggedEventArgs(deltaX));
+    }
+
+    private void OnOverlayMouseUp(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left)
+            return;
+
+        _ignoreNextClickAfterDrag = _isHorizontalDragging;
+        _dragStarted = false;
+        _isHorizontalDragging = false;
+        Cursor = Cursors.Default;
+    }
+
+    private static Color EnsureOpaque(Color color)
+    {
+        return Color.FromArgb(255, color.R, color.G, color.B);
     }
 
     private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
@@ -969,4 +1040,14 @@ public sealed class OverlayTappedEventArgs : EventArgs
     }
 
     public int MessageId { get; }
+}
+
+public sealed class OverlayHorizontalDraggedEventArgs : EventArgs
+{
+    public OverlayHorizontalDraggedEventArgs(int deltaX)
+    {
+        DeltaX = deltaX;
+    }
+
+    public int DeltaX { get; }
 }
