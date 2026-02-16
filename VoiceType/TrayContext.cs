@@ -725,7 +725,7 @@ public class TrayContext : ApplicationContext
             autoPosition,
             autoHide,
             isRemoteAction: false,
-            isClipboardCopyAction: false,
+            isClipboardCopyAction: isClipboardCopyAction,
             animateHide,
             showListeningLevelMeter,
             listeningLevelPercent,
