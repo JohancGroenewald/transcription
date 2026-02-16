@@ -727,8 +727,7 @@ public class TrayContext : ApplicationContext
             workingArea.Left + 2,
             Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
         var y = listeningBounds.Top - _actionOverlay.Height - 10;
-        if (y < workingArea.Top + 2)
-            y = Math.Min(workingArea.Bottom - _actionOverlay.Height - 2, listeningBounds.Bottom + 6);
+        y = Math.Max(workingArea.Top + 2, y);
 
         _actionOverlay.Size = new Size(width, _actionOverlay.Height);
         _actionOverlay.Location = new Point(x, Math.Max(workingArea.Top + 2, y));
