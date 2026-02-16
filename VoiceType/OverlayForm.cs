@@ -7,6 +7,7 @@ namespace VoiceType;
 public class OverlayForm : Form
 {
     private static readonly Color DefaultTextColor = Color.FromArgb(174, 255, 188);
+    private const string OverlayFontFamily = "Segoe UI";
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
     private static readonly Color ActionTextColor = Color.FromArgb(246, 229, 159);
     private const int BottomOffset = 18;
@@ -107,33 +108,36 @@ public class OverlayForm : Form
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            Font = new Font("Consolas", AppConfig.DefaultOverlayFontSizePt, FontStyle.Bold),
+            Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt, FontStyle.Regular),
             ForeColor = DefaultTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
-            AutoEllipsis = false
+            AutoEllipsis = false,
+            UseCompatibleTextRendering = true
         };
         _actionLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font("Consolas", Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Regular),
+            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Regular),
             ForeColor = ActionTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
-            Visible = false
+            Visible = false,
+            UseCompatibleTextRendering = true
         };
         _prefixLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font("Consolas", Math.Max(8, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Regular),
+            Font = new Font(OverlayFontFamily, Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Regular),
             ForeColor = Color.FromArgb(150, 173, 255, 173),
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
-            Visible = false
+            Visible = false,
+            UseCompatibleTextRendering = true
         };
         Controls.Add(_actionLabel);
         Controls.Add(_prefixLabel);
@@ -414,19 +418,19 @@ public class OverlayForm : Form
         }
 
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
-        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(fontSizePt);
+        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 1));
         _showOverlayBorder = showBorder;
         _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
         Opacity = _baseOpacity;
 
         var oldFont = _label.Font;
-        _label.Font = new Font("Consolas", _overlayFontSizePt, FontStyle.Bold);
+        _label.Font = new Font(OverlayFontFamily, _overlayFontSizePt, FontStyle.Regular);
         oldFont.Dispose();
         var oldActionFont = _actionLabel.Font;
-        _actionLabel.Font = new Font("Consolas", Math.Max(9, _overlayFontSizePt - 2), FontStyle.Regular);
+        _actionLabel.Font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 2), FontStyle.Regular);
         oldActionFont.Dispose();
         var oldPrefixFont = _prefixLabel.Font;
-        _prefixLabel.Font = new Font("Consolas", Math.Max(8, _overlayFontSizePt - 3), FontStyle.Regular);
+        _prefixLabel.Font = new Font(OverlayFontFamily, Math.Max(9, _overlayFontSizePt - 3), FontStyle.Regular);
         oldPrefixFont.Dispose();
 
         if (Visible)

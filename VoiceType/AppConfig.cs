@@ -20,7 +20,7 @@ public class AppConfig
     public const int DefaultOverlayWidthPercent = 62;
     public const int MinOverlayWidthPercent = 35;
     public const int MaxOverlayWidthPercent = 90;
-    public const int DefaultOverlayFontSizePt = 12;
+    public const int DefaultOverlayFontSizePt = 13;
     public const int MinOverlayFontSizePt = 9;
     public const int MaxOverlayFontSizePt = 22;
     public const int DefaultOverlayFadeProfile = 2;
