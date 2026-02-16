@@ -24,7 +24,7 @@ public class OverlayForm : Form
     private const int CountdownBarBottomMargin = 7;
     private const int ListeningMeterWidth = 230;
     private const int ListeningMeterHeight = 26;
-    private const int ListeningMeterTopOffsetPx = 25;
+    private const int ListeningMeterTopOffsetPx = 55;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
