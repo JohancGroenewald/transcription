@@ -314,6 +314,7 @@ public class TrayContext : ApplicationContext
                     var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
                     var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
                     var previewText = prefixTextForPreview is null ? textToInject : text;
+                    HideProcessingVoiceOverlay();
                     var previewDecision = await ShowCancelableTranscribedPreviewAsync(
                         previewText,
                         adaptiveDurationMs,
