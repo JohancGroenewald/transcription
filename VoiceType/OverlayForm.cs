@@ -248,7 +248,8 @@ public class OverlayForm : Form
         string? prefixText = null,
         Color? prefixColor = null,
         bool autoPosition = true,
-        bool animateOnHide = false)
+        bool animateOnHide = false,
+        bool autoHide = false)
     {
         if (InvokeRequired)
         {
@@ -265,7 +266,8 @@ public class OverlayForm : Form
                 prefixText,
                 prefixColor,
                 autoPosition,
-                animateOnHide)));
+                animateOnHide,
+                autoHide)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -370,7 +372,7 @@ public class OverlayForm : Form
             _fadeMessageId = 0;
             ConfigureCountdown(showCountdownBar, durationMs, messageId);
             ConfigureTapToCancel(tapToCancel, messageId);
-            if (durationMs > 0)
+            if (autoHide && durationMs > 0)
             {
                 _hideTimerMessageId = messageId;
                 _hideTimer.Interval = durationMs;

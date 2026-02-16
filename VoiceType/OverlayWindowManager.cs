@@ -124,10 +124,14 @@ public sealed class OverlayWindowManager : IOverlayManager
             {
                 globalMessageId = ++_globalMessageId;
                 var wasTrackedInStack = managed.TrackInStack;
+                var effectiveDurationMs = autoHide
+                    ? ComputeDurationMs(durationMs, autoHide)
+                    : durationMs;
+
                 var localMessageId = managed.Form.ShowMessage(
                     text,
                     color,
-                    ComputeDurationMs(durationMs, autoHide),
+                    effectiveDurationMs,
                     textAlign,
                     centerTextBlock,
                     effectiveCountdownBar,
@@ -137,7 +141,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     prefixText,
                     prefixColor,
                     autoPosition,
-                    animateHide);
+                    animateHide,
+                    autoHide);
                 if (localMessageId == 0)
                     return 0;
 
@@ -158,10 +163,14 @@ public sealed class OverlayWindowManager : IOverlayManager
                 return 0;
 
             managedOverlay.GlobalMessageId = globalMessageId;
+            var createDurationMs = autoHide
+                ? ComputeDurationMs(durationMs, autoHide)
+                : durationMs;
+
             managedOverlay.LocalMessageId = managedOverlay.Form.ShowMessage(
                 text,
                 color,
-                ComputeDurationMs(durationMs, autoHide),
+                createDurationMs,
                 textAlign,
                 centerTextBlock,
                 effectiveCountdownBar,
@@ -171,7 +180,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 prefixText,
                 prefixColor,
                 autoPosition,
-                animateHide);
+                animateHide,
+                autoHide);
 
             if (managedOverlay.LocalMessageId == 0)
             {
