@@ -298,6 +298,24 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public int GetStackHorizontalOffset()
+    {
+        lock (_sync)
+        {
+            return _stackHorizontalOffsetPx;
+        }
+    }
+
+    public void SetStackHorizontalOffset(int offsetPx)
+    {
+        lock (_sync)
+        {
+            _stackHorizontalOffsetPx = offsetPx;
+        }
+
+        RepositionVisibleOverlaysLocked();
+    }
+
     public void DismissRemoteActionOverlays()
     {
         List<ManagedOverlay> remoteOverlays;
@@ -493,10 +511,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             .ToList();
 
         if (visibleOverlays.Count == 0)
-        {
-            _stackHorizontalOffsetPx = 0;
             return;
-        }
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
         var maximumStackHeight = Math.Max(0, workingArea.Height - 4);

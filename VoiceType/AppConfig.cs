@@ -30,6 +30,7 @@ public class AppConfig
     public const int FastOverlayFadeProfile = 1;
     public const int BalancedOverlayFadeProfile = 2;
     public const int GentleOverlayFadeProfile = 3;
+    public const int DefaultOverlayStackHorizontalOffsetPx = 0;
     public const int MinRemoteActionPopupLevel = 0;
     public const int DefaultRemoteActionPopupLevel = 1;
     public const int MaxRemoteActionPopupLevel = 2;
@@ -101,6 +102,7 @@ public class AppConfig
     public bool EnableTranscriptionPrompt { get; set; } = true;
     public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
     public bool EnableSettingsDarkMode { get; set; }
+    public int OverlayStackHorizontalOffsetPx { get; set; } = DefaultOverlayStackHorizontalOffsetPx;
 
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -137,6 +139,7 @@ public class AppConfig
         public bool EnableTranscriptionPrompt { get; set; } = true;
         public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
         public bool EnableSettingsDarkMode { get; set; }
+        public int OverlayStackHorizontalOffsetPx { get; set; } = DefaultOverlayStackHorizontalOffsetPx;
     }
 
     public static AppConfig Load()
@@ -179,7 +182,8 @@ public class AppConfig
                 TranscriptionPrompt = string.IsNullOrWhiteSpace(configFile.TranscriptionPrompt)
                     ? DefaultTranscriptionPrompt
                     : configFile.TranscriptionPrompt,
-                EnableSettingsDarkMode = configFile.EnableSettingsDarkMode
+                EnableSettingsDarkMode = configFile.EnableSettingsDarkMode,
+                OverlayStackHorizontalOffsetPx = configFile.OverlayStackHorizontalOffsetPx
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -222,7 +226,8 @@ public class AppConfig
                 TranscriptionPrompt = string.IsNullOrWhiteSpace(TranscriptionPrompt)
                     ? DefaultTranscriptionPrompt
                     : TranscriptionPrompt,
-                EnableSettingsDarkMode = EnableSettingsDarkMode
+                EnableSettingsDarkMode = EnableSettingsDarkMode,
+                OverlayStackHorizontalOffsetPx = OverlayStackHorizontalOffsetPx
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);

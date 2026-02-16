@@ -166,6 +166,7 @@ public class OverlayForm : Form
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
         MouseClick += OnOverlayMouseClick;
         RegisterDragHandlers(this);
+        MouseCaptureChanged += OnMouseCaptureChanged;
         _label.MouseClick += OnOverlayMouseClick;
         _actionLabel.MouseClick += OnOverlayMouseClick;
         _prefixLabel.MouseClick += OnOverlayMouseClick;
@@ -953,7 +954,8 @@ public class OverlayForm : Form
         _dragStarted = true;
         _isHorizontalDragging = false;
         _ignoreNextClickAfterDrag = false;
-        _lastDragScreenX = PointToScreen(e.Location).X;
+        _lastDragScreenX = Cursor.Position.X;
+        Capture = true;
     }
 
     private void OnOverlayMouseMove(object? sender, MouseEventArgs e)
@@ -961,12 +963,15 @@ public class OverlayForm : Form
         if (!_dragStarted)
             return;
 
-        var screenX = PointToScreen(e.Location).X;
+        var screenX = Cursor.Position.X;
         var deltaX = screenX - _lastDragScreenX;
         if (!_isHorizontalDragging)
         {
             if (Math.Abs(deltaX) < HorizontalDragActivationThreshold)
+            {
+                _lastDragScreenX = screenX;
                 return;
+            }
 
             _isHorizontalDragging = true;
             Cursor = Cursors.SizeWE;
@@ -981,10 +986,29 @@ public class OverlayForm : Form
         if (e.Button != MouseButtons.Left)
             return;
 
+        EndHorizontalDrag();
+    }
+
+    private void OnMouseCaptureChanged(object? sender, EventArgs e)
+    {
+        if (!Capture)
+            EndHorizontalDrag();
+    }
+
+    private void EndHorizontalDrag()
+    {
+        if (!_dragStarted && !_isHorizontalDragging)
+        {
+            Capture = false;
+            Cursor = Cursors.Default;
+            return;
+        }
+
         _ignoreNextClickAfterDrag = _isHorizontalDragging;
         _dragStarted = false;
         _isHorizontalDragging = false;
         Cursor = Cursors.Default;
+        Capture = false;
     }
 
     private void RegisterDragHandlers(Control control)

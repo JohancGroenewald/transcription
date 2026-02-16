@@ -43,4 +43,8 @@ public interface IOverlayManager : IDisposable
     void DismissRemoteActionOverlays();
 
     void ClearCountdownBar(string overlayKey);
+
+    int GetStackHorizontalOffset();
+
+    void SetStackHorizontalOffset(int offsetPx);
 }

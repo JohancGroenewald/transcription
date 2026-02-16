@@ -23,6 +23,7 @@ public class TrayContext : ApplicationContext
     private const int RemoteActionPopupCarryoverMs = 1400;
     private static readonly Color RemoteActionPopupTextColor = Color.Goldenrod;
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
+    private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -172,6 +173,7 @@ public class TrayContext : ApplicationContext
             config.OverlayFontSizePt,
             config.ShowOverlayBorder);
         _overlayManager.ApplyFadeProfile(config.OverlayFadeProfile);
+        _overlayManager.SetStackHorizontalOffset(config.OverlayStackHorizontalOffsetPx);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
@@ -262,7 +264,7 @@ public class TrayContext : ApplicationContext
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
             _overlayManager.DismissRemoteActionOverlays();
-            ShowOverlay("Processing voice...", Color.CornflowerBlue, 0);
+                ShowOverlay("Processing voice...", Color.CornflowerBlue, 0, overlayKey: ProcessingVoiceOverlayKey);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
 
@@ -1127,12 +1129,27 @@ public class TrayContext : ApplicationContext
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
+            PersistOverlayStackHorizontalOffset();
             _overlayManager.Dispose();
             _uiDispatcher.Dispose();
             _recorder.Dispose();
             _appIcon.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    private void PersistOverlayStackHorizontalOffset()
+    {
+        try
+        {
+            var config = AppConfig.Load();
+            config.OverlayStackHorizontalOffsetPx = _overlayManager.GetStackHorizontalOffset();
+            config.Save();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to persist overlay stack position.", ex);
+        }
     }
 
     private async Task<TranscribedPreviewDecision> ShowCancelableTranscribedPreviewAsync(
