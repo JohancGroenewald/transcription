@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace VoiceType;
 
@@ -91,6 +92,7 @@ public class OverlayForm : Form
     private int _fadeTickIntervalMs = DefaultFadeTickIntervalMs;
     private bool _animateOnAutoHide;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
+    private bool _lastUseFullWidthText;
     private bool _lastCenterTextBlock;
     private bool _isHorizontalDragging;
     private bool _dragStarted;
@@ -298,7 +300,8 @@ public class OverlayForm : Form
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
         bool allowCopyTap = true,
-        string? copyText = null)
+        string? copyText = null,
+        bool fullWidthText = false)
     {
         if (InvokeRequired)
         {
@@ -320,7 +323,8 @@ public class OverlayForm : Form
                 showListeningLevelMeter,
                 listeningLevelPercent,
                 allowCopyTap,
-                copyText)));
+                copyText,
+                fullWidthText)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -347,6 +351,7 @@ public class OverlayForm : Form
             _showListeningLevelMeter = showListeningLevelMeter;
             _listeningLevelPercent = Math.Clamp(listeningLevelPercent, 0, 100);
             _allowCopyTap = allowCopyTap;
+            _lastUseFullWidthText = fullWidthText;
 
             var workingArea = GetTargetScreen().WorkingArea;
             var preferredWidth = Math.Clamp(
@@ -416,6 +421,7 @@ public class OverlayForm : Form
                 actionLineHeight,
                 prefixLineHeight,
                 textAlign,
+                fullWidthText,
                 centerTextBlock,
                 _lastShowActionLine,
                 _lastShowPrefixLine);
@@ -511,7 +517,8 @@ public class OverlayForm : Form
                 _lastActionText,
                 _lastActionColor,
                 _lastPrefixText,
-                _lastPrefixColor);
+                _lastPrefixColor,
+                fullWidthText: _lastUseFullWidthText);
     }
 
     public void PromoteToTopmost()
@@ -584,18 +591,20 @@ public class OverlayForm : Form
         int measuredActionLineHeight,
         int measuredPrefixLineHeight,
         ContentAlignment textAlign,
+        bool fullWidthText,
         bool centerTextBlock,
         bool hasActionText,
         bool hasPrefixText)
     {
-        _actionLabel.Visible = hasActionText;
-        _prefixLabel.Visible = hasPrefixText;
+        _actionLabel.Visible = !fullWidthText && hasActionText;
+        _prefixLabel.Visible = !fullWidthText && hasPrefixText;
         _label.Dock = DockStyle.None;
         _actionLabel.Dock = DockStyle.None;
         _prefixLabel.Dock = DockStyle.None;
         _label.TextAlign = ContentAlignment.MiddleCenter;
         _actionLabel.TextAlign = ContentAlignment.MiddleCenter;
         _prefixLabel.TextAlign = ContentAlignment.MiddleCenter;
+        _label.Visible = !fullWidthText;
         var actionLineHeight = Math.Max(0, measuredActionLineHeight);
         var prefixLineHeight = Math.Max(0, measuredPrefixLineHeight);
         var metaAreaHeight = actionLineHeight + prefixLineHeight + (hasActionText ? ActionLineSpacing : 0)
@@ -678,6 +687,8 @@ public class OverlayForm : Form
         }
 
         DrawListeningLevelMeter(e.Graphics);
+        if (_lastUseFullWidthText)
+            DrawFullWidthText(e.Graphics);
 
         if (!TryGetCountdownProgress(out var remainingFraction))
             return;
@@ -695,6 +706,181 @@ public class OverlayForm : Form
             using var fillBrush = new SolidBrush(fillColor);
             e.Graphics.FillRectangle(fillBrush, fillBounds);
         }
+    }
+
+    private void DrawFullWidthText(Graphics graphics)
+    {
+        DrawFullWidthTextBlock(_label.Text, _label.Font, _label.Bounds, _label.ForeColor, graphics);
+        if (_lastShowActionLine)
+            DrawFullWidthTextBlock(_actionLabel.Text, _actionLabel.Font, _actionLabel.Bounds, _actionLabel.ForeColor, graphics);
+
+        if (_lastShowPrefixLine)
+            DrawFullWidthTextBlock(_prefixLabel.Text, _prefixLabel.Font, _prefixLabel.Bounds, _prefixLabel.ForeColor, graphics);
+    }
+
+    private void DrawFullWidthTextBlock(string? text, Font font, Rectangle bounds, Color color, Graphics graphics)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        var lines = BuildFullWidthLines(graphics, text, font, Math.Max(1, bounds.Width));
+        if (lines.Count == 0)
+            return;
+
+        var lineHeight = Math.Max(1, (int)Math.Ceiling(graphics.MeasureString("M", font).Height));
+        var totalHeight = lineHeight * lines.Count;
+        var startY = bounds.Top + Math.Max(0, (bounds.Height - totalHeight) / 2);
+        var y = startY;
+
+        foreach (var line in lines)
+        {
+            if (line.ShouldJustify)
+            {
+                DrawJustifiedLine(graphics, line.Text, font, bounds, color, lineHeight, y);
+            }
+            else
+            {
+                DrawStandardJustifiedLine(graphics, line.Text, font, bounds, color, y, lineHeight);
+            }
+
+            y += lineHeight;
+        }
+    }
+
+    private void DrawStandardJustifiedLine(
+        Graphics graphics,
+        string text,
+        Font font,
+        Rectangle bounds,
+        Color color,
+        int y,
+        int lineHeight)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        using var brush = new SolidBrush(color);
+        var layout = new RectangleF(bounds.Left, y, bounds.Width, lineHeight);
+        using var format = new StringFormat(StringFormatFlags.NoWrap)
+        {
+            LineAlignment = StringAlignment.Near,
+            Alignment = StringAlignment.Near
+        };
+        graphics.DrawString(text, font, brush, layout, format);
+    }
+
+    private void DrawJustifiedLine(
+        Graphics graphics,
+        string text,
+        Font font,
+        Rectangle bounds,
+        Color color,
+        int lineHeight,
+        int y)
+    {
+        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length <= 1)
+        {
+            DrawStandardJustifiedLine(graphics, text, font, bounds, color, y, lineHeight);
+            return;
+        }
+
+        var spaceWidth = MeasureTextWidth(graphics, " ", font);
+        var wordSizes = new int[words.Length];
+        var used = 0;
+        for (var i = 0; i < words.Length; i++)
+        {
+            var width = MeasureTextWidth(graphics, words[i], font);
+            wordSizes[i] = width;
+            used += width;
+        }
+
+        var gapCount = words.Length - 1;
+        var spaceBudget = (bounds.Width - used - (spaceWidth * gapCount));
+        if (spaceBudget <= 0)
+        {
+            DrawStandardJustifiedLine(graphics, text, font, bounds, color, y, lineHeight);
+            return;
+        }
+
+        var baseExtra = spaceBudget / gapCount;
+        var remainder = spaceBudget % gapCount;
+
+        using var brush = new SolidBrush(color);
+        var cursorX = bounds.Left;
+        for (var i = 0; i < words.Length; i++)
+        {
+            graphics.DrawString(words[i], font, brush, cursorX, y);
+            cursorX += wordSizes[i];
+            if (i + 1 >= words.Length)
+                continue;
+
+            cursorX += spaceWidth + baseExtra + (i < remainder ? 1 : 0);
+        }
+    }
+
+    private static int MeasureTextWidth(Graphics graphics, string text, Font font)
+    {
+        var size = TextRenderer.MeasureText(
+            graphics,
+            text,
+            font,
+            new Size(int.MaxValue / 4, int.MaxValue / 4),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        return size.Width;
+    }
+
+    private static List<(string Text, bool ShouldJustify)> BuildFullWidthLines(
+        Graphics graphics,
+        string text,
+        Font font,
+        int maxWidthPx)
+    {
+        if (maxWidthPx <= 0)
+            return new List<(string, bool)>();
+
+        var result = new List<(string, bool)>();
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+
+        foreach (var paragraphLine in lines)
+        {
+            var normalizedParagraph = paragraphLine.Replace("\r", string.Empty);
+            var words = normalizedParagraph.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length == 0)
+            {
+                result.Add((string.Empty, false));
+                continue;
+            }
+
+            var currentLine = string.Empty;
+            foreach (var word in words)
+            {
+                var candidate = currentLine.Length == 0
+                    ? word
+                    : $"{currentLine} {word}";
+
+                if (MeasureTextWidth(graphics, candidate, font) <= maxWidthPx)
+                {
+                    currentLine = candidate;
+                    continue;
+                }
+
+                if (currentLine.Length > 0)
+                {
+                    result.Add((currentLine, true));
+                    currentLine = word;
+                    continue;
+                }
+
+                result.Add((word, false));
+                currentLine = string.Empty;
+            }
+
+            if (currentLine.Length > 0)
+                result.Add((currentLine, false));
+        }
+
+        return result;
     }
 
     private void DrawListeningLevelMeter(Graphics graphics)

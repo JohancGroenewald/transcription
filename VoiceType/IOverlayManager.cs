@@ -29,7 +29,8 @@ public interface IOverlayManager : IDisposable
         bool animateHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
-        string? copyText = null);
+        string? copyText = null,
+        bool fullWidthText = false);
 
     void ApplyHudSettings(
         int opacityPercent,

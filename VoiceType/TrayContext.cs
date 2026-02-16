@@ -690,7 +690,8 @@ public class TrayContext : ApplicationContext
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
         bool isClipboardCopyAction = false,
-        string? copyText = null)
+        string? copyText = null,
+        bool fullWidthText = true)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -729,7 +730,8 @@ public class TrayContext : ApplicationContext
             animateHide,
             showListeningLevelMeter,
             listeningLevelPercent,
-            copyText);
+            copyText,
+            fullWidthText);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
@@ -782,7 +784,8 @@ public class TrayContext : ApplicationContext
             showCountdownBar: false,
             tapToCancel: false,
             isRemoteAction: true,
-            autoHide: false);
+            autoHide: false,
+            fullWidthText: true);
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)

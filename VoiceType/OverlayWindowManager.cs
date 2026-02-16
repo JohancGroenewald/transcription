@@ -120,7 +120,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool animateHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
-        string? copyText = null)
+        string? copyText = null,
+        bool fullWidthText = false)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -156,7 +157,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     showListeningLevelMeter,
                     listeningLevelPercent,
                     !isClipboardCopyAction,
-                    copyText);
+                    copyText,
+                    fullWidthText);
                 if (localMessageId == 0)
                     return 0;
 
@@ -201,7 +203,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 showListeningLevelMeter,
                 listeningLevelPercent,
                 !isClipboardCopyAction,
-                copyText);
+                copyText,
+                fullWidthText);
 
             if (managedOverlay.LocalMessageId == 0)
             {
