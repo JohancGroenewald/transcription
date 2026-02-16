@@ -4,6 +4,18 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$REPO_ROOT/.githooks/bump-version.ps1"
 CLOSE_SCRIPT="$REPO_ROOT/.githooks/close-voicetype.ps1"
 PROJECT="$REPO_ROOT/VoiceType/VoiceType.csproj"
+if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
+  exit 0
+fi
+
+if [ -f "$SCRIPT" ]; then
+  if command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
+  elif command -v powershell >/dev/null 2>&1; then
+    powershell -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
+  fi
+fi
+
 if [ -f "$CLOSE_SCRIPT" ]; then
   if command -v pwsh >/dev/null 2>&1; then
     if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
@@ -26,18 +38,6 @@ if command -v dotnet >/dev/null 2>&1 && [ -f "$PROJECT" ]; then
 elif [ -f "$PROJECT" ]; then
   echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run compile gate."
   exit 1
-fi
-
-if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
-  exit 0
-fi
-
-if [ -f "$SCRIPT" ]; then
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
-  elif command -v powershell >/dev/null 2>&1; then
-    powershell -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
-  fi
 fi
 
 exit 0
