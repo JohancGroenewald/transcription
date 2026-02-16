@@ -755,9 +755,12 @@ public class TrayContext : ApplicationContext
 
     private void HideTransientOverlaysForTextBox()
     {
-        _overlayManager.HideOverlay("listening-overlay");
-        _overlayManager.HideOverlay(PastedAutoSendSkippedOverlayKey);
-        _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
+        _overlayManager.HideOverlays(new[]
+        {
+            "listening-overlay",
+            PastedAutoSendSkippedOverlayKey,
+            ProcessingVoiceOverlayKey
+        });
         _overlayManager.DismissRemoteActionOverlays();
     }
 

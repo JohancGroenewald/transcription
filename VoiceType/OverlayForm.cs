@@ -10,6 +10,7 @@ public class OverlayForm : Form
     private const string OverlayFontFamily = "Segoe UI";
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
     private static readonly Color ActionTextColor = Color.FromArgb(255, 229, 159);
+    private const string CopiedToClipboardNoticeText = "Copied to clipboard — Ctrl+V to paste";
     private const int BottomOffset = 18;
     private const int HorizontalMargin = 20;
     private const int MinOverlayWidth = 460;
@@ -943,6 +944,7 @@ public class OverlayForm : Form
             try
             {
                 Clipboard.SetText(textToCopy);
+                ShowCopiedToClipboardActionLine();
             }
             catch
             {
@@ -969,6 +971,55 @@ public class OverlayForm : Form
             Label => _label.Text,
             _ => _label.Text
         };
+    }
+
+    private void ShowCopiedToClipboardActionLine()
+    {
+        var existingActionText = _lastActionText?.Trim() ?? string.Empty;
+        _lastActionText = string.IsNullOrWhiteSpace(existingActionText)
+            ? CopiedToClipboardNoticeText
+            : existingActionText.Contains(CopiedToClipboardNoticeText)
+                ? existingActionText
+                : $"{existingActionText}\n{CopiedToClipboardNoticeText}";
+        _lastActionColor = EnsureOpaque(_actionLabel.ForeColor);
+        _lastShowActionLine = true;
+        _actionLabel.Text = _lastActionText;
+        _actionLabel.ForeColor = _lastActionColor;
+        _actionLabel.Visible = true;
+
+        var workingWidth = Math.Max(1, Width - Padding.Horizontal);
+        var labelSize = TextRenderer.MeasureText(
+            _label.Text,
+            _label.Font,
+            new Size(workingWidth, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        var actionSize = TextRenderer.MeasureText(
+            _lastActionText,
+            _actionLabel.Font,
+            new Size(workingWidth, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        var prefixSize = _lastShowPrefixLine
+            ? TextRenderer.MeasureText(
+                _lastPrefixText,
+                _prefixLabel.Font,
+                new Size(workingWidth, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix)
+            : Size.Empty;
+
+        var actionHeight = Math.Max(18, actionSize.Height + 2);
+        var prefixHeight = _lastShowPrefixLine
+            ? Math.Max(16, prefixSize.Height + 2)
+            : 0;
+        ConfigureLabelLayout(
+            labelSize,
+            actionHeight,
+            prefixHeight,
+            _lastTextAlign,
+            _lastCenterTextBlock,
+            _lastShowActionLine,
+            _lastShowPrefixLine);
+        _actionLabel.BringToFront();
+        Invalidate(invalidateChildren: true);
     }
 
     private void OnOverlayMouseDown(object? sender, MouseEventArgs e)

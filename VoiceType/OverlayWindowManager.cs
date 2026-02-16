@@ -238,16 +238,17 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public void HideAll()
     {
+        List<OverlayForm> overlaysToHide;
         lock (_sync)
         {
-            foreach (var overlay in _activeOverlays.Keys.ToList())
-            {
-                if (!overlay.IsDisposed && overlay.Visible)
-                    FadeAndDismissOverlay(overlay);
-                else
-                    RemoveOverlayLocked(overlay);
-            }
+            overlaysToHide = _stackSpine
+                .GetTrackedOverlaysTopToBottom()
+                .Where(managed => _activeOverlays.ContainsKey(managed.Form))
+                .Select(managed => managed.Form)
+                .ToList();
         }
+
+        FadeOverlaysTopToBottom(overlaysToHide);
     }
 
     public void ClearCountdownBar(string overlayKey)
@@ -333,13 +334,44 @@ public sealed class OverlayWindowManager : IOverlayManager
                 .ToList();
         }
 
-        foreach (var overlay in overlaysToHide)
+        if (overlaysToHide.Count == 0)
+            return;
+
+        FadeOverlaysTopToBottom(
+            ReorderOverlaysForDismissal(overlaysToHide)
+                .ToList());
+    }
+
+    public void HideOverlays(IEnumerable<string> overlayKeys)
+    {
+        if (overlayKeys is null)
+            return;
+
+        var requestedKeys = overlayKeys
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct()
+            .ToList();
+
+        if (requestedKeys.Count == 0)
+            return;
+
+        var overlaysToHide = new List<OverlayForm>();
+        lock (_sync)
         {
-            if (!overlay.IsDisposed && overlay.Visible)
-                FadeAndDismissOverlay(overlay);
-            else
-                RemoveOverlayLocked(overlay);
+            foreach (var key in requestedKeys)
+            {
+                overlaysToHide.AddRange(
+                    _overlaysByKey
+                        .Where(pair => string.Equals(pair.Key, key, StringComparison.Ordinal))
+                        .Select(pair => pair.Value));
+            }
         }
+
+        if (overlaysToHide.Count == 0)
+            return;
+
+        FadeOverlaysTopToBottom(
+            ReorderOverlaysForDismissal(overlaysToHide));
     }
 
     public void DismissRemoteActionOverlays()
@@ -521,7 +553,46 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.Dispose();
     }
 
-    private void FadeAndDismissOverlay(OverlayForm overlay)
+    private List<OverlayForm> ReorderOverlaysForDismissal(IEnumerable<OverlayForm> overlays)
+    {
+        var orderedOverlays = _stackSpine
+            .GetTrackedOverlaysTopToBottom()
+            .Where(managed => overlays.Contains(managed.Form))
+            .Select(managed => managed.Form)
+            .Distinct()
+            .ToList();
+
+        foreach (var overlay in overlays)
+        {
+            if (!orderedOverlays.Contains(overlay))
+                orderedOverlays.Add(overlay);
+        }
+
+        return orderedOverlays;
+    }
+
+    private void FadeOverlaysTopToBottom(IEnumerable<OverlayForm> overlays)
+    {
+        var overlaysToHide = overlays?
+            .Distinct()
+            .ToList();
+
+        if (overlaysToHide == null || overlaysToHide.Count == 0)
+            return;
+
+        var fadeDelayMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 40
+            : Math.Max(0, _fadeDelayBetweenOverlaysMs);
+
+        for (var index = 0; index < overlaysToHide.Count; index++)
+        {
+            FadeAndDismissOverlay(
+                overlaysToHide[index],
+                index * fadeDelayMs);
+        }
+    }
+
+    private void FadeAndDismissOverlay(OverlayForm overlay, int delayMs = 0)
     {
         if (overlay.IsDisposed)
         {
@@ -542,7 +613,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             ? 16
             : Math.Clamp(_overlayFadeTickIntervalMs, 8, 200);
 
-        overlay.FadeOut(0, fadeDurationMs, fadeTickIntervalMs);
+        overlay.FadeOut(Math.Max(0, delayMs), fadeDurationMs, fadeTickIntervalMs);
     }
 
     private void UnhookOverlay(OverlayForm overlay)
