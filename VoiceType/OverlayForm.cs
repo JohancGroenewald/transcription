@@ -9,7 +9,6 @@ public class OverlayForm : Form
     private static readonly Color DefaultTextColor = Color.FromArgb(255, 255, 188);
     private const string OverlayFontFamily = "Segoe UI";
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
-    private static readonly Color CopyTapBorderColor = Color.FromArgb(255, 192, 255, 192);
     private static readonly Color ActionTextColor = Color.FromArgb(255, 229, 159);
     private const int BottomOffset = 18;
     private const int HorizontalMargin = 20;
@@ -997,7 +996,7 @@ public class OverlayForm : Form
             return;
         }
 
-        _activeBorderColor = visible ? CopyTapBorderColor : BorderColor;
+        _activeBorderColor = visible ? EnsureOpaque(_label.ForeColor) : BorderColor;
         _showCopyTapFeedbackBorder = visible;
         Invalidate();
     }
