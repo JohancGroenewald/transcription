@@ -144,7 +144,7 @@ public class TrayContext : ApplicationContext
         }
         else
         {
-            ShowOverlay($"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate", Color.LightGreen, 2000);
+            ShowOverlay($"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})", Color.LightGreen, 2000);
         }
 
         Log.Info("VoiceType started successfully");
