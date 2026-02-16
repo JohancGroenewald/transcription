@@ -109,6 +109,7 @@ public class TrayContext : ApplicationContext
     private DateTime _remoteActionPopupExpiresUtc;
     private string? _activeTranscribedPreviewOverlayKey;
     private bool _enablePastedTextPrefix = true;
+    private bool _enablePreviewPlaybackCleanup;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
     private int _micLevelPercent;
@@ -202,6 +203,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.SetStackHorizontalOffset(config.OverlayStackHorizontalOffsetPx);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
+        _enablePreviewPlaybackCleanup = config.EnablePreviewPlaybackCleanup;
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
@@ -1257,6 +1259,7 @@ public class TrayContext : ApplicationContext
     {
         HideTransientOverlaysForTextBox();
 
+        var previewDurationMs = GetAudioDurationMsForPreview(audioDataForPlayback) ?? durationMs;
         var previewColor = targetHasExistingText
             ? PreviewExistingTextOverlayColor
             : PreviewNewTextOverlayColor;
@@ -1265,7 +1268,7 @@ public class TrayContext : ApplicationContext
         var messageId = ShowOverlay(
             text,
             previewColor,
-            durationMs,
+            previewDurationMs,
             showCountdownBar: true,
             tapToCancel: true,
             includeRemoteAction: false,
@@ -1276,7 +1279,7 @@ public class TrayContext : ApplicationContext
             overlayKey: previewOverlayKey,
             animateHide: true,
             fullWidthText: true);
-        if (messageId == 0 || durationMs <= 0)
+        if (messageId == 0 || previewDurationMs <= 0)
         {
             _activeTranscribedPreviewOverlayKey = null;
             return TranscribedPreviewDecision.TimeoutPaste;
@@ -1287,7 +1290,7 @@ public class TrayContext : ApplicationContext
         var decisionTask = _previewCoordinator.Begin(messageId);
         try
         {
-            var waitMs = durationMs + TranscribedOverlayCancelWindowPaddingMs;
+            var waitMs = previewDurationMs + TranscribedOverlayCancelWindowPaddingMs;
             var completed = await Task.WhenAny(decisionTask, Task.Delay(waitMs));
             if (completed == decisionTask)
                 return decisionTask.Result;
@@ -1304,12 +1307,37 @@ public class TrayContext : ApplicationContext
         }
     }
 
+    private static int? GetAudioDurationMsForPreview(byte[]? audioDataForPlayback)
+    {
+        if (audioDataForPlayback is null || audioDataForPlayback.Length == 0)
+            return null;
+
+        try
+        {
+            using var audioStream = new MemoryStream(audioDataForPlayback);
+            using var waveReader = new WaveFileReader(audioStream);
+            var totalMs = (int)Math.Ceiling(waveReader.TotalTime.TotalMilliseconds);
+            return totalMs > 0 ? totalMs : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to read recorded audio duration for preview countdown.", ex);
+            return null;
+        }
+    }
+
     private void StartPreviewPlayback(byte[]? audioDataForPlayback)
     {
         if (_shutdownCancellation.IsCancellationRequested)
             return;
 
         if (audioDataForPlayback is null || audioDataForPlayback.Length == 0)
+            return;
+
+        var playbackAudio = _enablePreviewPlaybackCleanup
+            ? ApplyPreviewCleanupPass(audioDataForPlayback)
+            : audioDataForPlayback;
+        if (playbackAudio is null || playbackAudio.Length == 0)
             return;
 
         StopPreviewPlayback();
@@ -1320,7 +1348,70 @@ public class TrayContext : ApplicationContext
             _previewPlaybackCancellation = playbackCancellation;
         }
 
-        _ = PlayRecordedPreviewAudioAsync(audioDataForPlayback, playbackCancellation);
+        _ = PlayRecordedPreviewAudioAsync(playbackAudio, playbackCancellation);
+    }
+
+    private static byte[]? ApplyPreviewCleanupPass(byte[] audioDataForPlayback)
+    {
+        try
+        {
+            using var audioStream = new MemoryStream(audioDataForPlayback);
+            using var waveReader = new WaveFileReader(audioStream);
+            if (waveReader.WaveFormat.Encoding != WaveFormatEncoding.Pcm ||
+                waveReader.WaveFormat.BitsPerSample != 16)
+            {
+                return audioDataForPlayback;
+            }
+
+            var sampleProvider = waveReader.ToSampleProvider();
+            var samples = new List<float>();
+            var sampleBuffer = new float[1024];
+            long sampleCount = 0;
+            double sumSquares = 0;
+            while (true)
+            {
+                var read = sampleProvider.Read(sampleBuffer, 0, sampleBuffer.Length);
+                if (read <= 0)
+                    break;
+
+                for (var i = 0; i < read; i++)
+                {
+                    var sample = sampleBuffer[i];
+                    samples.Add(sample);
+                    sumSquares += sample * sample;
+                    sampleCount++;
+                }
+            }
+
+            if (sampleCount <= 0)
+                return audioDataForPlayback;
+
+            var currentRms = Math.Sqrt(sumSquares / sampleCount);
+            if (currentRms <= 0.0001)
+                return audioDataForPlayback;
+
+            const float targetRms = 0.12f;
+            var gain = Math.Clamp((float)(targetRms / currentRms), 0.6f, 2.5f);
+
+            using var outputStream = new MemoryStream();
+            using (var writer = new WaveFileWriter(outputStream, waveReader.WaveFormat))
+            {
+                foreach (var sample in samples)
+                {
+                    var normalizedSample = Math.Clamp(MathF.Tanh(sample * gain), -1f, 1f);
+                    var pcmSample = (short)MathF.Round(normalizedSample * short.MaxValue);
+                    writer.WriteByte((byte)(pcmSample & 0xFF));
+                    writer.WriteByte((byte)((pcmSample >> 8) & 0xFF));
+                }
+            }
+
+            return outputStream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to apply preview audio cleanup pass.", ex);
+            return audioDataForPlayback;
+        }
     }
 
     private async Task PlayRecordedPreviewAudioAsync(

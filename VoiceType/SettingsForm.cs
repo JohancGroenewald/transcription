@@ -72,6 +72,7 @@ public class SettingsForm : Form
     private readonly ComboBox _overlayFadeProfileCombo;
     private readonly CheckBox _showOverlayBorderCheck;
     private readonly CheckBox _useSimpleMicSpinnerCheck;
+    private readonly CheckBox _enablePreviewPlaybackCleanupCheck;
     private readonly ComboBox _remoteActionPopupLevelCombo;
     private readonly CheckBox _enablePastedTextPrefixCheck;
     private readonly TextBox _pastedTextPrefixTextBox;
@@ -299,7 +300,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 21,
+            RowCount = 22,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -456,6 +457,13 @@ public class SettingsForm : Form
             Margin = new Padding(0, 8, 0, 0)
         };
 
+        _enablePreviewPlaybackCleanupCheck = new CheckBox
+        {
+            Text = "Enable preview playback cleanup pass",
+            AutoSize = true,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+
         var lblRemoteActionPopupLevel = new Label
         {
             Text = "Remote action pop-up level",
@@ -607,28 +615,30 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_showOverlayBorderCheck, 2);
         behaviorLayout.Controls.Add(_useSimpleMicSpinnerCheck, 0, 9);
         behaviorLayout.SetColumnSpan(_useSimpleMicSpinnerCheck, 2);
-        behaviorLayout.Controls.Add(lblRemoteActionPopupLevel, 0, 10);
-        behaviorLayout.Controls.Add(_remoteActionPopupLevelCombo, 1, 10);
-        behaviorLayout.Controls.Add(_enablePastedTextPrefixCheck, 0, 11);
+        behaviorLayout.Controls.Add(_enablePreviewPlaybackCleanupCheck, 0, 10);
+        behaviorLayout.SetColumnSpan(_enablePreviewPlaybackCleanupCheck, 2);
+        behaviorLayout.Controls.Add(lblRemoteActionPopupLevel, 0, 11);
+        behaviorLayout.Controls.Add(_remoteActionPopupLevelCombo, 1, 11);
+        behaviorLayout.Controls.Add(_enablePastedTextPrefixCheck, 0, 12);
         behaviorLayout.SetColumnSpan(_enablePastedTextPrefixCheck, 2);
-        behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 12);
-        behaviorLayout.Controls.Add(_pastedTextPrefixTextBox, 1, 12);
-        behaviorLayout.Controls.Add(_enableTranscriptionPromptCheck, 0, 18);
+        behaviorLayout.Controls.Add(lblPastedTextPrefix, 0, 13);
+        behaviorLayout.Controls.Add(_pastedTextPrefixTextBox, 1, 13);
+        behaviorLayout.Controls.Add(_enableTranscriptionPromptCheck, 0, 19);
         behaviorLayout.SetColumnSpan(_enableTranscriptionPromptCheck, 2);
-        behaviorLayout.Controls.Add(_transcriptionPromptTextBox, 0, 19);
+        behaviorLayout.Controls.Add(_transcriptionPromptTextBox, 0, 20);
         behaviorLayout.SetColumnSpan(_transcriptionPromptTextBox, 2);
-        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 13);
+        behaviorLayout.Controls.Add(_enablePenHotkeyCheck, 0, 14);
         behaviorLayout.SetColumnSpan(_enablePenHotkeyCheck, 2);
-        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 14);
-        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 14);
-        behaviorLayout.Controls.Add(penValidationLabel, 0, 15);
+        behaviorLayout.Controls.Add(_penHotkeyLabel, 0, 15);
+        behaviorLayout.Controls.Add(_penHotkeyBox, 1, 15);
+        behaviorLayout.Controls.Add(penValidationLabel, 0, 16);
         behaviorLayout.SetColumnSpan(penValidationLabel, 2);
-        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 16);
+        behaviorLayout.Controls.Add(_penHotkeyValidationResult, 0, 17);
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
-        behaviorLayout.Controls.Add(_settingsDarkModeCheck, 0, 17);
+        behaviorLayout.Controls.Add(_settingsDarkModeCheck, 0, 18);
         behaviorLayout.SetColumnSpan(_settingsDarkModeCheck, 2);
-        behaviorLayout.Controls.Add(_overlayFadeProfileLabel, 0, 20);
-        behaviorLayout.Controls.Add(_overlayFadeProfileCombo, 1, 20);
+        behaviorLayout.Controls.Add(_overlayFadeProfileLabel, 0, 21);
+        behaviorLayout.Controls.Add(_overlayFadeProfileCombo, 1, 21);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new ThemedGroupBox
@@ -1032,6 +1042,7 @@ public class SettingsForm : Form
             _overlayFadeProfileCombo.Items.Count - 1);
         _showOverlayBorderCheck.Checked = config.ShowOverlayBorder;
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
+        _enablePreviewPlaybackCleanupCheck.Checked = config.EnablePreviewPlaybackCleanup;
         _remoteActionPopupLevelCombo.SelectedIndex = Math.Clamp(
             AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel),
             0,
@@ -1080,6 +1091,7 @@ public class SettingsForm : Form
                 AppConfig.MaxOverlayFadeProfile),
             ShowOverlayBorder = _showOverlayBorderCheck.Checked,
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
+            EnablePreviewPlaybackCleanup = _enablePreviewPlaybackCleanupCheck.Checked,
             RemoteActionPopupLevel = Math.Clamp(
                 _remoteActionPopupLevelCombo.SelectedIndex,
                 AppConfig.MinRemoteActionPopupLevel,
@@ -1187,6 +1199,7 @@ public class SettingsForm : Form
         _overlayFadeProfileCombo.Enabled = enabled;
         _showOverlayBorderCheck.Enabled = enabled;
         _useSimpleMicSpinnerCheck.Enabled = enabled;
+        _enablePreviewPlaybackCleanupCheck.Enabled = enabled;
 
         // Labels do not render theme-aware when disabled; keep them enabled and adjust color instead.
         var theme = GetActiveTheme();
