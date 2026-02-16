@@ -636,7 +636,8 @@ public class TrayContext : ApplicationContext
         Color? prefixColor = null,
         string? overlayKey = null,
         bool trackInStack = true,
-        bool autoPosition = true)
+        bool autoPosition = true,
+        bool autoHide = true)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -668,7 +669,8 @@ public class TrayContext : ApplicationContext
             prefixColor,
             overlayKey,
             trackInStack,
-            autoPosition);
+            autoPosition,
+            autoHide);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)

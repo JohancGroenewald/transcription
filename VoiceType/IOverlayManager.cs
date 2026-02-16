@@ -21,7 +21,8 @@ public interface IOverlayManager : IDisposable
         Color? prefixColor = null,
         string? overlayKey = null,
         bool trackInStack = true,
-        bool autoPosition = true);
+        bool autoPosition = true,
+        bool autoHide = true);
 
     void ApplyHudSettings(
         int opacityPercent,

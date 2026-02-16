@@ -65,7 +65,6 @@ public sealed class OverlayWindowManager : IOverlayManager
     }
 
     private readonly Func<OverlayForm> _overlayFactory;
-    private readonly bool _suppressAutoHide = false;
     private readonly Dictionary<OverlayForm, ManagedOverlay> _activeOverlays = new();
     private readonly Dictionary<string, OverlayForm> _overlaysByKey = new(StringComparer.Ordinal);
     private readonly OverlayStackSpine _stackSpine = new();
@@ -101,11 +100,13 @@ public sealed class OverlayWindowManager : IOverlayManager
         Color? prefixColor = null,
         string? overlayKey = null,
         bool trackInStack = true,
-        bool autoPosition = true)
+        bool autoPosition = true,
+        bool autoHide = true)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
 
+        var effectiveCountdownBar = autoHide && showCountdownBar;
         var globalMessageId = 0;
         lock (_sync)
         {
@@ -117,10 +118,10 @@ public sealed class OverlayWindowManager : IOverlayManager
                 var localMessageId = managed.Form.ShowMessage(
                     text,
                     color,
-                    ComputeDurationMs(durationMs),
+                    ComputeDurationMs(durationMs, autoHide),
                     textAlign,
                     centerTextBlock,
-                    _suppressAutoHide ? false : showCountdownBar,
+                    effectiveCountdownBar,
                     tapToCancel,
                     remoteActionText,
                     remoteActionColor,
@@ -150,10 +151,10 @@ public sealed class OverlayWindowManager : IOverlayManager
             managedOverlay.LocalMessageId = managedOverlay.Form.ShowMessage(
                 text,
                 color,
-                ComputeDurationMs(durationMs),
+                ComputeDurationMs(durationMs, autoHide),
                 textAlign,
                 centerTextBlock,
-                _suppressAutoHide ? false : showCountdownBar,
+                effectiveCountdownBar,
                 tapToCancel,
                 remoteActionText,
                 remoteActionColor,
@@ -387,10 +388,10 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
-    private int ComputeDurationMs(int durationMs)
+    private int ComputeDurationMs(int durationMs, bool autoHide)
     {
-        return _suppressAutoHide
-            ? 0
-            : Math.Max(0, durationMs);
+        return autoHide
+            ? Math.Max(0, durationMs)
+            : 0;
     }
 }
