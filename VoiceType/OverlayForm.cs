@@ -965,6 +965,7 @@ public class OverlayForm : Form
         var textToCopy = GetOverlayTextForCopy(sender);
         if (!string.IsNullOrWhiteSpace(textToCopy))
         {
+            SetCopyTapBorderVisible(true);
             try
             {
                 Clipboard.SetText(textToCopy);
