@@ -7,6 +7,7 @@ namespace VoiceType;
 public class TrayContext : ApplicationContext
 {
     private static readonly Color CommandOverlayColor = Color.DeepSkyBlue;
+    private static readonly Color InfoTextColor = Color.DeepSkyBlue;
     private static readonly Color PreviewPrefixColor = Color.FromArgb(255, 180, 255, 180);
 
     private const int PRIMARY_HOTKEY_ID = 1;
@@ -24,6 +25,7 @@ public class TrayContext : ApplicationContext
     private static readonly Color RemoteActionPopupTextColor = Color.Goldenrod;
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
+    private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -246,7 +248,7 @@ public class TrayContext : ApplicationContext
                     return;
             }
 
-            ShowOverlay("Still processing previous dictation...", Color.CornflowerBlue, 2000);
+            ShowOverlay("Still processing previous dictation...", InfoTextColor, 2000);
             return;
         }
 
@@ -264,7 +266,8 @@ public class TrayContext : ApplicationContext
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
             _overlayManager.DismissRemoteActionOverlays();
-            ShowOverlay("Processing voice...", Color.CornflowerBlue, 0, overlayKey: ProcessingVoiceOverlayKey);
+            _overlayManager.HideOverlay(PastedAutoSendSkippedOverlayKey);
+            ShowOverlay("Processing voice...", InfoTextColor, 0, overlayKey: ProcessingVoiceOverlayKey);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
 
@@ -327,7 +330,11 @@ public class TrayContext : ApplicationContext
                     if (pasted)
                     {
                         if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
-                            ShowOverlay("Pasted (auto-send skipped)", Color.LightGreen, 1000);
+                            ShowOverlay(
+                                "Pasted (auto-send skipped)",
+                                Color.LightGreen,
+                                1000,
+                                overlayKey: PastedAutoSendSkippedOverlayKey);
 
                         Log.Info("Text injected via clipboard");
                     }
@@ -698,7 +705,7 @@ public class TrayContext : ApplicationContext
         if (_remoteActionPopupLevel <= 0)
         {
             _remoteActionPopupMessage = string.Empty;
-            _remoteActionPopupColor = Color.CornflowerBlue;
+            _remoteActionPopupColor = InfoTextColor;
             _remoteActionPopupExpiresUtc = DateTime.MinValue;
             return;
         }
@@ -760,10 +767,10 @@ public class TrayContext : ApplicationContext
     private Color ResolveRemoteActionPopupColor()
     {
         if (_remoteActionPopupLevel <= 0)
-            return Color.CornflowerBlue;
+            return InfoTextColor;
 
         if (string.IsNullOrWhiteSpace(_remoteActionPopupMessage) || DateTime.UtcNow > _remoteActionPopupExpiresUtc)
-            return Color.CornflowerBlue;
+            return InfoTextColor;
 
         return _remoteActionPopupColor;
     }
@@ -855,7 +862,7 @@ public class TrayContext : ApplicationContext
 
         ShowOverlay(
             BuildListeningOverlayText(),
-            Color.CornflowerBlue,
+            InfoTextColor,
             0,
             includeRemoteAction: false,
             overlayKey: "listening-overlay",
@@ -941,8 +948,8 @@ public class TrayContext : ApplicationContext
         ShowOverlay(
             "Voice commands\n- " + string.Join("\n- ", lines) + suffix,
             enabledCount == 0
-                ? Color.Gray
-                : (fromVoiceCommand ? CommandOverlayColor : Color.CornflowerBlue),
+            ? Color.Gray
+                : (fromVoiceCommand ? CommandOverlayColor : InfoTextColor),
             5500,
             ContentAlignment.TopLeft,
             centerTextBlock: true);

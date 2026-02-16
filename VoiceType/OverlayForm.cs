@@ -23,14 +23,15 @@ public class OverlayForm : Form
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
     private const int ListeningMeterWidth = 230;
-    private const int ListeningMeterHeight = 23;
-    private const int ListeningMeterTopOffsetPx = 3;
+    private const int ListeningMeterHeight = 24;
+    private const int ListeningMeterTopOffsetPx = ListeningMeterHeight + 2;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
     private const int ListeningMeterInactiveBarAlpha = 55;
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
+    private static readonly Color TextBackdropColor = Color.FromArgb(78, 255, 255, 255);
     private static readonly Color TransparentOverlayBackgroundColor = Color.Fuchsia;
 
     private const int WS_EX_TOPMOST = 0x00000008;
@@ -126,7 +127,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Fill,
             Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt + 1, FontStyle.Bold),
             ForeColor = DefaultTextColor,
-            BackColor = Color.Transparent,
+            BackColor = TextBackdropColor,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
             UseCompatibleTextRendering = false
@@ -136,7 +137,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1), FontStyle.Bold),
             ForeColor = ActionTextColor,
-            BackColor = Color.Transparent,
+            BackColor = TextBackdropColor,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
@@ -148,7 +149,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
             ForeColor = Color.FromArgb(255, 173, 255, 173),
-            BackColor = Color.Transparent,
+            BackColor = TextBackdropColor,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
