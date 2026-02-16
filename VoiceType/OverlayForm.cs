@@ -37,6 +37,8 @@ public class OverlayForm : Form
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
+    private const int WM_NCHITTEST = 0x0084;
+    private const int HTCLIENT = 0x0001;
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOACTIVATE = 0x0010;
@@ -197,6 +199,17 @@ public class OverlayForm : Form
 
     // Prevent the form from stealing focus when shown
     protected override bool ShowWithoutActivation => true;
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_NCHITTEST)
+        {
+            m.Result = (IntPtr)HTCLIENT;
+            return;
+        }
+
+        base.WndProc(ref m);
+    }
 
     protected override void OnSizeChanged(EventArgs e)
     {
