@@ -829,7 +829,7 @@ public class TrayContext : ApplicationContext
             0,
             includeRemoteAction: false,
             overlayKey: "listening-overlay",
-            trackInStack: false);
+            trackInStack: true);
     }
 
     private string BuildListeningOverlayText()
