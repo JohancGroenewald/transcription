@@ -21,7 +21,7 @@ public class OverlayForm : Form
     private const int DefaultFadeTickIntervalMs = 40;
     private const int DefaultFadeDurationMs = 520;
     private const int CountdownTickIntervalMs = 40;
-    private const int CountdownBarHeight = 4;
+    private const int CountdownBarHeight = 8;
     private const int CountdownBarBottomMargin = 10;
     private const int CountdownBarAreaPadding = 1;
     private const int ListeningMeterWidth = 230;
