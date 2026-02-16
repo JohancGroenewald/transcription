@@ -679,13 +679,7 @@ public class TrayContext : ApplicationContext
             message += $" ({details})";
 
         SetRemoteActionPopupContext(message, remoteActionColor: RemoteActionPopupTextColor);
-        if (_isRecording && _enableOverlayPopups)
-        {
-            ShowRemoteActionOverlay(message);
-            return;
-        }
-
-        ShowOverlay(message, Color.CornflowerBlue, 900, includeRemoteAction: false);
+        ShowRemoteActionOverlay(message);
     }
 
     private void ShowRemoteActionOverlay(string message)
@@ -705,32 +699,25 @@ public class TrayContext : ApplicationContext
         if (messageId == 0)
             return;
 
-        RepositionActionOverlayAboveListening();
+        RepositionActionOverlay();
+        _actionOverlay.BringToFront();
     }
 
-    private void RepositionActionOverlayAboveListening()
+    private void RepositionActionOverlay()
     {
         if (_actionOverlay.IsDisposed || !_actionOverlay.Visible)
             return;
 
-        if (!_overlay.Visible || !_overlay.IsHandleCreated)
-        {
-            _actionOverlay.Hide();
-            return;
-        }
-
-        var listeningBounds = _overlay.Bounds;
-        var workingArea = Screen.FromHandle(_overlay.Handle).WorkingArea;
-        var width = Math.Clamp(listeningBounds.Width, 220, Math.Max(220, workingArea.Width - 24));
+        var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        var width = Math.Clamp(_actionOverlay.Width, 260, Math.Max(260, workingArea.Width - 24));
         var x = Math.Clamp(
-            listeningBounds.Left,
+            workingArea.Left + ((workingArea.Width - width) / 2),
             workingArea.Left + 2,
             Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
-        var y = listeningBounds.Top - _actionOverlay.Height - 10;
-        y = Math.Max(workingArea.Top + 2, y);
+        var y = Math.Max(workingArea.Top + 2, Math.Min(workingArea.Bottom - _actionOverlay.Height - 2, 22));
 
         _actionOverlay.Size = new Size(width, _actionOverlay.Height);
-        _actionOverlay.Location = new Point(x, Math.Max(workingArea.Top + 2, y));
+        _actionOverlay.Location = new Point(x, y);
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
