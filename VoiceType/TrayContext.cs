@@ -691,7 +691,8 @@ public class TrayContext : ApplicationContext
         int listeningLevelPercent = 0,
         bool isClipboardCopyAction = false,
         string? copyText = null,
-        bool fullWidthText = true)
+        bool isSubmittedAction = false,
+        bool fullWidthText = false)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -727,11 +728,12 @@ public class TrayContext : ApplicationContext
             autoHide,
             isRemoteAction: false,
             isClipboardCopyAction: isClipboardCopyAction,
-            animateHide,
-            showListeningLevelMeter,
-            listeningLevelPercent,
-            copyText,
-            fullWidthText);
+            animateHide: animateHide,
+            showListeningLevelMeter: showListeningLevelMeter,
+            listeningLevelPercent: listeningLevelPercent,
+            copyText: copyText,
+            isSubmittedAction: isSubmittedAction,
+            fullWidthText: fullWidthText);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
@@ -768,6 +770,7 @@ public class TrayContext : ApplicationContext
             ProcessingVoiceOverlayKey
         });
         _overlayManager.DismissRemoteActionOverlays();
+        _overlayManager.DismissSubmittedActionOverlays();
     }
 
     private void ShowRemoteActionOverlay(string message)
@@ -785,7 +788,7 @@ public class TrayContext : ApplicationContext
             tapToCancel: false,
             isRemoteAction: true,
             autoHide: false,
-            fullWidthText: true);
+            fullWidthText: false);
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
@@ -1033,8 +1036,8 @@ public class TrayContext : ApplicationContext
         }
 
         var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
-            var sentColor = fromVoiceCommand ? CommandOverlayColor : SuccessOverlayColor;
-        ShowOverlay(sentText, sentColor, 1000);
+        var sentColor = fromVoiceCommand ? CommandOverlayColor : SuccessOverlayColor;
+        ShowOverlay(sentText, sentColor, 1000, isSubmittedAction: true);
         Log.Info("Enter key sent");
     }
 
@@ -1258,7 +1261,8 @@ public class TrayContext : ApplicationContext
             prefixText: prefixTextForPreview,
             prefixColor: PreviewPrefixColor,
             overlayKey: previewOverlayKey,
-            animateHide: true);
+            animateHide: true,
+            fullWidthText: true);
         if (messageId == 0 || durationMs <= 0)
         {
             _activeTranscribedPreviewOverlayKey = null;

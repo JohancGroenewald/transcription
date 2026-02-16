@@ -64,6 +64,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         public string? OverlayKey { get; set; }
         public bool IsRemoteAction { get; set; }
         public bool IsClipboardCopyAction { get; set; }
+        public bool IsSubmittedAction { get; set; }
     }
 
     private readonly Func<OverlayForm> _overlayFactory;
@@ -121,6 +122,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
         string? copyText = null,
+        bool isSubmittedAction = false,
         bool fullWidthText = false)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -166,6 +168,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 managed.LocalMessageId = localMessageId;
                 managed.TrackInStack = trackInStack;
                 managed.IsClipboardCopyAction = isClipboardCopyAction;
+                managed.IsSubmittedAction = isSubmittedAction;
                 if (wasTrackedInStack || trackInStack)
                     RepositionVisibleOverlaysLocked();
 
@@ -176,7 +179,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
                 remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack,
-                isRemoteAction, isClipboardCopyAction);
+                isRemoteAction, isClipboardCopyAction, isSubmittedAction);
             if (managedOverlay is null)
                 return 0;
 
@@ -185,7 +188,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 ? ComputeDurationMs(durationMs, autoHide)
                 : durationMs;
 
-            managedOverlay.LocalMessageId = managedOverlay.Form.ShowMessage(
+                managedOverlay.LocalMessageId = managedOverlay.Form.ShowMessage(
                 text,
                 color,
                 createDurationMs,
@@ -421,6 +424,41 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void DismissSubmittedActionOverlays(int keepGlobalMessageId = 0)
+    {
+        List<ManagedOverlay> submittedOverlays;
+        lock (_sync)
+        {
+            submittedOverlays = _stackSpine
+                .GetTrackedOverlaysTopToBottom()
+                .Where(managed => managed.IsSubmittedAction
+                    && managed.GlobalMessageId != keepGlobalMessageId
+                    && _activeOverlays.ContainsKey(managed.Form))
+                .ToList();
+        }
+
+        if (submittedOverlays.Count == 0)
+            return;
+
+        var fadeDurationMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 260
+            : Math.Max(1, _overlayFadeDurationMs);
+        var fadeDelayMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 40
+            : Math.Max(0, _fadeDelayBetweenOverlaysMs);
+        var fadeTickIntervalMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
+            ? 16
+            : Math.Clamp(_overlayFadeTickIntervalMs, 8, 200);
+
+        for (var index = 0; index < submittedOverlays.Count; index++)
+        {
+            submittedOverlays[index].Form.FadeOut(
+                index * fadeDelayMs,
+                fadeDurationMs,
+                fadeTickIntervalMs);
+        }
+    }
+
     public void DismissCopyActionOverlays(int keepGlobalMessageId = 0)
     {
         List<ManagedOverlay> copyOverlays;
@@ -488,7 +526,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? overlayKey,
         bool trackInStack,
         bool isRemoteAction,
-        bool isClipboardCopyAction)
+        bool isClipboardCopyAction,
+        bool isSubmittedAction)
     {
         var overlay = _overlayFactory();
         overlay.ApplyHudSettings(
@@ -501,7 +540,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         {
             TrackInStack = trackInStack,
             IsRemoteAction = isRemoteAction,
-            IsClipboardCopyAction = isClipboardCopyAction
+            IsClipboardCopyAction = isClipboardCopyAction,
+            IsSubmittedAction = isSubmittedAction
         };
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;
@@ -780,7 +820,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         if (managedOverlay is null)
             return false;
 
-        return managedOverlay.IsRemoteAction || managedOverlay.IsClipboardCopyAction;
+        return managedOverlay.IsRemoteAction
+            || managedOverlay.IsClipboardCopyAction
+            || managedOverlay.IsSubmittedAction;
     }
 
     private int ComputeDurationMs(int durationMs, bool autoHide)

@@ -30,6 +30,7 @@ public interface IOverlayManager : IDisposable
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
         string? copyText = null,
+        bool isSubmittedAction = false,
         bool fullWidthText = false);
 
     void ApplyHudSettings(
@@ -45,6 +46,8 @@ public interface IOverlayManager : IDisposable
     void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);
 
     void DismissRemoteActionOverlays();
+
+    void DismissSubmittedActionOverlays(int keepGlobalMessageId = 0);
 
     void DismissCopyActionOverlays(int keepGlobalMessageId = 0);
 
