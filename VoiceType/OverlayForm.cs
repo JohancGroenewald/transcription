@@ -711,13 +711,15 @@ public class OverlayForm : Form
         var trackTop = Math.Max(2, Height - CountdownBarBottomMargin - CountdownBarHeight);
         var trackBounds = new Rectangle(trackMargin, trackTop, trackWidth, CountdownBarHeight);
         var fillWidth = (int)Math.Round(trackBounds.Width * remainingFraction);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
         if (fillWidth > 0)
         {
             var fillBounds = new Rectangle(trackBounds.Left, trackBounds.Top, fillWidth, trackBounds.Height);
             var fillColor = Color.FromArgb(220, _label.ForeColor);
             using var fillBrush = new SolidBrush(fillColor);
-            e.Graphics.FillRectangle(fillBrush, fillBounds);
+            using var fillPath = CreateRoundedRectanglePath(fillBounds, fillBounds.Height);
+            e.Graphics.FillPath(fillBrush, fillPath);
         }
     }
 
