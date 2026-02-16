@@ -183,7 +183,7 @@ public class OverlayForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        // Keep overlays visually transparent: render only the content and optional border/bar.
+        e.Graphics.Clear(TransparentOverlayBackgroundColor);
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -593,7 +593,34 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
-        // Intentionally no background fill so the overlays render as floating transparent text-only popups.
+        if (_showOverlayBorder)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(BorderColor, 1.2f);
+            var border = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var path = CreateRoundedRectanglePath(border, CornerRadius);
+            e.Graphics.DrawPath(pen, path);
+        }
+
+        if (!TryGetCountdownProgress(out var remainingFraction))
+            return;
+
+        var trackMargin = Math.Max(8, Padding.Left);
+        var trackWidth = Math.Max(80, Width - (trackMargin * 2));
+        var trackTop = Math.Max(2, Height - CountdownBarBottomMargin - CountdownBarHeight);
+        var trackBounds = new Rectangle(trackMargin, trackTop, trackWidth, CountdownBarHeight);
+        var fillWidth = (int)Math.Round(trackBounds.Width * remainingFraction);
+
+        using var trackBrush = new SolidBrush(CountdownTrackColor);
+        e.Graphics.FillRectangle(trackBrush, trackBounds);
+
+        if (fillWidth > 0)
+        {
+            var fillBounds = new Rectangle(trackBounds.Left, trackBounds.Top, fillWidth, trackBounds.Height);
+            var fillColor = Color.FromArgb(220, _label.ForeColor);
+            using var fillBrush = new SolidBrush(fillColor);
+            e.Graphics.FillRectangle(fillBrush, fillBounds);
+        }
     }
 
     private void UpdateRoundedRegion()

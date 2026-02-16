@@ -115,7 +115,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         if (string.IsNullOrWhiteSpace(text))
             return 0;
 
-        var effectiveCountdownBar = autoHide && showCountdownBar;
+        var effectiveCountdownBar = showCountdownBar;
         var globalMessageId = 0;
         lock (_sync)
         {
