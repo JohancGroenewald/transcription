@@ -47,4 +47,6 @@ public interface IOverlayManager : IDisposable
     int GetStackHorizontalOffset();
 
     void SetStackHorizontalOffset(int offsetPx);
+
+    void HideOverlay(string overlayKey);
 }

@@ -264,7 +264,7 @@ public class TrayContext : ApplicationContext
             _trayIcon.Icon = _appIcon;
             _trayIcon.Text = "VoiceType - Transcribing...";
             _overlayManager.DismissRemoteActionOverlays();
-                ShowOverlay("Processing voice...", Color.CornflowerBlue, 0, overlayKey: ProcessingVoiceOverlayKey);
+            ShowOverlay("Processing voice...", Color.CornflowerBlue, 0, overlayKey: ProcessingVoiceOverlayKey);
             Log.Info("Recording stopped, starting transcription...");
             _isTranscribing = true;
 
@@ -362,6 +362,7 @@ public class TrayContext : ApplicationContext
             }
             finally
             {
+                HideProcessingVoiceOverlay();
                 _isTranscribing = false;
                 _ignorePastedTextPrefixForNextTranscription = false;
                 CompleteShutdownIfRequested();
@@ -708,6 +709,11 @@ public class TrayContext : ApplicationContext
 
         SetRemoteActionPopupContext(message, remoteActionColor: RemoteActionPopupTextColor);
         ShowRemoteActionOverlay(message);
+    }
+
+    private void HideProcessingVoiceOverlay()
+    {
+        _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
     }
 
     private void ShowRemoteActionOverlay(string message)

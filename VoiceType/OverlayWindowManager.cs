@@ -316,6 +316,28 @@ public sealed class OverlayWindowManager : IOverlayManager
         RepositionVisibleOverlaysLocked();
     }
 
+    public void HideOverlay(string overlayKey)
+    {
+        if (string.IsNullOrWhiteSpace(overlayKey))
+            return;
+
+        List<OverlayForm> overlaysToHide;
+        lock (_sync)
+        {
+            overlaysToHide = _overlaysByKey
+                .Where(pair => string.Equals(pair.Key, overlayKey, StringComparison.Ordinal))
+                .Select(pair => pair.Value)
+                .Distinct()
+                .ToList();
+        }
+
+        foreach (var overlay in overlaysToHide)
+        {
+            if (!overlay.IsDisposed && overlay.Visible)
+                overlay.Hide();
+        }
+    }
+
     public void DismissRemoteActionOverlays()
     {
         List<ManagedOverlay> remoteOverlays;
