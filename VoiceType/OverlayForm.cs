@@ -31,7 +31,6 @@ public class OverlayForm : Form
     private const int ListeningMeterInactiveBarAlpha = 55;
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
-    private static readonly Color TextBackdropColor = Color.FromArgb(78, 255, 255, 255);
     private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
 
     private const int WS_EX_TOPMOST = 0x00000008;
@@ -127,7 +126,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Fill,
             Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt + 1, FontStyle.Bold),
             ForeColor = DefaultTextColor,
-            BackColor = TextBackdropColor,
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
             UseCompatibleTextRendering = false
@@ -137,8 +136,8 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1), FontStyle.Bold),
             ForeColor = ActionTextColor,
-            BackColor = TextBackdropColor,
-            TextAlign = ContentAlignment.TopLeft,
+            BackColor = Color.Transparent,
+            TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
@@ -149,8 +148,8 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
             ForeColor = Color.FromArgb(255, 173, 255, 173),
-            BackColor = TextBackdropColor,
-            TextAlign = ContentAlignment.TopLeft,
+            BackColor = Color.Transparent,
+            TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false,
             AutoSize = false,
             Visible = false,
@@ -566,8 +565,9 @@ public class OverlayForm : Form
         _label.Dock = DockStyle.None;
         _actionLabel.Dock = DockStyle.None;
         _prefixLabel.Dock = DockStyle.None;
-        _actionLabel.TextAlign = ContentAlignment.TopLeft;
-        _prefixLabel.TextAlign = ContentAlignment.TopLeft;
+        _label.TextAlign = ContentAlignment.MiddleCenter;
+        _actionLabel.TextAlign = ContentAlignment.MiddleCenter;
+        _prefixLabel.TextAlign = ContentAlignment.MiddleCenter;
         var actionLineHeight = Math.Max(0, measuredActionLineHeight);
         var prefixLineHeight = Math.Max(0, measuredPrefixLineHeight);
         var metaAreaHeight = actionLineHeight + prefixLineHeight + (hasActionText ? ActionLineSpacing : 0)
@@ -615,14 +615,14 @@ public class OverlayForm : Form
                 cursorY,
                 Math.Max(1, ClientSize.Width - Padding.Horizontal),
                 Math.Max(20, availableHeight));
-            _label.TextAlign = textAlign;
+            _label.TextAlign = ContentAlignment.MiddleCenter;
             _actionLabel.BringToFront();
             return;
         }
 
         if (!hasActionText && !hasPrefixText)
         {
-            _label.TextAlign = textAlign;
+            _label.TextAlign = ContentAlignment.MiddleCenter;
             return;
         }
 
@@ -633,7 +633,7 @@ public class OverlayForm : Form
         var left = Math.Max(Padding.Left, (ClientSize.Width - labelWidth) / 2);
         var top = Math.Max(Padding.Top, (ClientSize.Height - metaAreaHeight - labelHeight) / 2);
         _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
-        _label.TextAlign = ContentAlignment.TopLeft;
+        _label.TextAlign = ContentAlignment.MiddleCenter;
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
