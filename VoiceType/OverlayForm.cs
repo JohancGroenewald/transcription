@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
+using System.Threading.Tasks;
 
 namespace VoiceType;
 
@@ -447,6 +448,38 @@ public class OverlayForm : Form
 
         TopMost = false;
         _ = SetWindowPos(Handle, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    public void FadeOut(int delayMilliseconds = 0)
+    {
+        var delayMs = Math.Max(0, delayMilliseconds);
+        var messageId = _activeMessageId;
+        if (delayMs <= 0)
+        {
+            if (InvokeRequired)
+            {
+                Invoke((Action)(() => FadeOut(0)));
+                return;
+            }
+
+            BeginFadeOut(messageId);
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(delayMs).ConfigureAwait(false);
+            if (IsDisposed || IsHandleCreated == false || !Visible)
+                return;
+
+            if (InvokeRequired)
+            {
+                Invoke((Action)(() => FadeOut(0)));
+                return;
+            }
+
+            BeginFadeOut(messageId);
+        });
     }
 
     private void ConfigureLabelLayout(

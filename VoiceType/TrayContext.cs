@@ -804,7 +804,7 @@ public class TrayContext : ApplicationContext
         Interlocked.Exchange(ref _micLevelPercent, 0);
         _micSpinnerIndex = 0;
         UpdateListeningOverlay();
-        _listeningOverlayTimer.Start();
+        _listeningOverlayTimer.Stop();
     }
 
     private void StopListeningOverlay()
@@ -948,7 +948,9 @@ public class TrayContext : ApplicationContext
 
         var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
         var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
-        ShowOverlay(sentText, sentColor, 1000);
+        var submittedMessageId = ShowOverlay(sentText, sentColor, 1000);
+        if (submittedMessageId != 0)
+            _overlayManager.FadeVisibleOverlaysTopToBottom(120);
         Log.Info("Enter key sent");
     }
 

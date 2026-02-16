@@ -29,5 +29,6 @@ public interface IOverlayManager : IDisposable
         bool showBorder);
 
     void HideAll();
-}
 
+    void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);
+}

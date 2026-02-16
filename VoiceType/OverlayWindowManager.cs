@@ -164,6 +164,26 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140)
+    {
+        var delay = Math.Max(0, delayBetweenMs);
+        List<OverlayForm> orderedOverlays;
+        lock (_sync)
+        {
+            orderedOverlays = _stackOrder
+                .Where(x => _activeOverlays.TryGetValue(x, out var managed) &&
+                            !managed.Form.IsDisposed &&
+                            managed.Form.Visible)
+                .OrderByDescending(x => _activeOverlays[x].Sequence)
+                .ToList();
+        }
+
+        for (var index = 0; index < orderedOverlays.Count; index++)
+        {
+            orderedOverlays[index].FadeOut(index * delay);
+        }
+    }
+
     public void Dispose()
     {
         lock (_sync)
