@@ -155,6 +155,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                     autoHide,
                     showListeningLevelMeter,
                     listeningLevelPercent,
+                    !isClipboardCopyAction,
                     copyText);
                 if (localMessageId == 0)
                     return 0;
@@ -199,6 +200,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 autoHide,
                 showListeningLevelMeter,
                 listeningLevelPercent,
+                !isClipboardCopyAction,
                 copyText);
 
             if (managedOverlay.LocalMessageId == 0)

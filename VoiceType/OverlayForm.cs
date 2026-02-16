@@ -101,6 +101,7 @@ public class OverlayForm : Form
     private const int HorizontalDragActivationThreshold = 1;
     private bool _showCopyTapFeedbackBorder;
     private Color _activeBorderColor = BorderColor;
+    private bool _allowCopyTap = true;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
@@ -296,6 +297,7 @@ public class OverlayForm : Form
         bool autoHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
+        bool allowCopyTap = true,
         string? copyText = null)
     {
         if (InvokeRequired)
@@ -317,6 +319,7 @@ public class OverlayForm : Form
                 autoHide,
                 showListeningLevelMeter,
                 listeningLevelPercent,
+                allowCopyTap,
                 copyText)));
         }
 
@@ -343,6 +346,7 @@ public class OverlayForm : Form
             _animateOnAutoHide = animateOnHide;
             _showListeningLevelMeter = showListeningLevelMeter;
             _listeningLevelPercent = Math.Clamp(listeningLevelPercent, 0, 100);
+            _allowCopyTap = allowCopyTap;
 
             var workingArea = GetTargetScreen().WorkingArea;
             var preferredWidth = Math.Clamp(
@@ -955,6 +959,9 @@ public class OverlayForm : Form
     private void OnOverlayMouseClick(object? sender, MouseEventArgs e)
     {
         if (e.Button != MouseButtons.Left)
+            return;
+
+        if (!_allowCopyTap)
             return;
 
         if (_ignoreNextClickAfterDrag)
