@@ -739,6 +739,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.HideOverlay("listening-overlay");
         _overlayManager.HideOverlay(PastedAutoSendSkippedOverlayKey);
         _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
+        _overlayManager.DismissRemoteActionOverlays();
     }
 
     private void ShowRemoteActionOverlay(string message)
