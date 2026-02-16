@@ -83,6 +83,8 @@ public class TrayContext : ApplicationContext
     private string _remoteActionPopupMessage = string.Empty;
     private Color _remoteActionPopupColor = RemoteActionPopupTextColor;
     private DateTime _remoteActionPopupExpiresUtc;
+    private int _overlayStackSequence;
+    private readonly Dictionary<OverlayForm, int> _overlayStackOrder = new();
     private bool _enablePastedTextPrefix = true;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
@@ -651,7 +653,7 @@ public class TrayContext : ApplicationContext
         if (!resolvedRemoteActionColor.HasValue)
             resolvedRemoteActionColor = ResolveRemoteActionPopupColor();
 
-        return _overlay.ShowMessage(
+        var messageId = _overlay.ShowMessage(
             text,
             color,
             effectiveDurationMs,
@@ -663,6 +665,12 @@ public class TrayContext : ApplicationContext
             resolvedRemoteActionColor,
             prefixText,
             prefixColor);
+
+        if (messageId == 0)
+            return 0;
+
+        TrackOverlayInStack(_overlay);
+        return messageId;
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -700,27 +708,45 @@ public class TrayContext : ApplicationContext
         if (messageId == 0)
             return;
 
-        RepositionActionOverlay();
-        _actionOverlay.DemoteFromTopmost();
+        TrackOverlayInStack(_actionOverlay);
     }
 
-    private void RepositionActionOverlay()
+    private void TrackOverlayInStack(OverlayForm overlay)
     {
-        if (_actionOverlay.IsDisposed || !_actionOverlay.Visible)
+        if (overlay.IsDisposed)
+            return;
+
+        _overlayStackOrder[overlay] = ++_overlayStackSequence;
+        RepositionOverlaysInStack();
+    }
+
+    private void RepositionOverlaysInStack()
+    {
+        var visibleOverlays = _overlayStackOrder
+            .Where(x => !x.Key.IsDisposed && x.Key.Visible)
+            .OrderBy(x => x.Value)
+            .Select(x => x.Key)
+            .ToList();
+
+        if (visibleOverlays.Count == 0)
             return;
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
-        var width = Math.Clamp(_actionOverlay.Width, 260, Math.Max(260, workingArea.Width - 24));
-        var targetTop = Math.Max(workingArea.Top + 4, workingArea.Bottom - _actionOverlay.Height - 4);
+        var cursorY = workingArea.Bottom - 4;
 
-        var x = Math.Clamp(
-            workingArea.Left + ((workingArea.Width - width) / 2),
-            workingArea.Left + 2,
-            Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
-        var y = targetTop;
+        foreach (var overlay in visibleOverlays)
+        {
+            var width = Math.Clamp(overlay.Width, 260, Math.Max(260, workingArea.Width - 24));
+            var x = Math.Clamp(
+                workingArea.Left + ((workingArea.Width - width) / 2),
+                workingArea.Left + 2,
+                Math.Max(workingArea.Left + 2, workingArea.Right - width - 2));
 
-        _actionOverlay.Size = new Size(width, _actionOverlay.Height);
-        _actionOverlay.Location = new Point(x, y);
+            cursorY -= overlay.Height;
+            overlay.Size = new Size(width, overlay.Height);
+            overlay.Location = new Point(x, cursorY);
+            cursorY -= 4;
+        }
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
