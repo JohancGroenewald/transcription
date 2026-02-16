@@ -6,6 +6,7 @@ namespace VoiceType;
 public interface IOverlayManager : IDisposable
 {
     event EventHandler<int>? OverlayTapped;
+    event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
 
     int ShowMessage(
         string text,

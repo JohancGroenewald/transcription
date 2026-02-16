@@ -131,6 +131,7 @@ public class TrayContext : ApplicationContext
 
         _overlayManager = overlayManager ?? throw new ArgumentNullException(nameof(overlayManager));
         _overlayManager.OverlayTapped += OnOverlayTapped;
+        _overlayManager.OverlayCopyTapped += OnOverlayCopyTapped;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recorder = new AudioRecorder();
@@ -1198,6 +1199,7 @@ public class TrayContext : ApplicationContext
             _listeningOverlayTimer.Stop();
             _listeningOverlayTimer.Dispose();
             _overlayManager.OverlayTapped -= OnOverlayTapped;
+            _overlayManager.OverlayCopyTapped -= OnOverlayCopyTapped;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
@@ -1279,6 +1281,18 @@ public class TrayContext : ApplicationContext
     private void OnOverlayTapped(object? sender, int messageId)
     {
         _ = TryResolvePendingPastePreviewFromOverlayTap(messageId, "overlay tap");
+    }
+
+    private void OnOverlayCopyTapped(object? sender, OverlayCopyTappedEventArgs e)
+    {
+        _ = TryResolvePendingPastePreviewFromOverlayTap(e.MessageId, "overlay copy tap");
+        ShowOverlay(
+            ClipboardFallbackActionText,
+            ClipboardFallbackActionColor,
+            1500,
+            includeRemoteAction: false,
+            overlayKey: null,
+            animateHide: false);
     }
 
     private bool TryResolvePendingPastePreview(TranscribedPreviewDecision decision, string source)

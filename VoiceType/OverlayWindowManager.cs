@@ -95,6 +95,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     }
 
     public event EventHandler<int>? OverlayTapped;
+    public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
 
     public int ShowMessage(
         string text,
@@ -454,6 +455,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         };
         overlay.VisibleChanged += OnOverlayVisibleChanged;
         overlay.OverlayTapped += OnOverlayTapped;
+        overlay.OverlayCopyTapped += OnOverlayCopyTapped;
         overlay.OverlayHorizontalDragged += OnOverlayHorizontalDragged;
 
         _activeOverlays.Add(overlay, managed);
@@ -520,6 +522,26 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
 
         OverlayTapped?.Invoke(this, globalMessageId);
+    }
+
+    private void OnOverlayCopyTapped(object? sender, OverlayCopyTappedEventArgs e)
+    {
+        if (sender is not OverlayForm overlay)
+            return;
+
+        int globalMessageId;
+        lock (_sync)
+        {
+            if (!_activeOverlays.TryGetValue(overlay, out var managed))
+                return;
+
+            if (managed.LocalMessageId != e.MessageId)
+                return;
+
+            globalMessageId = managed.GlobalMessageId;
+        }
+
+        OverlayCopyTapped?.Invoke(this, new OverlayCopyTappedEventArgs(globalMessageId, e.CopiedText));
     }
 
     private void OnOverlayHorizontalDragged(object? sender, OverlayHorizontalDraggedEventArgs e)
@@ -620,6 +642,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     {
         overlay.VisibleChanged -= OnOverlayVisibleChanged;
         overlay.OverlayTapped -= OnOverlayTapped;
+        overlay.OverlayCopyTapped -= OnOverlayCopyTapped;
         overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 
