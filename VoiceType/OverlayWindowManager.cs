@@ -566,7 +566,6 @@ public sealed class OverlayWindowManager : IOverlayManager
             globalMessageId = managed.GlobalMessageId;
         }
 
-        ClearCopyTapBorder();
         OverlayTapped?.Invoke(this, globalMessageId);
     }
 
