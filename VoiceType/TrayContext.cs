@@ -770,7 +770,6 @@ public class TrayContext : ApplicationContext
             ProcessingVoiceOverlayKey
         });
         _overlayManager.DismissRemoteActionOverlays();
-        _overlayManager.DismissSubmittedActionOverlays();
     }
 
     private void ShowRemoteActionOverlay(string message)
@@ -1037,7 +1036,9 @@ public class TrayContext : ApplicationContext
 
         var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
         var sentColor = fromVoiceCommand ? CommandOverlayColor : SuccessOverlayColor;
-        ShowOverlay(sentText, sentColor, 1000, isSubmittedAction: true);
+        var sentMessageId = ShowOverlay(sentText, sentColor, 1000, isSubmittedAction: true);
+        if (sentMessageId != 0)
+            _overlayManager.DismissSubmittedActionOverlays(sentMessageId);
         Log.Info("Enter key sent");
     }
 
