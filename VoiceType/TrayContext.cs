@@ -734,7 +734,22 @@ public class TrayContext : ApplicationContext
 
     private void HideProcessingVoiceOverlay()
     {
+        HideTransientOverlaysForProcessing();
         _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
+    }
+
+    private void HideTransientOverlaysForProcessing()
+    {
+        _overlayManager.HideOverlay("listening-overlay");
+        _overlayManager.HideOverlay(PastedAutoSendSkippedOverlayKey);
+
+        var activePreviewOverlayKey = _activeTranscribedPreviewOverlayKey;
+        if (!string.IsNullOrWhiteSpace(activePreviewOverlayKey))
+            _overlayManager.HideOverlay(activePreviewOverlayKey);
+
+        var activeRemoteAction = GetActiveRemoteActionPopupMessage();
+        if (!string.IsNullOrWhiteSpace(activeRemoteAction))
+            _overlayManager.DismissRemoteActionOverlays();
     }
 
     private void ShowRemoteActionOverlay(string message)
