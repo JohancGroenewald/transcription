@@ -734,14 +734,14 @@ public class TrayContext : ApplicationContext
 
     private void HideProcessingVoiceOverlay()
     {
-        HideTransientOverlaysForProcessing();
         _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
     }
 
-    private void HideTransientOverlaysForProcessing()
+    private void HideTransientOverlaysForTextBox()
     {
         _overlayManager.HideOverlay("listening-overlay");
         _overlayManager.HideOverlay(PastedAutoSendSkippedOverlayKey);
+        _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
 
         var activePreviewOverlayKey = _activeTranscribedPreviewOverlayKey;
         if (!string.IsNullOrWhiteSpace(activePreviewOverlayKey))
@@ -1201,6 +1201,8 @@ public class TrayContext : ApplicationContext
         bool targetHasExistingText,
         string? actionText = null)
     {
+        HideTransientOverlaysForTextBox();
+
         var previewColor = targetHasExistingText
             ? Color.Gold
             : Color.LightGreen;
