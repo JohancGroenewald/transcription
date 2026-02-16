@@ -637,7 +637,8 @@ public class TrayContext : ApplicationContext
         string? overlayKey = null,
         bool trackInStack = true,
         bool autoPosition = true,
-        bool autoHide = true)
+        bool autoHide = true,
+        bool animateHide = false)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -670,7 +671,8 @@ public class TrayContext : ApplicationContext
             overlayKey,
             trackInStack,
             autoPosition,
-            autoHide);
+            autoHide,
+            animateHide);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null)
@@ -808,7 +810,7 @@ public class TrayContext : ApplicationContext
         Interlocked.Exchange(ref _micLevelPercent, 0);
         _micSpinnerIndex = 0;
         UpdateListeningOverlay();
-        _listeningOverlayTimer.Stop();
+        _listeningOverlayTimer.Start();
     }
 
     private void StopListeningOverlay()
@@ -834,7 +836,8 @@ public class TrayContext : ApplicationContext
             includeRemoteAction: false,
             overlayKey: "listening-overlay",
             trackInStack: true,
-            autoPosition: false);
+            autoPosition: false,
+            animateHide: true);
     }
 
     private string BuildListeningOverlayText()
@@ -1154,7 +1157,8 @@ public class TrayContext : ApplicationContext
             tapToCancel: true,
             includeRemoteAction: false,
             prefixText: prefixTextForPreview,
-            prefixColor: PreviewPrefixColor);
+            prefixColor: PreviewPrefixColor,
+            animateHide: true);
         if (messageId == 0 || durationMs <= 0)
             return TranscribedPreviewDecision.TimeoutPaste;
 

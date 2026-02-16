@@ -101,7 +101,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? overlayKey = null,
         bool trackInStack = true,
         bool autoPosition = true,
-        bool autoHide = true)
+        bool autoHide = true,
+        bool animateHide = false)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -127,7 +128,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     remoteActionColor,
                     prefixText,
                     prefixColor,
-                    autoPosition);
+                    autoPosition,
+                    animateHide);
                 if (localMessageId == 0)
                     return 0;
 
@@ -160,7 +162,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 remoteActionColor,
                 prefixText,
                 prefixColor,
-                autoPosition);
+                autoPosition,
+                animateHide);
 
             if (managedOverlay.LocalMessageId == 0)
             {

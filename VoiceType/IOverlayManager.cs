@@ -22,7 +22,8 @@ public interface IOverlayManager : IDisposable
         string? overlayKey = null,
         bool trackInStack = true,
         bool autoPosition = true,
-        bool autoHide = true);
+        bool autoHide = true,
+        bool animateHide = false);
 
     void ApplyHudSettings(
         int opacityPercent,
