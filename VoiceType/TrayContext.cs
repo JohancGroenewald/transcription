@@ -501,6 +501,28 @@ public class TrayContext : ApplicationContext
             }
 
             ShowRemoteActionPopup("Submit requested");
+
+            if (_isRecording)
+            {
+                Log.Info("Remote submit received while recording; canceling active recording.");
+                _isRecording = false;
+                StopListeningOverlay();
+                _trayIcon.Icon = _appIcon;
+                _trayIcon.Text = $"VoiceType - Ready ({BuildHotkeyHint()})";
+
+                try
+                {
+                    _ = _recorder.Stop();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Failed to stop recorder while canceling on remote submit.", ex);
+                }
+
+                ShowOverlay("Recording canceled", Color.Gray, 1500);
+                return;
+            }
+
             if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote submit request"))
                 return;
 
