@@ -20,7 +20,7 @@ static class Program
     private const string SubmitEventName = MutexName + "_Submit";
     private const string CloseCompletedEventNamePrefix = MutexName + "_CloseCompleted_";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromMinutes(2);
     private const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
@@ -211,7 +211,13 @@ static class Program
                 case LaunchRequest.Close:
                     routedToExistingInstance = SignalExistingInstanceExit();
                     if (routedToExistingInstance)
-                        _ = WaitForExistingInstanceExit(CloseWaitTimeout);
+                    {
+                        if (!WaitForExistingInstanceExit(CloseWaitTimeout))
+                        {
+                            ForceCloseExistingInstance();
+                        }
+                    }
+
                     break;
 
                 case LaunchRequest.Listen:
@@ -484,6 +490,87 @@ static class Program
         }
 
         return false;
+    }
+
+    private static void ForceCloseExistingInstance()
+    {
+        var ownProcessId = Environment.ProcessId;
+        string? ownProcessPath = null;
+        try
+        {
+            ownProcessPath = Environment.ProcessPath;
+        }
+        catch
+        {
+            // Best effort only.
+        }
+
+        var processName = Environment.ProcessPath is null
+            ? "VoiceType"
+            : System.IO.Path.GetFileNameWithoutExtension(ownProcessPath)!;
+
+        try
+        {
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName(processName))
+            {
+                if (process.Id == ownProcessId)
+                    continue;
+
+                try
+                {
+                    if (ownProcessPath is not null)
+                    {
+                        string? candidatePath = null;
+                        try
+                        {
+                            candidatePath = process.MainModule?.FileName;
+                        }
+                        catch
+                        {
+                            // Access to process metadata may fail for edge cases.
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(candidatePath) &&
+                            !string.Equals(
+                                candidatePath,
+                                ownProcessPath,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (!process.HasExited)
+                    {
+                        process.CloseMainWindow();
+                        if (!process.WaitForExit(1000))
+                            process.Kill(entireProcessTree: true);
+                    }
+                }
+                catch
+                {
+                    // Ignore and continue; this is best effort cleanup.
+                }
+                finally
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                            process.WaitForExit(2000);
+                    }
+                    catch
+                    {
+                        // Ignore.
+                    }
+
+                    process.Dispose();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore and continue if process enumeration fails.
+        }
     }
 
     private static bool WaitForExistingInstanceExit(TimeSpan timeout)

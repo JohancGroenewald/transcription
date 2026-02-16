@@ -23,6 +23,7 @@ public class OverlayForm : Form
     private const int CountdownTickIntervalMs = 40;
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
+    private const int CountdownBarAreaPadding = 2;
     private const int ListeningMeterWidth = 230;
     private const int ListeningMeterHeight = 26;
     private const int ListeningMeterTopOffsetPx = 200;
@@ -413,7 +414,8 @@ public class OverlayForm : Form
                 (actionLineHeight > 0 ? actionLineHeight + ActionLineSpacing : 0) +
                 (prefixLineHeight > 0 ? prefixLineHeight + ActionLineSpacing : 0) +
                 Padding.Vertical +
-                8);
+                8 +
+                (_lastShowCountdownBar ? GetCountdownBarReservedHeight() : 0));
 
             Size = new Size(width, height);
             ConfigureLabelLayout(
@@ -607,6 +609,7 @@ public class OverlayForm : Form
         _label.Visible = !fullWidthText;
         var actionLineHeight = Math.Max(0, measuredActionLineHeight);
         var prefixLineHeight = Math.Max(0, measuredPrefixLineHeight);
+        var reservedCountdownHeight = _lastShowCountdownBar ? GetCountdownBarReservedHeight() : 0;
         var metaAreaHeight = actionLineHeight + prefixLineHeight + (hasActionText ? ActionLineSpacing : 0)
             + (hasPrefixText ? ActionLineSpacing : 0);
 
@@ -639,7 +642,7 @@ public class OverlayForm : Form
 
         var availableHeight = Math.Max(
             20,
-            ClientSize.Height - Padding.Vertical - cursorY + Padding.Top);
+            ClientSize.Height - Padding.Vertical - cursorY + Padding.Top - reservedCountdownHeight);
 
         if (!centerTextBlock)
         {
@@ -664,13 +667,23 @@ public class OverlayForm : Form
         }
 
         var maxLabelWidth = Math.Max(40, ClientSize.Width - Padding.Horizontal);
-        var maxLabelHeight = Math.Max(20, ClientSize.Height - Padding.Vertical - metaAreaHeight);
+        var maxLabelHeight = Math.Max(
+            20,
+            ClientSize.Height - Padding.Vertical - metaAreaHeight - reservedCountdownHeight);
         var labelWidth = Math.Clamp(measuredTextSize.Width, 1, maxLabelWidth);
         var labelHeight = Math.Clamp(measuredTextSize.Height, 1, maxLabelHeight);
         var left = Math.Max(Padding.Left, (ClientSize.Width - labelWidth) / 2);
-        var top = Math.Max(Padding.Top, (ClientSize.Height - metaAreaHeight - labelHeight) / 2);
+        var centeredAreaHeight = Math.Max(1, maxLabelHeight);
+        var top = Math.Max(
+            Padding.Top,
+            Padding.Top + (centeredAreaHeight - labelHeight + ActionLineSpacing) / 2);
         _label.Bounds = new Rectangle(left, top, labelWidth, labelHeight);
         _label.TextAlign = ContentAlignment.MiddleCenter;
+    }
+
+    private static int GetCountdownBarReservedHeight()
+    {
+        return CountdownBarHeight + CountdownBarBottomMargin + CountdownBarAreaPadding;
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
