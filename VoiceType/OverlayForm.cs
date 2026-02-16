@@ -631,7 +631,7 @@ public class OverlayForm : Form
         if (_hideTimerMessageId == 0 || _hideTimerMessageId != _activeMessageId)
             return;
 
-        BeginFadeOut(_hideTimerMessageId);
+        Hide();
     }
 
     private void BeginFadeOut(int messageId, bool force = false)
