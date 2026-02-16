@@ -23,8 +23,8 @@ public class OverlayForm : Form
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
     private const int ListeningMeterWidth = 230;
-    private const int ListeningMeterHeight = 24;
-    private const int ListeningMeterTopOffsetPx = ListeningMeterHeight + 2;
+    private const int ListeningMeterHeight = 26;
+    private const int ListeningMeterTopOffsetPx = 10;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
@@ -32,7 +32,7 @@ public class OverlayForm : Form
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
     private static readonly Color TextBackdropColor = Color.FromArgb(78, 255, 255, 255);
-    private static readonly Color TransparentOverlayBackgroundColor = Color.Fuchsia;
+    private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -692,7 +692,7 @@ public class OverlayForm : Form
                 TextFormatFlags.NoPrefix).Height
             : 0;
 
-        var candidateTop = labelArea.Top + Math.Max(0, firstLineHeight) + 4;
+        var candidateTop = labelArea.Top + (int)(labelArea.Height * 0.65) - (ListeningMeterHeight / 2);
         var minTop = Math.Max(Padding.Top, labelArea.Top + 2);
         var maxTop = Math.Max(
             minTop,
