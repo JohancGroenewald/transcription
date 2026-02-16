@@ -418,7 +418,6 @@ public class OverlayForm : Form
                 _lastActionColor,
                 _lastPrefixText,
                 _lastPrefixColor);
-        }
     }
 
     public void PromoteToTopmost()
@@ -429,7 +428,7 @@ public class OverlayForm : Form
             return;
         }
 
-        if (!HandleCreated || IsDisposed)
+        if (!IsHandleCreated || IsDisposed)
             return;
 
         _ = SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
@@ -443,7 +442,7 @@ public class OverlayForm : Form
             return;
         }
 
-        if (!HandleCreated || IsDisposed)
+        if (!IsHandleCreated || IsDisposed)
             return;
 
         TopMost = false;
