@@ -442,8 +442,6 @@ public class TrayContext : ApplicationContext
         }
 
         var previousForegroundWindow = GetForegroundWindow();
-        _overlayManager.HideAll();
-
         IntPtr settingsWindow = IntPtr.Zero;
         using var dlg = new SettingsForm();
         dlg.Shown += (_, _) =>
