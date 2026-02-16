@@ -78,10 +78,18 @@ public sealed class OverlayWindowManager : IOverlayManager
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
     private bool _overlayShowBorder = true;
+    private int _overlayFadeProfile = AppConfig.DefaultOverlayFadeProfile;
+    private int _fadeDelayBetweenOverlaysMs;
+    private int _overlayFadeDurationMs;
+    private int _overlayFadeTickIntervalMs;
 
     public OverlayWindowManager(Func<OverlayForm>? overlayFactory = null)
     {
         _overlayFactory = overlayFactory ?? (() => new OverlayForm());
+        var profile = GetFadeProfile(AppConfig.DefaultOverlayFadeProfile);
+        _fadeDelayBetweenOverlaysMs = profile.DelayBetweenOverlaysMs;
+        _overlayFadeDurationMs = profile.FadeDurationMs;
+        _overlayFadeTickIntervalMs = profile.FadeTickIntervalMs;
     }
 
     public event EventHandler<int>? OverlayTapped;
@@ -200,6 +208,15 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void ApplyFadeProfile(int overlayFadeProfile)
+    {
+        _overlayFadeProfile = AppConfig.NormalizeOverlayFadeProfile(overlayFadeProfile);
+        var profile = GetFadeProfile(_overlayFadeProfile);
+        _fadeDelayBetweenOverlaysMs = profile.DelayBetweenOverlaysMs;
+        _overlayFadeDurationMs = profile.FadeDurationMs;
+        _overlayFadeTickIntervalMs = profile.FadeTickIntervalMs;
+    }
+
     public void HideAll()
     {
         lock (_sync)
@@ -214,7 +231,19 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140)
     {
-        var delay = Math.Max(0, delayBetweenMs);
+        var delay = delayBetweenMs < 0
+            ? 0
+            : delayBetweenMs;
+
+        if (_overlayFadeProfile == AppConfig.OffOverlayFadeProfile)
+            return;
+
+        if (_overlayFadeDurationMs <= 0)
+            return;
+
+        if (delay <= 0)
+            delay = Math.Max(0, _fadeDelayBetweenOverlaysMs);
+
         List<ManagedOverlay> orderedOverlays;
         lock (_sync)
         {
@@ -226,7 +255,10 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         for (var index = 0; index < orderedOverlays.Count; index++)
         {
-            orderedOverlays[index].Form.FadeOut(index * delay);
+            orderedOverlays[index].Form.FadeOut(
+                index * delay,
+                _overlayFadeDurationMs,
+                _overlayFadeTickIntervalMs);
         }
     }
 
@@ -397,4 +429,16 @@ public sealed class OverlayWindowManager : IOverlayManager
             ? Math.Max(0, durationMs)
             : 0;
     }
+
+    private static (int DelayBetweenOverlaysMs, int FadeDurationMs, int FadeTickIntervalMs) GetFadeProfile(int profileId)
+    {
+        return profileId switch
+        {
+            AppConfig.OffOverlayFadeProfile => (0, 0, 0),
+            AppConfig.FastOverlayFadeProfile => (45, 260, 16),
+            AppConfig.GentleOverlayFadeProfile => (220, 900, 24),
+            _ => (120, 520, 40) // Balanced/default
+        };
+    }
+
 }

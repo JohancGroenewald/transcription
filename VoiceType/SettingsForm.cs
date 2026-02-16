@@ -68,6 +68,8 @@ public class SettingsForm : Form
     private readonly NumericUpDown _overlayWidthInput;
     private readonly Label _overlayFontSizeLabel;
     private readonly NumericUpDown _overlayFontSizeInput;
+    private readonly Label _overlayFadeProfileLabel;
+    private readonly ComboBox _overlayFadeProfileCombo;
     private readonly CheckBox _showOverlayBorderCheck;
     private readonly CheckBox _useSimpleMicSpinnerCheck;
     private readonly ComboBox _remoteActionPopupLevelCombo;
@@ -297,7 +299,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 20,
+            RowCount = 21,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -421,6 +423,24 @@ public class SettingsForm : Form
             ThousandsSeparator = false,
             Margin = new Padding(0, 6, 0, 0)
         };
+
+        _overlayFadeProfileLabel = new Label
+        {
+            Text = "HUD fade profile",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _overlayFadeProfileCombo = new ComboBox
+        {
+            Dock = DockStyle.Left,
+            Width = 240,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+        _overlayFadeProfileCombo.Items.AddRange([.. AppConfig.OverlayFadeProfiles]);
+        SetupThemedComboBox(_overlayFadeProfileCombo);
 
         _showOverlayBorderCheck = new CheckBox
         {
@@ -607,6 +627,8 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_penHotkeyValidationResult, 2);
         behaviorLayout.Controls.Add(_settingsDarkModeCheck, 0, 17);
         behaviorLayout.SetColumnSpan(_settingsDarkModeCheck, 2);
+        behaviorLayout.Controls.Add(_overlayFadeProfileLabel, 0, 20);
+        behaviorLayout.Controls.Add(_overlayFadeProfileCombo, 1, 20);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new ThemedGroupBox
@@ -1004,6 +1026,10 @@ public class SettingsForm : Form
         _overlayOpacityInput.Value = AppConfig.NormalizeOverlayOpacityPercent(config.OverlayOpacityPercent);
         _overlayWidthInput.Value = AppConfig.NormalizeOverlayWidthPercent(config.OverlayWidthPercent);
         _overlayFontSizeInput.Value = AppConfig.NormalizeOverlayFontSizePt(config.OverlayFontSizePt);
+        _overlayFadeProfileCombo.SelectedIndex = Math.Clamp(
+            AppConfig.NormalizeOverlayFadeProfile(config.OverlayFadeProfile),
+            0,
+            _overlayFadeProfileCombo.Items.Count - 1);
         _showOverlayBorderCheck.Checked = config.ShowOverlayBorder;
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
         _remoteActionPopupLevelCombo.SelectedIndex = Math.Clamp(
@@ -1048,6 +1074,10 @@ public class SettingsForm : Form
             OverlayOpacityPercent = AppConfig.NormalizeOverlayOpacityPercent((int)_overlayOpacityInput.Value),
             OverlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent((int)_overlayWidthInput.Value),
             OverlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt((int)_overlayFontSizeInput.Value),
+            OverlayFadeProfile = Math.Clamp(
+                _overlayFadeProfileCombo.SelectedIndex,
+                AppConfig.MinOverlayFadeProfile,
+                AppConfig.MaxOverlayFadeProfile),
             ShowOverlayBorder = _showOverlayBorderCheck.Checked,
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
             RemoteActionPopupLevel = Math.Clamp(
@@ -1154,6 +1184,7 @@ public class SettingsForm : Form
         _overlayOpacityInput.Enabled = enabled;
         _overlayWidthInput.Enabled = enabled;
         _overlayFontSizeInput.Enabled = enabled;
+        _overlayFadeProfileCombo.Enabled = enabled;
         _showOverlayBorderCheck.Enabled = enabled;
         _useSimpleMicSpinnerCheck.Enabled = enabled;
 
@@ -1166,6 +1197,8 @@ public class SettingsForm : Form
         _overlayWidthLabel.ForeColor = labelColor;
         _overlayFontSizeLabel.Enabled = true;
         _overlayFontSizeLabel.ForeColor = labelColor;
+        _overlayFadeProfileLabel.Enabled = true;
+        _overlayFadeProfileLabel.ForeColor = labelColor;
     }
 
     private void UpdatePastedTextPrefixState()

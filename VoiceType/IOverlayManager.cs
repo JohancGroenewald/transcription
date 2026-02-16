@@ -31,6 +31,8 @@ public interface IOverlayManager : IDisposable
         int fontSizePt,
         bool showBorder);
 
+    void ApplyFadeProfile(int overlayFadeProfile);
+
     void HideAll();
 
     void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);

@@ -16,11 +16,12 @@ public class OverlayForm : Form
     private const int MinOverlayHeight = 58;
     private const int CornerRadius = 14;
     private const int ActionLineSpacing = 4;
-    private const int FadeTickIntervalMs = 40;
-    private const int FadeDurationMs = 520;
+    private const int DefaultFadeTickIntervalMs = 40;
+    private const int DefaultFadeDurationMs = 520;
     private const int CountdownTickIntervalMs = 40;
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
+    private static readonly Color TransparentOverlayBackgroundColor = Color.Fuchsia;
     private static readonly Color CountdownTrackColor = Color.FromArgb(84, 30, 52, 40);
 
     private const int WS_EX_TOPMOST = 0x00000008;
@@ -70,6 +71,8 @@ public class OverlayForm : Form
     private int _activeMessageId;
     private int _hideTimerMessageId;
     private int _fadeMessageId;
+    private int _fadeDurationMs = DefaultFadeDurationMs;
+    private int _fadeTickIntervalMs = DefaultFadeTickIntervalMs;
     private bool _animateOnAutoHide;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastCenterTextBlock;
@@ -94,7 +97,8 @@ public class OverlayForm : Form
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        BackColor = Color.FromArgb(12, 24, 18);
+        BackColor = TransparentOverlayBackgroundColor;
+        TransparencyKey = TransparentOverlayBackgroundColor;
         ForeColor = DefaultTextColor;
         Opacity = _baseOpacity;
         Size = new Size(620, MinOverlayHeight);
@@ -105,6 +109,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Fill,
             Font = new Font("Consolas", AppConfig.DefaultOverlayFontSizePt, FontStyle.Bold),
             ForeColor = DefaultTextColor,
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
             AutoEllipsis = false
         };
@@ -113,6 +118,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font("Consolas", Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Regular),
             ForeColor = ActionTextColor,
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
@@ -123,6 +129,7 @@ public class OverlayForm : Form
             Dock = DockStyle.Bottom,
             Font = new Font("Consolas", Math.Max(8, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Regular),
             ForeColor = Color.FromArgb(150, 173, 255, 173),
+            BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
             AutoEllipsis = false,
             AutoSize = false,
@@ -134,7 +141,7 @@ public class OverlayForm : Form
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = 3000 };
         _hideTimer.Tick += (s, e) => OnHideTimerTick();
-        _fadeTimer = new System.Windows.Forms.Timer { Interval = FadeTickIntervalMs };
+        _fadeTimer = new System.Windows.Forms.Timer { Interval = _fadeTickIntervalMs };
         _fadeTimer.Tick += (s, e) => OnFadeTick();
         _countdownTimer = new System.Windows.Forms.Timer { Interval = CountdownTickIntervalMs };
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
@@ -172,6 +179,11 @@ public class OverlayForm : Form
     {
         base.OnSizeChanged(e);
         UpdateRoundedRegion();
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        // Keep overlays visually transparent: render only the content and optional border/bar.
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -459,9 +471,10 @@ public class OverlayForm : Form
         _ = SetWindowPos(Handle, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
-    public void FadeOut(int delayMilliseconds = 0)
+    public void FadeOut(int delayMilliseconds = 0, int? fadeDurationMs = null, int? fadeTickIntervalMs = null)
     {
         var delayMs = Math.Max(0, delayMilliseconds);
+        ConfigureFadeTiming(fadeDurationMs, fadeTickIntervalMs);
         var messageId = _activeMessageId;
         if (delayMs <= 0)
         {
@@ -675,7 +688,7 @@ public class OverlayForm : Form
             return;
         }
 
-        var steps = Math.Max(1, FadeDurationMs / FadeTickIntervalMs);
+        var steps = Math.Max(1, _fadeDurationMs / Math.Max(1, _fadeTickIntervalMs));
         var nextOpacity = Opacity - (_baseOpacity / steps);
         if (nextOpacity <= 0.02)
         {
@@ -709,7 +722,7 @@ public class OverlayForm : Form
         _showCountdownBar = true;
         _countdownMessageId = messageId;
         _countdownStartUtc = DateTime.UtcNow;
-        _countdownTotalMs = durationMs + FadeDurationMs;
+        _countdownTotalMs = durationMs + _fadeDurationMs;
         _countdownTimer.Start();
     }
 
@@ -778,6 +791,16 @@ public class OverlayForm : Form
         _label.Cursor = Cursors.Default;
         _actionLabel.Cursor = Cursors.Default;
         _prefixLabel.Cursor = Cursors.Default;
+    }
+
+    private void ConfigureFadeTiming(int? fadeDurationMs, int? fadeTickIntervalMs)
+    {
+        var profileDurationMs = fadeDurationMs ?? DefaultFadeDurationMs;
+        var profileTickMs = fadeTickIntervalMs ?? DefaultFadeTickIntervalMs;
+
+        _fadeDurationMs = Math.Max(1, profileDurationMs);
+        _fadeTickIntervalMs = Math.Clamp(profileTickMs, 8, 200);
+        _fadeTimer.Interval = _fadeTickIntervalMs;
     }
 
     private void OnOverlayMouseClick(object? sender, MouseEventArgs e)

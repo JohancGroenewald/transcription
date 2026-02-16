@@ -23,9 +23,23 @@ public class AppConfig
     public const int DefaultOverlayFontSizePt = 12;
     public const int MinOverlayFontSizePt = 9;
     public const int MaxOverlayFontSizePt = 22;
+    public const int DefaultOverlayFadeProfile = 2;
+    public const int MinOverlayFadeProfile = 0;
+    public const int MaxOverlayFadeProfile = 3;
+    public const int OffOverlayFadeProfile = 0;
+    public const int FastOverlayFadeProfile = 1;
+    public const int BalancedOverlayFadeProfile = 2;
+    public const int GentleOverlayFadeProfile = 3;
     public const int MinRemoteActionPopupLevel = 0;
     public const int DefaultRemoteActionPopupLevel = 1;
     public const int MaxRemoteActionPopupLevel = 2;
+    public static readonly string[] OverlayFadeProfiles =
+    [
+        "Off",
+        "Fast",
+        "Balanced",
+        "Gentle"
+    ];
     private static readonly string[] SupportedPenHotkeys =
     [
         "F13",
@@ -71,6 +85,7 @@ public class AppConfig
     public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
     public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
     public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
+    public int OverlayFadeProfile { get; set; } = DefaultOverlayFadeProfile;
     public bool ShowOverlayBorder { get; set; } = true;
     public bool UseSimpleMicSpinner { get; set; }
     public bool EnablePenHotkey { get; set; }
@@ -106,6 +121,7 @@ public class AppConfig
         public int OverlayOpacityPercent { get; set; } = DefaultOverlayOpacityPercent;
         public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
         public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
+        public int OverlayFadeProfile { get; set; } = DefaultOverlayFadeProfile;
         public bool ShowOverlayBorder { get; set; } = true;
         public bool UseSimpleMicSpinner { get; set; }
         public bool EnablePenHotkey { get; set; }
@@ -146,6 +162,7 @@ public class AppConfig
                 OverlayOpacityPercent = NormalizeOverlayOpacityPercent(configFile.OverlayOpacityPercent),
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
+                OverlayFadeProfile = NormalizeOverlayFadeProfile(configFile.OverlayFadeProfile),
                 ShowOverlayBorder = configFile.ShowOverlayBorder,
                 UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
                 EnablePenHotkey = configFile.EnablePenHotkey,
@@ -188,6 +205,7 @@ public class AppConfig
                 OverlayOpacityPercent = NormalizeOverlayOpacityPercent(OverlayOpacityPercent),
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(OverlayFontSizePt),
+                OverlayFadeProfile = NormalizeOverlayFadeProfile(OverlayFadeProfile),
                 ShowOverlayBorder = ShowOverlayBorder,
                 UseSimpleMicSpinner = UseSimpleMicSpinner,
                 EnablePenHotkey = EnablePenHotkey,
@@ -287,6 +305,15 @@ public class AppConfig
         if (fontSizePt > MaxOverlayFontSizePt)
             return MaxOverlayFontSizePt;
         return fontSizePt;
+    }
+
+    public static int NormalizeOverlayFadeProfile(int overlayFadeProfile)
+    {
+        if (overlayFadeProfile < MinOverlayFadeProfile)
+            return MinOverlayFadeProfile;
+        if (overlayFadeProfile > MaxOverlayFadeProfile)
+            return MaxOverlayFadeProfile;
+        return overlayFadeProfile;
     }
 
     public static int NormalizeRemoteActionPopupLevel(int level)

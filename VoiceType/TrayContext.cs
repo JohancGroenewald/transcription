@@ -139,12 +139,23 @@ public class TrayContext : ApplicationContext
         if (_transcriptionService == null)
         {
             Log.Info("No API key configured");
-            ShowOverlay("No API key — right-click tray icon > Settings", Color.Orange, 5000);
+            ShowOverlay(
+                "No API key — right-click tray icon > Settings",
+                Color.Orange,
+                5000,
+                overlayKey: "startup-overlay",
+                trackInStack: true);
             PromptForApiKeySetupOnStartup();
         }
         else
         {
-            ShowOverlay($"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})", Color.LightGreen, 2000);
+            ShowOverlay(
+                $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
+                Color.LightGreen,
+                2000,
+                overlayKey: "hello-overlay",
+                trackInStack: true,
+                autoHide: true);
         }
 
         Log.Info("VoiceType started successfully");
@@ -162,6 +173,7 @@ public class TrayContext : ApplicationContext
             config.OverlayWidthPercent,
             config.OverlayFontSizePt,
             config.ShowOverlayBorder);
+        _overlayManager.ApplyFadeProfile(config.OverlayFadeProfile);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
@@ -954,13 +966,13 @@ public class TrayContext : ApplicationContext
             return;
         }
 
-        var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
-        var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
-        var submittedMessageId = ShowOverlay(sentText, sentColor, 1000);
-        if (submittedMessageId != 0)
-            _overlayManager.FadeVisibleOverlaysTopToBottom(120);
-        Log.Info("Enter key sent");
-    }
+            var sentText = fromVoiceCommand ? "Command: submit" : "Submitted";
+            var sentColor = fromVoiceCommand ? CommandOverlayColor : Color.LightGreen;
+            var submittedMessageId = ShowOverlay(sentText, sentColor, 1000);
+            if (submittedMessageId != 0)
+                _overlayManager.FadeVisibleOverlaysTopToBottom();
+            Log.Info("Enter key sent");
+        }
 
     private void SetAutoSend(bool enabled, bool fromVoiceCommand = false)
     {
