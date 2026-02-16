@@ -23,7 +23,8 @@ public class OverlayForm : Form
     private const int CountdownBarHeight = 4;
     private const int CountdownBarBottomMargin = 7;
     private const int ListeningMeterWidth = 230;
-    private const int ListeningMeterHeight = 22;
+    private const int ListeningMeterHeight = 23;
+    private const int ListeningMeterTopOffsetPx = 3;
     private const int ListeningMeterBarCount = 8;
     private const int ListeningMeterBarSpacing = 2;
     private const int ListeningMeterActiveBarBaseAlpha = 150;
@@ -123,7 +124,7 @@ public class OverlayForm : Form
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt, FontStyle.Bold),
+            Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt + 1, FontStyle.Bold),
             ForeColor = DefaultTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -133,7 +134,7 @@ public class OverlayForm : Form
         _actionLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
+            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1), FontStyle.Bold),
             ForeColor = ActionTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
@@ -145,7 +146,7 @@ public class OverlayForm : Form
         _prefixLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font(OverlayFontFamily, Math.Max(9, AppConfig.DefaultOverlayFontSizePt - 3), FontStyle.Bold),
+            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
             ForeColor = Color.FromArgb(255, 173, 255, 173),
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.TopLeft,
@@ -455,19 +456,19 @@ public class OverlayForm : Form
         }
 
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
-        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 2));
+        _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 3));
         _showOverlayBorder = showBorder;
         _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
         Opacity = 1.0;
 
         var oldFont = _label.Font;
-        _label.Font = new Font(OverlayFontFamily, _overlayFontSizePt, FontStyle.Regular);
+        _label.Font = new Font(OverlayFontFamily, _overlayFontSizePt, FontStyle.Bold);
         oldFont.Dispose();
         var oldActionFont = _actionLabel.Font;
-        _actionLabel.Font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 2), FontStyle.Regular);
+        _actionLabel.Font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
         oldActionFont.Dispose();
         var oldPrefixFont = _prefixLabel.Font;
-        _prefixLabel.Font = new Font(OverlayFontFamily, Math.Max(9, _overlayFontSizePt - 3), FontStyle.Regular);
+        _prefixLabel.Font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
         oldPrefixFont.Dispose();
 
         if (Visible)
@@ -695,7 +696,7 @@ public class OverlayForm : Form
         var maxTop = Math.Max(
             minTop,
             labelArea.Bottom - Math.Max(16, secondLineHeight) - ListeningMeterHeight - 4);
-        var meterTop = Math.Clamp(candidateTop, minTop, maxTop);
+        var meterTop = Math.Clamp(candidateTop + ListeningMeterTopOffsetPx, minTop, maxTop);
 
         var meterAreaWidth = Math.Min(ListeningMeterWidth, Math.Max(1, labelArea.Width));
         var meterLeft = Math.Clamp(
