@@ -14,8 +14,8 @@ public class AppConfig
     public const int DefaultOverlayDurationMs = 3000;
     public const int MinOverlayDurationMs = 500;
     public const int MaxOverlayDurationMs = 60000;
-    public const int DefaultOverlayOpacityPercent = 20;
-    public const int MinOverlayOpacityPercent = 10;
+    public const int DefaultOverlayOpacityPercent = 10;
+    public const int MinOverlayOpacityPercent = 1;
     public const int MaxOverlayOpacityPercent = 100;
     public const int DefaultOverlayWidthPercent = 62;
     public const int MinOverlayWidthPercent = 35;

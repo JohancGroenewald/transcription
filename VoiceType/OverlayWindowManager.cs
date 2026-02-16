@@ -65,7 +65,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     }
 
     private readonly Func<OverlayForm> _overlayFactory;
-    private readonly bool _suppressAutoHide = true;
+    private readonly bool _suppressAutoHide = false;
     private readonly Dictionary<OverlayForm, ManagedOverlay> _activeOverlays = new();
     private readonly Dictionary<string, OverlayForm> _overlaysByKey = new(StringComparer.Ordinal);
     private readonly OverlayStackSpine _stackSpine = new();
