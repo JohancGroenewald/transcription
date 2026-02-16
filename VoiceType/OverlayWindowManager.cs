@@ -434,6 +434,23 @@ public sealed class OverlayWindowManager : IOverlayManager
             return;
 
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        var maximumStackHeight = Math.Max(0, workingArea.Height - 4);
+        var interOverlaySpacing = 4;
+
+        while (visibleOverlays.Count > 0)
+        {
+            var neededHeight = visibleOverlays.Sum(x => x.Height)
+                + Math.Max(0, (visibleOverlays.Count - 1) * interOverlaySpacing);
+
+            if (neededHeight <= maximumStackHeight)
+                break;
+
+            // Remove the oldest overlay at the bottom of the stack if the stack overflows.
+            var oldestOverlay = visibleOverlays[0];
+            visibleOverlays.RemoveAt(0);
+            RemoveOverlayLocked(oldestOverlay);
+        }
+
         var cursorY = workingArea.Bottom - 4;
         foreach (var overlay in visibleOverlays)
         {
