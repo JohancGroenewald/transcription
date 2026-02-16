@@ -94,7 +94,7 @@ public class OverlayForm : Form
     private bool _dragStarted;
     private int _lastDragScreenX;
     private bool _ignoreNextClickAfterDrag;
-    private const int HorizontalDragActivationThreshold = 3;
+    private const int HorizontalDragActivationThreshold = 1;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayHorizontalDraggedEventArgs>? OverlayHorizontalDragged;
@@ -168,12 +168,8 @@ public class OverlayForm : Form
         _fadeTimer.Tick += (s, e) => OnFadeTick();
         _countdownTimer = new System.Windows.Forms.Timer { Interval = CountdownTickIntervalMs };
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
-        MouseClick += OnOverlayMouseClick;
         RegisterDragHandlers(this);
         MouseCaptureChanged += OnMouseCaptureChanged;
-        _label.MouseClick += OnOverlayMouseClick;
-        _actionLabel.MouseClick += OnOverlayMouseClick;
-        _prefixLabel.MouseClick += OnOverlayMouseClick;
 
         Paint += OnOverlayPaint;
         ApplyHudSettings(
@@ -977,6 +973,12 @@ public class OverlayForm : Form
         OverlayTapped?.Invoke(this, new OverlayTappedEventArgs(messageId));
     }
 
+    private bool HandleOverlayTap(object? sender, MouseEventArgs e)
+    {
+        OnOverlayMouseClick(sender, e);
+        return true;
+    }
+
     private string GetOverlayTextForCopy(object? sender)
     {
         return sender switch
@@ -1076,7 +1078,11 @@ public class OverlayForm : Form
         if (e.Button != MouseButtons.Left)
             return;
 
-        EndHorizontalDrag();
+        var wasDrag = EndHorizontalDrag();
+        if (wasDrag)
+            return;
+
+        HandleOverlayTap(sender, e);
     }
 
     private void OnMouseCaptureChanged(object? sender, EventArgs e)
@@ -1085,13 +1091,14 @@ public class OverlayForm : Form
             EndHorizontalDrag();
     }
 
-    private void EndHorizontalDrag()
+    private bool EndHorizontalDrag()
     {
+        var wasDragging = _isHorizontalDragging;
         if (!_dragStarted && !_isHorizontalDragging)
         {
             Capture = false;
             Cursor = Cursors.Default;
-            return;
+            return false;
         }
 
         _ignoreNextClickAfterDrag = _isHorizontalDragging;
@@ -1099,6 +1106,7 @@ public class OverlayForm : Form
         _isHorizontalDragging = false;
         Cursor = Cursors.Default;
         Capture = false;
+        return wasDragging;
     }
 
     private void RegisterDragHandlers(Control control)
