@@ -26,6 +26,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     }
 
     private readonly Func<OverlayForm> _overlayFactory;
+    private readonly bool _suppressAutoHide = true;
     private readonly Dictionary<OverlayForm, ManagedOverlay> _activeOverlays = new();
     private readonly Dictionary<string, OverlayForm> _overlaysByKey = new(StringComparer.Ordinal);
     private readonly List<OverlayForm> _stackOrder = [];
@@ -75,10 +76,10 @@ public sealed class OverlayWindowManager : IOverlayManager
                 var localMessageId = managed.Form.ShowMessage(
                     text,
                     color,
-                    durationMs,
+                    ComputeDurationMs(durationMs),
                     textAlign,
                     centerTextBlock,
-                    showCountdownBar,
+                    _suppressAutoHide ? false : showCountdownBar,
                     tapToCancel,
                     remoteActionText,
                     remoteActionColor,
@@ -106,10 +107,10 @@ public sealed class OverlayWindowManager : IOverlayManager
             managedOverlay.LocalMessageId = managedOverlay.Form.ShowMessage(
                 text,
                 color,
-                durationMs,
+                ComputeDurationMs(durationMs),
                 textAlign,
                 centerTextBlock,
-                showCountdownBar,
+                _suppressAutoHide ? false : showCountdownBar,
                 tapToCancel,
                 remoteActionText,
                 remoteActionColor,
@@ -272,11 +273,16 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     private void RemoveOverlayLocked(OverlayForm overlay)
     {
-        if (!_activeOverlays.Remove(overlay, out var managed))
+        if (!_activeOverlays.Remove(overlay, out _))
             return;
 
         _stackOrder.Remove(overlay);
-        _overlaysByKey.RemoveWhere(pair => ReferenceEquals(pair.Value, overlay));
+        var overlayKeys = _overlaysByKey
+            .Where(pair => ReferenceEquals(pair.Value, overlay))
+            .Select(pair => pair.Key)
+            .ToList();
+        foreach (var key in overlayKeys)
+            _overlaysByKey.Remove(key);
         UnhookOverlay(overlay);
         overlay.Dispose();
     }
@@ -316,17 +322,11 @@ public sealed class OverlayWindowManager : IOverlayManager
             cursorY -= 4;
         }
     }
-}
 
-internal static class OverlayWindowManagerExtensions
-{
-    public static void RemoveWhere<TKey, TValue>(this Dictionary<TKey, TValue> source, Func<KeyValuePair<TKey, TValue>, bool> predicate)
+    private int ComputeDurationMs(int durationMs)
     {
-        var keysToRemove = source
-            .Where(predicate)
-            .Select(x => x.Key)
-            .ToList();
-        foreach (var key in keysToRemove)
-            source.Remove(key);
+        return _suppressAutoHide
+            ? 0
+            : Math.Max(0, durationMs);
     }
 }
