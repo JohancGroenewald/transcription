@@ -1,6 +1,7 @@
 param(
     [int]$MaxWaitMilliseconds = 3000,
-    [int]$RetryDelayMilliseconds = 250
+    [int]$RetryDelayMilliseconds = 250,
+    [int]$GracefulWaitExtraMilliseconds = 1500
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,5 +67,35 @@ while ([DateTime]::UtcNow -lt $deadline)
     Start-Sleep -Milliseconds $RetryDelayMilliseconds
 }
 
-Write-Host "[close-voicetype] VoiceType did not close in time. It may still be starting up or unresponsive."
+Write-Host "[close-voicetype] VoiceType did not close in graceful timeout. Attempting fallback terminate."
+$gracefulWaitDeadline = [DateTime]::UtcNow
+$fallbackDeadline = $gracefulWaitDeadline.AddMilliseconds($GracefulWaitExtraMilliseconds)
+
+$remaining = Get-VoiceTypeProcesses -repoRoot $repoRoot
+foreach ($voiceTypePid in $remaining)
+{
+    try
+    {
+        Write-Host "[close-voicetype] Force-killing PID $voiceTypePid"
+        Stop-Process -Id $voiceTypePid -Force -ErrorAction Stop
+    }
+    catch
+    {
+        # Ignore failures here; still continue checking.
+    }
+}
+
+while ([DateTime]::UtcNow -lt $fallbackDeadline)
+{
+    $remaining = Get-VoiceTypeProcesses -repoRoot $repoRoot
+    if ($remaining.Count -eq 0)
+    {
+        Write-Host "[close-voicetype] VoiceType closed."
+        exit 0;
+    }
+
+    Start-Sleep -Milliseconds $RetryDelayMilliseconds
+}
+
+Write-Host "[close-voicetype] Unable to terminate VoiceType in time; continuing to avoid blocking build."
 exit 0
