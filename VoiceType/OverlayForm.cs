@@ -380,10 +380,7 @@ public class OverlayForm : Form
                 (actionLineHeight > 0 ? actionLineHeight + ActionLineSpacing : 0) +
                 (prefixLineHeight > 0 ? prefixLineHeight + ActionLineSpacing : 0) +
                 Padding.Vertical +
-                8 +
-                (showListeningLevelMeter
-                    ? Math.Max(0, ListeningMeterTopOffsetPx + ListeningMeterHeight + 8)
-                    : 0));
+                8);
 
             Size = new Size(width, height);
             ConfigureLabelLayout(
@@ -679,12 +676,28 @@ public class OverlayForm : Form
             ? _label.Bounds
             : ClientRectangle;
 
-        var candidateTop = labelArea.Bottom + ListeningMeterTopOffsetPx;
-        var minTop = Math.Max(labelArea.Bottom + 2, Padding.Top);
+        var lines = _label.Text.Split('\n');
+        var firstLineHeight = Math.Max(
+            _label.Font.Height,
+            TextRenderer.MeasureText(
+                lines.Length > 0 ? lines[0] : string.Empty,
+                _label.Font,
+                new Size(labelArea.Width, int.MaxValue),
+                TextFormatFlags.NoPrefix).Height);
+        var secondLineHeight = lines.Length > 1
+            ? TextRenderer.MeasureText(
+                lines[1],
+                _label.Font,
+                new Size(labelArea.Width, int.MaxValue),
+                TextFormatFlags.NoPrefix).Height
+            : 0;
+
+        var candidateTop = labelArea.Top + (int)(labelArea.Height * 0.65) - (ListeningMeterHeight / 2);
+        var minTop = Math.Max(Padding.Top, labelArea.Top + 2);
         var maxTop = Math.Max(
             minTop,
-            ClientSize.Height - ListeningMeterHeight - 4);
-        var meterTop = Math.Clamp(candidateTop, minTop, maxTop);
+            labelArea.Bottom - Math.Max(16, secondLineHeight) - ListeningMeterHeight - 4);
+        var meterTop = Math.Clamp(candidateTop + ListeningMeterTopOffsetPx, minTop, maxTop);
 
         var meterAreaWidth = Math.Min(ListeningMeterWidth, Math.Max(1, labelArea.Width));
         var meterLeft = Math.Clamp(
