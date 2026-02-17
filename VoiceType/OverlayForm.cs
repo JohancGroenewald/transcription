@@ -43,6 +43,7 @@ public class OverlayForm : Form
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
+    private const int HideStackIconCornerRadius = 6;
     private const float HelloTextFrameWidth = 1.0f;
     private const int HelloTextFramePaddingPx = 2;
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
@@ -900,6 +901,22 @@ public class OverlayForm : Form
             iconY,
             iconRenderWidth,
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
+
+        var iconOutlineBounds = new Rectangle(
+            iconBounds.Left,
+            iconBounds.Top,
+            iconBounds.Width,
+            iconBounds.Height);
+        var iconOutlineColor = _showCopyTapFeedbackBorder
+            ? _activeBorderColor
+            : BorderColor;
+        using var iconOutlinePen = new Pen(iconOutlineColor, 1.2f)
+        {
+            Alignment = PenAlignment.Outset
+        };
+        using var iconOutlinePath = CreateRoundedRectanglePath(iconOutlineBounds, HideStackIconCornerRadius);
+        graphics.DrawPath(iconOutlinePen, iconOutlinePath);
+
         var clickableBounds = new Rectangle(
             iconBounds.Left,
             iconBounds.Top,
