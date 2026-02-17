@@ -164,6 +164,7 @@ public class OverlayForm : Form
     private Rectangle _startListeningIconBounds = Rectangle.Empty;
     private Rectangle _stopListeningIconBounds = Rectangle.Empty;
     private Rectangle _cancelListeningIconBounds = Rectangle.Empty;
+    private static int _profiledOverlayControlIconHeightPx = HideStackIconMinHeight;
     private int _lastLoggedHideStackMessageId;
     private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
 
@@ -837,9 +838,12 @@ public class OverlayForm : Form
 
         var iconHeight = Math.Max(1, iconReferenceBounds.Height);
         if (_showHelloTextFrame)
+        {
             iconHeight += (HelloTextFramePaddingPx * 2);
+            _profiledOverlayControlIconHeightPx = Math.Max(_profiledOverlayControlIconHeightPx, iconHeight);
+        }
 
-        return iconHeight;
+        return Math.Max(iconHeight, _profiledOverlayControlIconHeightPx);
     }
 
     private int GetHideStackIconReservePx()

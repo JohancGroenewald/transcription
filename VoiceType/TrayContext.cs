@@ -52,6 +52,7 @@ public class TrayContext : ApplicationContext
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
     private const string PasteCanceledOverlayKey = "paste-canceled-overlay";
+    private const string RecordingCanceledOverlayKey = "recording-canceled-overlay";
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -675,7 +676,11 @@ public class TrayContext : ApplicationContext
                     Log.Error("Failed to stop recorder while canceling on remote submit.", ex);
                 }
 
-                ShowOverlay("Recording canceled", NeutralOverlayColor, 1500);
+                ShowOverlay(
+                    "Recording canceled",
+                    NeutralOverlayColor,
+                    1500,
+                    overlayKey: RecordingCanceledOverlayKey);
                 return;
             }
 
@@ -895,7 +900,8 @@ public class TrayContext : ApplicationContext
             ListeningOverlayKey,
             PastedAutoSendSkippedOverlayKey,
             ProcessingVoiceOverlayKey,
-            PasteCanceledOverlayKey
+            PasteCanceledOverlayKey,
+            RecordingCanceledOverlayKey
         });
         _overlayManager.DismissRemoteActionOverlays();
     }
@@ -1822,7 +1828,11 @@ public class TrayContext : ApplicationContext
         }
 
         _ignorePastedTextPrefixForNextTranscription = false;
-        ShowOverlay("Recording canceled", NeutralOverlayColor, 1500);
+        ShowOverlay(
+            "Recording canceled",
+            NeutralOverlayColor,
+            1500,
+            overlayKey: RecordingCanceledOverlayKey);
         CompleteShutdownIfRequested();
     }
 
