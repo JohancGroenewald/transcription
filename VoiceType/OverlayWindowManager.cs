@@ -274,6 +274,26 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public bool HasTrackedOverlay(string overlayKey)
+    {
+        if (string.IsNullOrWhiteSpace(overlayKey))
+            return false;
+
+        lock (_sync)
+        {
+            if (!_overlaysByKey.TryGetValue(overlayKey, out var overlay))
+                return false;
+
+            if (overlay.IsDisposed)
+                return false;
+
+            if (!_activeOverlays.TryGetValue(overlay, out var managed))
+                return false;
+
+            return managed.Form.Visible && managed.TrackInStack;
+        }
+    }
+
     public void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon)
     {
         List<OverlayForm> trackedOverlays;

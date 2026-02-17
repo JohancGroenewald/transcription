@@ -189,7 +189,7 @@ public class TrayContext : ApplicationContext
         }
         else
         {
-            ShowHelloOverlay();
+            EnsureHelloOverlayOnStack("startup");
         }
 
         Log.Info("VoiceType started successfully");
@@ -1659,10 +1659,7 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _shutdownRequested)
             return;
 
-        if (_isStackHiddenByUser)
-            return;
-
-        ShowHelloOverlay();
+        EnsureHelloOverlayOnStack("stack-emptied");
     }
 
     private void RestoreHiddenStackOnReactivation()
@@ -1671,16 +1668,32 @@ public class TrayContext : ApplicationContext
             return;
 
         if (_isStackHiddenByUser)
-        {
             _isStackHiddenByUser = false;
+        EnsureHelloOverlayOnStack("reactivation");
+    }
 
-            if (_overlayManager.HasTrackedOverlays())
-                return;
+    private void EnsureHelloOverlayOnStack(string reason)
+    {
+        if (_transcriptionService == null || _isShuttingDown || _shutdownRequested)
+            return;
+
+        if (_isStackHiddenByUser)
+        {
+            Log.Info($"Stack bootstrap skipped ({reason}) because stack is hidden by user.");
+            return;
         }
 
         if (_overlayManager.HasTrackedOverlays())
-            return;
+        {
+            if (_overlayManager.HasTrackedOverlay(HelloOverlayKey))
+                return;
 
+            Log.Info($"Stack bootstrap ({reason}) reseeding hello overlay (existing tracked overlays found, but hello overlay missing).");
+            ShowHelloOverlay();
+            return;
+        }
+
+        Log.Info($"Stack bootstrap ({reason}) reseeding hello overlay (stack empty).");
         ShowHelloOverlay();
     }
 
