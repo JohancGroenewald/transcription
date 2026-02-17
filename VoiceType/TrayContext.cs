@@ -198,6 +198,7 @@ public class TrayContext : ApplicationContext
         else
         {
             _stackBootstrap.OnStartup("startup");
+            _uiDispatcher.BeginInvoke(new Action(() => EnsureHelloOverlayBootstrapped("startup-post-pump")));
         }
 
         Log.Info("VoiceType started successfully");
@@ -1689,6 +1690,23 @@ public class TrayContext : ApplicationContext
 
         if (!_overlayManager.HasTrackedOverlays())
             _stackBootstrap.OnStartup("reactivation-fallback");
+
+        EnsureHelloOverlayBootstrapped("reactivation-fallback");
+    }
+
+    private void EnsureHelloOverlayBootstrapped(string reason)
+    {
+        if (_transcriptionService == null || _isShuttingDown || _shutdownRequested)
+            return;
+
+        if (_stackBootstrap.IsHiddenByUser)
+            return;
+
+        if (_overlayManager.HasTrackedOverlay(HelloOverlayKey))
+            return;
+
+        Log.Info($"Hello overlay reseed fallback ({reason})");
+        _stackBootstrap.OnStartup("self-heal");
     }
 
     private void OnTrayIconMouseClick(object? sender, MouseEventArgs e)
