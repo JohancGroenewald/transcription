@@ -45,6 +45,9 @@ public class OverlayForm : Form
     private const int HideStackIconMinHeight = 30;
     private const int HideStackIconMinWidth = 28;
     private const int HideStackIconMinInset = 2;
+    private static readonly Color HideStackIconFillColor = Color.FromArgb(255, 208, 52, 52);
+    private static readonly Color HideStackIconStrokeColor = Color.FromArgb(255, 255, 214, 214);
+    private static readonly Color HideStackIconGlyphColor = Color.FromArgb(255, 255, 236, 236);
     private const int StartListeningIconMinHeight = 30;
     private const int StartListeningIconMinWidth = 28;
     private const int StartListeningIconPaddingPx = 18;
@@ -957,6 +960,16 @@ public class OverlayForm : Form
             Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
 
+        using var iconBgPath = CreateRoundedRectanglePath(iconBounds, HideStackIconCornerRadius);
+        using var iconBgBrush = new SolidBrush(HideStackIconFillColor);
+        using var iconBgPen = new Pen(HideStackIconStrokeColor, Math.Max(1.0f, Math.Min(2.6f, iconHeight / 12.0f)))
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+        graphics.FillPath(iconBgBrush, iconBgPath);
+        graphics.DrawPath(iconBgPen, iconBgPath);
+
         var clickableBounds = new Rectangle(
             iconBounds.Left,
             iconBounds.Top,
@@ -970,7 +983,7 @@ public class OverlayForm : Form
             iconBounds.Top + ((iconBounds.Height - glyphSize) / 2),
             Math.Max(1, glyphSize),
             Math.Max(1, glyphSize));
-        var lineColor = Color.Red;
+        var lineColor = HideStackIconGlyphColor;
         var lineWidth = Math.Max(2.0f, Math.Min(4.2f, iconHeight / 7.0f));
         using var iconPen = new Pen(lineColor, lineWidth)
         {
