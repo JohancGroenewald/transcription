@@ -38,7 +38,7 @@ public class OverlayForm : Form
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
     private const int HideStackIconVerticalOffsetPx = -5;
-    private const float HideStackIconScale = 1.65f;
+    private const float HideStackIconScale = 3.0f;
     private const string HideStackIconGlyph = "×";
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
