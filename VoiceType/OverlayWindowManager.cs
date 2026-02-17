@@ -161,6 +161,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool autoHide = false,
         bool isRemoteAction = false,
         bool isClipboardCopyAction = false,
+        bool allowCopyTap = true,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
@@ -177,7 +178,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         Log.Info(
             $"ShowMessage request: key={overlayKey ?? "<none>"}, textLen={text.Length}, " +
             $"track={trackInStack}, autoPosition={autoPosition}, autoHide={autoHide}, duration={durationMs}, " +
-            $"countdown={showCountdownBar}, remote={isRemoteAction}, copyAction={isClipboardCopyAction}, submitted={isSubmittedAction}");
+            $"countdown={showCountdownBar}, remote={isRemoteAction}, copyAction={isClipboardCopyAction}, allowCopyTap={allowCopyTap}, submitted={isSubmittedAction}");
         LogOverlayStackSnapshot($"show-message-start:{overlayKey ?? "<none>"}");
 
         var effectiveCountdownBar = showCountdownBar;
@@ -211,7 +212,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                     autoHide,
                     showListeningLevelMeter,
                     listeningLevelPercent,
-                    !isClipboardCopyAction,
+                    allowCopyTap && !isClipboardCopyAction,
                     copyText,
                     countdownPlaybackIcon,
                     fullWidthText,
@@ -270,7 +271,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 autoHide,
                 showListeningLevelMeter,
                 listeningLevelPercent,
-                !isClipboardCopyAction,
+                allowCopyTap && !isClipboardCopyAction,
                 copyText,
                 countdownPlaybackIcon,
                 fullWidthText,

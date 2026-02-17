@@ -773,6 +773,7 @@ public class TrayContext : ApplicationContext
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
         bool isClipboardCopyAction = false,
+        bool allowCopyTap = true,
         string? copyText = null,
         bool isSubmittedAction = false,
         string? countdownPlaybackIcon = null,
@@ -818,6 +819,7 @@ public class TrayContext : ApplicationContext
             autoHide,
             isRemoteAction: false,
             isClipboardCopyAction: isClipboardCopyAction,
+            allowCopyTap: allowCopyTap,
             animateHide: animateHide,
             showListeningLevelMeter: showListeningLevelMeter,
             listeningLevelPercent: listeningLevelPercent,
@@ -1834,6 +1836,7 @@ public class TrayContext : ApplicationContext
             2000,
             overlayKey: HelloOverlayKey,
             trackInStack: true,
+            allowCopyTap: false,
             showHideStackIcon: true,
             showHelloTextFrame: true,
             fullWidthText: false);

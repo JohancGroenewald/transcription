@@ -29,6 +29,7 @@ public interface IOverlayManager : IDisposable
         bool autoHide = false,
         bool isRemoteAction = false,
         bool isClipboardCopyAction = false,
+        bool allowCopyTap = true,
         bool animateHide = false,
         bool showListeningLevelMeter = false,
         int listeningLevelPercent = 0,
