@@ -886,9 +886,9 @@ public class OverlayForm : Form
 
         var iconHeight = Math.Max(1, iconTextSize.Height);
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
-        var contentTop = Math.Max(0, Padding.Top);
-        var contentHeight = Math.Max(1, ClientSize.Height - Padding.Vertical);
-        var baseIconY = contentTop + ((contentHeight - Math.Min(iconHeight, contentHeight - 2)) / 2);
+        var iconReferenceBounds = GetHideStackIconReferenceBounds();
+        var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
+        var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
         var iconLeft = Math.Max(
             0,
@@ -916,6 +916,32 @@ public class OverlayForm : Form
 
         _hideStackIconBounds = clickableBounds;
         LogHideStackBounds();
+    }
+
+    private Rectangle GetHideStackIconReferenceBounds()
+    {
+        var boundsToUse = _label.Bounds;
+        if (boundsToUse.IsEmpty || boundsToUse.Height <= 0)
+        {
+            return new Rectangle(
+                Padding.Left,
+                Padding.Top,
+                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                Math.Max(1, ClientSize.Height - Padding.Vertical));
+        }
+
+        var mergedBounds = boundsToUse;
+        if (_actionLabel.Visible && !string.IsNullOrWhiteSpace(_actionLabel.Text))
+        {
+            mergedBounds = Rectangle.Union(mergedBounds, _actionLabel.Bounds);
+        }
+
+        if (_prefixLabel.Visible && !string.IsNullOrWhiteSpace(_prefixLabel.Text))
+        {
+            mergedBounds = Rectangle.Union(mergedBounds, _prefixLabel.Bounds);
+        }
+
+        return mergedBounds;
     }
 
     private void LogHideStackBounds()
