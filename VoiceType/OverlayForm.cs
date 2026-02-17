@@ -862,8 +862,13 @@ public class OverlayForm : Form
 
     private void DrawHideStackIcon(Graphics graphics)
     {
-        var iconHeight = HideStackIconMinHeight;
-        var iconReferenceBounds = GetHideStackIconReferenceBounds();
+        var iconReferenceBounds = _label.Bounds;
+        if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
+            iconReferenceBounds = GetHideStackIconReferenceBounds();
+
+        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
+        if (_showHelloTextFrame)
+            iconHeight += (HelloTextFramePaddingPx * 2);
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
