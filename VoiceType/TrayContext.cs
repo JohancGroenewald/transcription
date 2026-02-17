@@ -1681,10 +1681,11 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
-        if (_stackBootstrap.IsHiddenByUser)
-            return;
-
+        var wasHiddenByUser = _stackBootstrap.IsHiddenByUser;
         _stackBootstrap.OnReactivation("reactivation");
+
+        if (wasHiddenByUser)
+            return;
 
         if (!_overlayManager.HasTrackedOverlays())
             _stackBootstrap.OnStartup("reactivation-fallback");
