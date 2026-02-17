@@ -46,7 +46,7 @@ public class OverlayForm : Form
     private const int HideStackIconMinWidth = 28;
     private const int HideStackIconMinInset = 2;
     private const float ListeningOverlayIconScale = 0.5f;
-    private const float ReadyOverlayIconScale = 0.3f;
+    private const float ReadyOverlayIconScale = 0.1f;
     private static readonly Color HideStackIconFillColor = Color.FromArgb(255, 208, 52, 52);
     private static readonly Color HideStackIconStrokeColor = Color.FromArgb(255, 255, 214, 214);
     private static readonly Color HideStackIconGlyphColor = Color.FromArgb(255, 255, 236, 236);
