@@ -128,6 +128,7 @@ public class TrayContext : ApplicationContext
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
+    private bool _isOpeningSettings;
     private WaveOutEvent? _previewPlaybackOutput;
     private WaveFileReader? _previewPlaybackReader;
     private MemoryStream? _previewPlaybackStream;
@@ -460,42 +461,63 @@ public class TrayContext : ApplicationContext
 
     private void OnSettings(object? sender, EventArgs e)
     {
+        Log.Info("Settings menu selected.");
         OpenSettings();
     }
 
     private void OpenSettings(bool focusApiKey = false, bool restorePreviousFocus = true)
     {
+        if (_isOpeningSettings)
+        {
+            Log.Info("Ignoring settings request because settings is already open.");
+            return;
+        }
+
         if (_uiDispatcher.InvokeRequired)
         {
             _uiDispatcher.Invoke(new Action(() => OpenSettings(focusApiKey, restorePreviousFocus)));
             return;
         }
 
-        var previousForegroundWindow = GetForegroundWindow();
-        IntPtr settingsWindow = IntPtr.Zero;
-        using var dlg = new SettingsForm();
-        dlg.Shown += (_, _) =>
+        _isOpeningSettings = true;
+        try
         {
-            dlg.BeginInvoke(new Action(() =>
+            var previousForegroundWindow = GetForegroundWindow();
+            IntPtr settingsWindow = IntPtr.Zero;
+            using var dlg = new SettingsForm();
+            dlg.Shown += (_, _) =>
             {
-                settingsWindow = dlg.Handle;
-                dlg.TopMost = true;
-                dlg.Activate();
-                dlg.BringToFront();
-                SetForegroundWindow(dlg.Handle);
-                if (focusApiKey)
-                    dlg.FocusApiKeyInput();
-                dlg.TopMost = false;
-            }));
-        };
-        dlg.ShowDialog();
-        ClearActivePreviewCountdownBar();
-        LoadTranscriptionService();
-        RefreshHotkeyRegistration();
-        SetReadyState();
-        RestoreHiddenStackOnReactivation();
-        if (restorePreviousFocus)
-            RestorePreviousFocus(previousForegroundWindow, settingsWindow);
+                dlg.BeginInvoke(new Action(() =>
+                {
+                    settingsWindow = dlg.Handle;
+                    dlg.TopMost = true;
+                    dlg.Activate();
+                    dlg.BringToFront();
+                    SetForegroundWindow(dlg.Handle);
+                    if (focusApiKey)
+                        dlg.FocusApiKeyInput();
+                    dlg.TopMost = false;
+                }));
+            };
+            Log.Info("Opening settings dialog.");
+            dlg.ShowDialog();
+            ClearActivePreviewCountdownBar();
+            LoadTranscriptionService();
+            RefreshHotkeyRegistration();
+            SetReadyState();
+            RestoreHiddenStackOnReactivation();
+            if (restorePreviousFocus)
+                RestorePreviousFocus(previousForegroundWindow, settingsWindow);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to open settings.", ex);
+            ShowOverlay("Unable to open settings. See logs.", ErrorOverlayColor, 2800);
+        }
+        finally
+        {
+            _isOpeningSettings = false;
+        }
     }
 
     private void OnTrayMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
@@ -1714,7 +1736,7 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown)
             return;
 
-        if (e.Button is MouseButtons.Left or MouseButtons.Right)
+        if (e.Button is MouseButtons.Left)
             RestoreHiddenStackOnReactivation();
     }
 
@@ -1723,7 +1745,14 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown)
             return;
 
-        if (e.Button is MouseButtons.Left or MouseButtons.Right)
+        if (e.Button is MouseButtons.Right)
+        {
+            RestoreHiddenStackOnReactivation();
+            _trayIcon.ContextMenuStrip?.Show(Cursor.Position);
+            return;
+        }
+
+        if (e.Button is MouseButtons.Left)
             RestoreHiddenStackOnReactivation();
     }
 
