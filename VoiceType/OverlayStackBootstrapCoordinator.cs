@@ -71,6 +71,12 @@ internal sealed class OverlayStackBootstrapCoordinator
         _log($"Stack bootstrap reactivation invoked. reason={reason}, shutdown={_isShuttingDown()}, shutdownRequested={_isShutdownRequested()}, transcriptionReady={_isTranscriptionReady()}, hiddenByUser={_isHiddenByUser}");
         if (_isTranscriptionReady() && !_isShuttingDown() && !_isShutdownRequested())
         {
+            if (_overlayManager.HasTrackedOverlays())
+            {
+                _log($"Stack bootstrap reactivation skipped reseed because tracked overlays already exist. reason={reason}");
+                return;
+            }
+
             EnsureHello(reason);
         }
     }

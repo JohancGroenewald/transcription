@@ -102,6 +102,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
     public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
+    public event EventHandler<OverlayStartListeningIconTappedEventArgs>? OverlayStartListeningIconTapped;
     public event EventHandler? OverlayStackEmptied;
 
     private static string GetOverlayDebugLabel(ManagedOverlay managed)
@@ -170,6 +171,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
         bool showHideStackIcon = false,
+        bool showStartListeningIcon = false,
         bool showHelloTextFrame = false)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -217,6 +219,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                     countdownPlaybackIcon,
                     fullWidthText,
                     showHideStackIcon,
+                    showStartListeningIcon,
                     showHelloTextFrame);
                 if (localMessageId == 0)
                     return 0;
@@ -276,6 +279,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 countdownPlaybackIcon,
                 fullWidthText,
                 showHideStackIcon,
+                showStartListeningIcon,
                 showHelloTextFrame);
 
             if (managedOverlay.LocalMessageId == 0)
@@ -351,6 +355,24 @@ public sealed class OverlayWindowManager : IOverlayManager
                 return false;
 
             return managed.Form.Visible && managed.TrackInStack;
+        }
+    }
+
+    public bool TryGetOverlayKey(int globalMessageId, out string? overlayKey)
+    {
+        overlayKey = null;
+        if (globalMessageId <= 0)
+            return false;
+
+        lock (_sync)
+        {
+            var matching = _activeOverlays.Values.FirstOrDefault(
+                overlay => overlay.GlobalMessageId == globalMessageId && overlay.Form.Visible);
+            if (matching is null)
+                return false;
+
+            overlayKey = matching.OverlayKey;
+            return true;
         }
     }
 
@@ -721,6 +743,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayCopyTapped += OnOverlayCopyTapped;
         overlay.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
         overlay.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
+        overlay.OverlayStartListeningIconTapped += OnOverlayStartListeningIconTapped;
         overlay.OverlayHorizontalDragged += OnOverlayHorizontalDragged;
 
         _activeOverlays.Add(overlay, managed);
@@ -864,6 +887,28 @@ public sealed class OverlayWindowManager : IOverlayManager
         OverlayHideStackIconTapped?.Invoke(this, new OverlayHideStackIconTappedEventArgs(globalMessageId));
     }
 
+    private void OnOverlayStartListeningIconTapped(object? sender, OverlayStartListeningIconTappedEventArgs e)
+    {
+        if (sender is not OverlayForm overlay)
+            return;
+
+        int globalMessageId;
+        lock (_sync)
+        {
+            if (!_activeOverlays.TryGetValue(overlay, out var managed))
+                return;
+
+            if (managed.LocalMessageId != e.MessageId)
+                return;
+
+            globalMessageId = managed.GlobalMessageId;
+        }
+
+        OverlayStartListeningIconTapped?.Invoke(
+            this,
+            new OverlayStartListeningIconTappedEventArgs(globalMessageId));
+    }
+
     private void OnOverlayHorizontalDragged(object? sender, OverlayHorizontalDraggedEventArgs e)
     {
         if (sender is not OverlayForm overlay)
@@ -1000,6 +1045,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayCopyTapped -= OnOverlayCopyTapped;
         overlay.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
         overlay.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
+        overlay.OverlayStartListeningIconTapped -= OnOverlayStartListeningIconTapped;
         overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 

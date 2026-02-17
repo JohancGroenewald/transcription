@@ -46,6 +46,7 @@ public class TrayContext : ApplicationContext
     private static readonly Color RemoteActionPopupCloseColor = Color.Crimson;
     private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
     private const string HelloOverlayKey = "hello-overlay";
+    private const string ListeningOverlayKey = "listening-overlay";
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
@@ -148,6 +149,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.OverlayCopyTapped += OnOverlayCopyTapped;
         _overlayManager.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
         _overlayManager.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
+        _overlayManager.OverlayStartListeningIconTapped += OnOverlayStartListeningIconTapped;
         _overlayManager.OverlayStackEmptied += OnOverlayStackEmptied;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
@@ -863,7 +865,7 @@ public class TrayContext : ApplicationContext
         Log.Info("HideTransientOverlaysForTextBox called");
         _overlayManager.HideOverlays(new[]
         {
-            "listening-overlay",
+            ListeningOverlayKey,
             PastedAutoSendSkippedOverlayKey,
             ProcessingVoiceOverlayKey,
             PasteCanceledOverlayKey
@@ -1033,7 +1035,7 @@ public class TrayContext : ApplicationContext
             ListeningOverlayColor,
             0,
             includeRemoteAction: false,
-            overlayKey: "listening-overlay",
+            overlayKey: ListeningOverlayKey,
             trackInStack: true,
             autoPosition: false,
             animateHide: true,
@@ -1313,6 +1315,7 @@ public class TrayContext : ApplicationContext
             _overlayManager.OverlayCopyTapped -= OnOverlayCopyTapped;
             _overlayManager.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
             _overlayManager.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
+            _overlayManager.OverlayStartListeningIconTapped -= OnOverlayStartListeningIconTapped;
             _overlayManager.OverlayStackEmptied -= OnOverlayStackEmptied;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
@@ -1721,6 +1724,18 @@ public class TrayContext : ApplicationContext
         _overlayManager.HideAll(suppressStackEmptyNotification: true);
     }
 
+    private void OnOverlayStartListeningIconTapped(
+        object? sender,
+        OverlayStartListeningIconTappedEventArgs e)
+    {
+        if (_overlayManager.TryGetOverlayKey(e.MessageId, out var overlayKey)
+            && string.Equals(overlayKey, HelloOverlayKey, StringComparison.Ordinal))
+        {
+            Log.Info($"Hello start icon tapped. message={e.MessageId}");
+            RequestListen();
+        }
+    }
+
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
         Log.Info("Overlay stack emptied event.");
@@ -1838,6 +1853,7 @@ public class TrayContext : ApplicationContext
             trackInStack: true,
             allowCopyTap: false,
             showHideStackIcon: true,
+            showStartListeningIcon: true,
             showHelloTextFrame: true,
             fullWidthText: false);
 
@@ -1858,6 +1874,25 @@ public class TrayContext : ApplicationContext
 
     private void OnOverlayTapped(object? sender, int messageId)
     {
+        if (_overlayManager.TryGetOverlayKey(messageId, out var tappedOverlayKey)
+            && !string.IsNullOrWhiteSpace(tappedOverlayKey))
+        {
+            if (tappedOverlayKey == HelloOverlayKey)
+            {
+                Log.Info($"Hello overlay tapped. message={messageId}");
+                RequestListen();
+                return;
+            }
+
+            if (tappedOverlayKey == ListeningOverlayKey)
+            {
+                Log.Info($"Listening overlay tapped. message={messageId}");
+                if (_isRecording)
+                    OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+                return;
+            }
+        }
+
         _ = TryResolvePendingPastePreviewFromOverlayTap(messageId, "overlay tap");
     }
 

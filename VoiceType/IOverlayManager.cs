@@ -9,6 +9,7 @@ public interface IOverlayManager : IDisposable
     event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
     event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
+    event EventHandler<OverlayStartListeningIconTappedEventArgs>? OverlayStartListeningIconTapped;
     event EventHandler? OverlayStackEmptied;
 
     int ShowMessage(
@@ -38,6 +39,7 @@ public interface IOverlayManager : IDisposable
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
         bool showHideStackIcon = false,
+        bool showStartListeningIcon = false,
         bool showHelloTextFrame = false);
 
     void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon);
@@ -64,6 +66,7 @@ public interface IOverlayManager : IDisposable
 
     bool HasTrackedOverlays();
     bool HasTrackedOverlay(string overlayKey);
+    bool TryGetOverlayKey(int globalMessageId, out string? overlayKey);
     void ResetTrackedStack();
 
     int GetStackHorizontalOffset();
