@@ -1665,6 +1665,15 @@ public class TrayContext : ApplicationContext
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
         _stackBootstrap.OnStackEmptied("stack-emptied");
+
+        if (_isShuttingDown || _transcriptionService == null)
+            return;
+
+        if (_stackBootstrap.IsHiddenByUser)
+            return;
+
+        if (!_overlayManager.HasTrackedOverlays())
+            _stackBootstrap.OnStartup("stack-emptied-fallback");
     }
 
     private void RestoreHiddenStackOnReactivation()
@@ -1672,7 +1681,13 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
+        if (_stackBootstrap.IsHiddenByUser)
+            return;
+
         _stackBootstrap.OnReactivation("reactivation");
+
+        if (!_overlayManager.HasTrackedOverlays())
+            _stackBootstrap.OnStartup("reactivation-fallback");
     }
 
     private void OnTrayIconMouseClick(object? sender, MouseEventArgs e)
