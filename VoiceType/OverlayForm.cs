@@ -42,7 +42,6 @@ public class OverlayForm : Form
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
     private const int HideStackIconCornerRadius = 6;
-    private const float HideStackIconScaleFactor = 1.6f;
     private const int HideStackIconMinHeight = 28;
     private const int HideStackIconMinWidth = 26;
     private const int HideStackIconMinInset = 2;
@@ -755,12 +754,9 @@ public class OverlayForm : Form
 
     private int GetHideStackIconReservePx()
     {
-        var baseIconSize = Math.Max(
-            HideStackIconMinHeight,
-            (int)Math.Round(Math.Max(10, _overlayFontSizePt - 1) * HideStackIconScaleFactor));
         var iconRenderWidth = Math.Max(
             HideStackIconMinWidth,
-            baseIconSize + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+            HideStackIconMinHeight + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, HideStackIconHorizontalOffsetPx);
     }
@@ -866,15 +862,8 @@ public class OverlayForm : Form
 
     private void DrawHideStackIcon(Graphics graphics)
     {
-        var baseIconScale = Math.Max(1, _overlayFontSizePt - 1);
-        var iconHeight = Math.Max(HideStackIconMinHeight, (int)Math.Round(baseIconScale * HideStackIconScaleFactor));
+        var iconHeight = HideStackIconMinHeight;
         var iconReferenceBounds = GetHideStackIconReferenceBounds();
-        var iconHeightCap = Math.Max(
-            14,
-            Math.Min(
-                iconReferenceBounds.Height,
-                Math.Max(14, Height - Padding.Vertical - 4)));
-        iconHeight = Math.Max(12, Math.Min(iconHeight, iconHeightCap));
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
