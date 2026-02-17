@@ -1488,10 +1488,10 @@ public class OverlayForm : Form
         return true;
     }
 
-    private static Point TranslateToFormClientPoint(object? sender, Point point)
+    private Point TranslateToFormClientPoint(object? sender, Point point)
     {
         return sender is Control control
-            ? control.PointToClient(control.PointToScreen(point))
+            ? ((Control)this).PointToClient(control.PointToScreen(point))
             : point;
     }
 
