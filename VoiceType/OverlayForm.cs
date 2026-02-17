@@ -42,8 +42,8 @@ public class OverlayForm : Form
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
     private const int HideStackIconCornerRadius = 6;
-    private const int HideStackIconMinHeight = 28;
-    private const int HideStackIconMinWidth = 26;
+    private const int HideStackIconMinHeight = 30;
+    private const int HideStackIconMinWidth = 28;
     private const int HideStackIconMinInset = 2;
     private const float HelloTextFrameWidth = 1.0f;
     private const int HelloTextFramePaddingPx = 2;
@@ -888,7 +888,7 @@ public class OverlayForm : Form
             Math.Max(1, iconHeight + HideStackIconPaddingPx + HideStackIconHorizontalPaddingPx),
             Math.Max(1, iconHeight));
 
-        var glyphInset = Math.Max(HideStackIconMinInset, iconHeight / 4);
+        var glyphInset = Math.Max(HideStackIconMinInset + 1, iconHeight / 5);
         var glyphSize = Math.Max(2, iconBounds.Height - (glyphInset * 2));
         var glyphBounds = new Rectangle(
             iconBounds.Left + ((iconBounds.Width - glyphSize) / 2),
@@ -896,7 +896,7 @@ public class OverlayForm : Form
             Math.Max(1, glyphSize),
             Math.Max(1, glyphSize));
         var lineColor = Color.Red;
-        var lineWidth = Math.Max(2.0f, Math.Min(3.8f, iconHeight / 7.5f));
+        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, iconHeight / 7.0f));
         using var iconPen = new Pen(lineColor, lineWidth)
         {
             StartCap = System.Drawing.Drawing2D.LineCap.Round,
