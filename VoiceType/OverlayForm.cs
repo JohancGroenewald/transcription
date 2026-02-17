@@ -829,38 +829,55 @@ public class OverlayForm : Form
         return CountdownBarHeight + CountdownBarBottomMargin + CountdownBarAreaPadding;
     }
 
+    private int GetOverlayControlIconReferenceHeight()
+    {
+        var iconReferenceBounds = _label.Bounds;
+        if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
+            iconReferenceBounds = GetHideStackIconReferenceBounds();
+
+        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
+        if (_showHelloTextFrame)
+            iconHeight += (HelloTextFramePaddingPx * 2);
+
+        return iconHeight;
+    }
+
     private int GetHideStackIconReservePx()
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconRenderWidth = Math.Max(
             HideStackIconMinWidth,
-            HideStackIconMinHeight + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+            iconHeight + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, HideStackIconHorizontalOffsetPx);
     }
 
     private int GetStartListeningIconReservePx()
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconRenderWidth = Math.Max(
             StartListeningIconMinWidth,
-            StartListeningIconMinHeight + StartListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
+            iconHeight + StartListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, StartListeningIconHorizontalOffsetPx);
     }
 
     private int GetStopListeningIconReservePx()
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconRenderWidth = Math.Max(
             StopListeningIconMinWidth,
-            StopListeningIconMinHeight + StopListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
+            iconHeight + StopListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, StopListeningIconHorizontalOffsetPx);
     }
 
     private int GetCancelListeningIconReservePx()
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconRenderWidth = Math.Max(
             CancelListeningIconMinWidth,
-            CancelListeningIconMinHeight + CancelListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
+            iconHeight + CancelListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, CancelListeningIconHorizontalOffsetPx);
     }
@@ -978,13 +995,10 @@ public class OverlayForm : Form
 
     private void DrawHideStackIcon(Graphics graphics)
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
-
-        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
-        if (_showHelloTextFrame)
-            iconHeight += (HelloTextFramePaddingPx * 2);
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
@@ -1052,13 +1066,10 @@ public class OverlayForm : Form
 
     private void DrawStopListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
-
-        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
-        if (_showHelloTextFrame)
-            iconHeight += (HelloTextFramePaddingPx * 2);
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + StopListeningIconVerticalOffsetPx));
@@ -1112,13 +1123,10 @@ public class OverlayForm : Form
 
     private void DrawCancelListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
-
-        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
-        if (_showHelloTextFrame)
-            iconHeight += (HelloTextFramePaddingPx * 2);
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + CancelListeningIconVerticalOffsetPx));
@@ -1176,13 +1184,10 @@ public class OverlayForm : Form
 
     private void DrawStartListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
+        var iconHeight = GetOverlayControlIconReferenceHeight();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
-
-        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
-        if (_showHelloTextFrame)
-            iconHeight += (HelloTextFramePaddingPx * 2);
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + StartListeningIconVerticalOffsetPx));

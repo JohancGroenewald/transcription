@@ -1067,6 +1067,7 @@ public class TrayContext : ApplicationContext
             autoPosition: false,
             animateHide: true,
             showListeningLevelMeter: true,
+            showHideStackIcon: true,
             showStopListeningIcon: true,
             showCancelListeningIcon: true,
             listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
