@@ -882,30 +882,20 @@ public class OverlayForm : Form
             hideFont,
             new Size(int.MaxValue / 4, int.MaxValue / 4),
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        var textSize = TextRenderer.MeasureText(
-            graphics,
-            _label.Text,
-            _label.Font,
-            new Size(int.MaxValue / 4, int.MaxValue / 4),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
         var iconHeight = Math.Max(1, iconTextSize.Height);
-        var labelTextHeight = Math.Max(1, textSize.Height);
-        var labelTextWidth = Math.Max(1, Math.Min(_label.Bounds.Width, textSize.Width));
         var contentBounds = _label.Bounds;
-        var contentTop = Math.Max(0, contentBounds.Top + Math.Max(0, (contentBounds.Height - labelTextHeight) / 2));
-        var contentHeight = Math.Max(1, Math.Min(contentBounds.Height, labelTextHeight));
-        var labelTextLeft = contentBounds.Left + Math.Max(0, (contentBounds.Width - labelTextWidth) / 2);
+        var contentTop = Math.Max(0, contentBounds.Top);
+        var contentHeight = Math.Max(1, contentBounds.Height);
         var baseIconY = contentTop + ((contentHeight - iconHeight) / 2);
         var iconY = Math.Max(0, baseIconY + HideStackIconVerticalOffsetPx);
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
-        var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx);
-        var computedIconLeft = Math.Max(
+        var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+        var iconLeft = Math.Max(
             0,
-            Math.Max(
-                HideStackIconHorizontalOffsetPx,
-                labelTextLeft - iconRenderWidth - HideStackIconPaddingPx));
-        var iconLeft = Math.Max(0, Math.Min(computedIconLeft, Math.Max(0, contentBounds.Right - iconRenderWidth - HideStackIconHorizontalOffsetPx)));
+            Math.Min(
+                contentBounds.Left + HideStackIconHorizontalOffsetPx,
+                Width - iconRenderWidth - Math.Max(1, HideStackIconHorizontalOffsetPx)));
         var iconBounds = new Rectangle(
             iconLeft,
             iconY,
