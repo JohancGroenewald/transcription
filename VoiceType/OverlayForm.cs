@@ -776,8 +776,6 @@ public class OverlayForm : Form
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
 
-        if (_showHelloTextFrame)
-            ; // keep only overlay border for hello, no dedicated hello text box frame.
 
         var hasCountdown = TryGetCountdownProgress(out var remainingFraction);
         if (hasCountdown)
