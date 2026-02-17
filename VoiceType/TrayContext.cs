@@ -168,6 +168,7 @@ public class TrayContext : ApplicationContext
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
+        _trayIcon.MouseClick += OnTrayIconMouseClick;
         HookShutdownEvents();
 
         _hotkeyWindow = new HotkeyWindow();
@@ -1658,11 +1659,23 @@ public class TrayContext : ApplicationContext
 
     private void RestoreHiddenStackOnReactivation()
     {
-        if (!_isStackHiddenByUser)
+        if (_isShuttingDown)
+            return;
+
+        if (!_isStackHiddenByUser && _overlayManager.HasTrackedOverlays())
             return;
 
         _isStackHiddenByUser = false;
         ShowHelloOverlay();
+    }
+
+    private void OnTrayIconMouseClick(object? sender, MouseEventArgs e)
+    {
+        if (_isShuttingDown)
+            return;
+
+        if (e.Button is MouseButtons.Left or MouseButtons.Right)
+            RestoreHiddenStackOnReactivation();
     }
 
     private void ShowHelloOverlay()

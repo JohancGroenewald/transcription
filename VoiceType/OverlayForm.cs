@@ -42,6 +42,7 @@ public class OverlayForm : Form
     private const string HideStackIconGlyph = "×";
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
+    private const int HideStackIconHorizontalOffsetPx = 2;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -750,7 +751,7 @@ public class OverlayForm : Form
             new Size(int.MaxValue / 4, int.MaxValue / 4),
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
-        return 0;
+        return iconTextSize.Width + HideStackIconPaddingPx;
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -874,10 +875,9 @@ public class OverlayForm : Form
         var iconY = Math.Max(0, baseIconY + HideStackIconVerticalOffsetPx);
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx);
+        var iconLeft = Math.Max(0, HideStackIconHorizontalOffsetPx);
         var iconBounds = new Rectangle(
-            Math.Max(
-                0,
-                _label.Bounds.Left + Math.Max(0, (_label.Bounds.Width - iconRenderWidth) / 2)),
+            iconLeft,
             iconY,
             iconRenderWidth,
             Math.Max(1, iconHeight));

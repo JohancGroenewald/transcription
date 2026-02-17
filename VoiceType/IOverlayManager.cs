@@ -60,6 +60,8 @@ public interface IOverlayManager : IDisposable
 
     void ClearCountdownBar(string overlayKey);
 
+    bool HasTrackedOverlays();
+
     int GetStackHorizontalOffset();
 
     void SetStackHorizontalOffset(int offsetPx);

@@ -263,6 +263,14 @@ public sealed class OverlayWindowManager : IOverlayManager
         _overlayFadeTickIntervalMs = profile.FadeTickIntervalMs;
     }
 
+    public bool HasTrackedOverlays()
+    {
+        lock (_sync)
+        {
+            return _stackSpine.GetTrackedOverlays().Count > 0;
+        }
+    }
+
     public void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon)
     {
         List<OverlayForm> trackedOverlays;
