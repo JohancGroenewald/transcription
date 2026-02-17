@@ -763,12 +763,10 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
-        if (_showOverlayBorder || _showCopyTapFeedbackBorder)
+        if (_showOverlayBorder)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using var pen = new Pen(
-                _showCopyTapFeedbackBorder ? _activeBorderColor : BorderColor,
-                _showCopyTapFeedbackBorder ? CopyTapBorderWidth : 1.2f);
+            using var pen = new Pen(BorderColor, 1.2f);
             var border = new Rectangle(0, 0, Width - 1, Height - 1);
             using var path = CreateRoundedRectanglePath(border, CornerRadius);
             e.Graphics.DrawPath(pen, path);
@@ -778,8 +776,7 @@ public class OverlayForm : Form
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
 
-        if (_showHelloTextFrame)
-            DrawHelloTextFrame(e.Graphics);
+        // intentionally use only overlay border in this build; skip dedicated hello frame.
 
         var hasCountdown = TryGetCountdownProgress(out var remainingFraction);
         if (hasCountdown)
@@ -885,21 +882,6 @@ public class OverlayForm : Form
             iconY,
             Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
-
-        var iconOutlineBounds = new Rectangle(
-            iconBounds.Left,
-            iconBounds.Top,
-            iconBounds.Width,
-            iconBounds.Height);
-        var iconOutlineColor = _showCopyTapFeedbackBorder
-            ? _activeBorderColor
-            : BorderColor;
-        using var iconOutlinePen = new Pen(iconOutlineColor, 1.2f)
-        {
-            Alignment = PenAlignment.Outset
-        };
-        using var iconOutlinePath = CreateRoundedRectanglePath(iconOutlineBounds, HideStackIconCornerRadius);
-        graphics.DrawPath(iconOutlinePen, iconOutlinePath);
 
         var clickableBounds = new Rectangle(
             iconBounds.Left,
