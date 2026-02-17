@@ -606,6 +606,7 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
+            RestoreHiddenStackOnReactivation();
             ShowRemoteActionPopup(
                 ignorePastedTextPrefix ? "Listen requested (ignore prefix)" : "Listen requested",
                 ignorePastedTextPrefix ? "listen --ignore-prefix" : "listen");
@@ -631,6 +632,7 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
+            RestoreHiddenStackOnReactivation();
             ShowRemoteActionPopup("Submit requested");
 
             if (_isRecording)
