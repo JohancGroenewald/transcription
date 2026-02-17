@@ -53,6 +53,7 @@ internal sealed class OverlayStackBootstrapCoordinator
             {
                 _isHiddenByUser = false;
                 _log($"Stack reactivation ({reason}) cleared user-hidden state.");
+                EnsureHello(reason);
                 return;
             }
 
