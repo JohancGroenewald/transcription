@@ -49,7 +49,13 @@ internal sealed class OverlayStackBootstrapCoordinator
     {
         if (_isTranscriptionReady() && !_isShuttingDown() && !_isShutdownRequested())
         {
-            _isHiddenByUser = false;
+            if (_isHiddenByUser)
+            {
+                _isHiddenByUser = false;
+                _log($"Stack reactivation ({reason}) cleared user-hidden state.");
+                return;
+            }
+
             EnsureHello(reason);
         }
     }
