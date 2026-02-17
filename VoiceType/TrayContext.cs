@@ -801,7 +801,7 @@ public class TrayContext : ApplicationContext
             resolvedRemoteActionColor = ResolveRemoteActionPopupColor();
 
         return _overlayManager.ShowMessage(
-            text,
+            text ?? string.Empty,
             color,
             effectiveDurationMs,
             textAlign,
