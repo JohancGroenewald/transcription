@@ -763,7 +763,7 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
-        if (_showOverlayBorder)
+        if (_showOverlayBorder || _showHelloTextFrame)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using var pen = new Pen(BorderColor, 1.2f);
@@ -776,7 +776,8 @@ public class OverlayForm : Form
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
 
-        // intentionally use only overlay border in this build; skip dedicated hello frame.
+        if (_showHelloTextFrame)
+            ; // keep only overlay border for hello, no dedicated hello text box frame.
 
         var hasCountdown = TryGetCountdownProgress(out var remainingFraction);
         if (hasCountdown)
