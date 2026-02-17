@@ -294,6 +294,31 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
+    public void ResetTrackedStack()
+    {
+        List<OverlayForm> overlaysToDispose;
+        lock (_sync)
+        {
+            overlaysToDispose = _activeOverlays.Keys
+                .Where(x => !x.IsDisposed)
+                .ToList();
+
+            _activeOverlays.Clear();
+            _overlaysByKey.Clear();
+            _stackSpine.Clear();
+            _activeCopyTapBorderOverlay = null;
+            _globalMessageId = 0;
+            _stackSequence = 0;
+            _suppressStackEmptyNotificationDepth = 0;
+        }
+
+        foreach (var overlay in overlaysToDispose)
+        {
+            UnhookOverlay(overlay);
+            overlay.Dispose();
+        }
+    }
+
     public void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon)
     {
         List<OverlayForm> trackedOverlays;

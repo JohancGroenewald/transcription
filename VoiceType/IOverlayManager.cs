@@ -63,6 +63,7 @@ public interface IOverlayManager : IDisposable
 
     bool HasTrackedOverlays();
     bool HasTrackedOverlay(string overlayKey);
+    void ResetTrackedStack();
 
     int GetStackHorizontalOffset();
 
