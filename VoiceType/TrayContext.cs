@@ -45,6 +45,7 @@ public class TrayContext : ApplicationContext
     private static readonly Color RemoteActionPopupSubmitColor = Color.MediumTurquoise;
     private static readonly Color RemoteActionPopupCloseColor = Color.Crimson;
     private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
+    private const string HelloOverlayKey = "hello-overlay";
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
@@ -184,13 +185,7 @@ public class TrayContext : ApplicationContext
         }
         else
         {
-            ShowOverlay(
-                $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
-                StartupReadyOverlayColor,
-                2000,
-                overlayKey: "hello-overlay",
-                trackInStack: true,
-                showHideStackIcon: true);
+            ShowHelloOverlay();
         }
 
         Log.Info("VoiceType started successfully");
@@ -354,10 +349,7 @@ public class TrayContext : ApplicationContext
                         adaptiveDurationMs,
                         prefixTextForPreview,
                         targetHasExistingText,
-                        audioData,
-                        hasPasteTarget && hasLikelyPasteTextTarget
-                            ? null
-                            : ClipboardFallbackActionText);
+                        audioData);
                     if (previewDecision == TranscribedPreviewDecision.Cancel)
                     {
                         Log.Info("Paste canceled during transcribed preview.");
@@ -375,6 +367,7 @@ public class TrayContext : ApplicationContext
                     var pasted = TextInjector.InjectText(textToInject, autoSend);
                     if (pasted)
                     {
+                        Log.Info("Copy-to-clipboard fallback overlay not triggered: paste target was available or paste succeeded.");
                         if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
                             ShowOverlay(
                                 "Pasted (auto-send skipped)",
@@ -386,16 +379,12 @@ public class TrayContext : ApplicationContext
                     }
                     else
                     {
-                        var adaptiveColor = targetHasExistingText
-                            ? PreviewExistingTextOverlayColor
-                            : PreviewNewTextOverlayColor;
                         Log.Info("No paste target, text on clipboard");
-                        ShowOverlay(
-                            textToInject,
-                            adaptiveColor,
-                            adaptiveDurationMs,
-                            remoteActionText: ClipboardFallbackActionText,
-                            remoteActionColor: ClipboardFallbackActionColor);
+                        Log.Info(
+                            $"Copy-to-clipboard overlay triggered via transcription: " +
+                            $"hasPasteTarget={hasPasteTarget}, hasLikelyPasteTextTarget={hasLikelyPasteTextTarget}, " +
+                            $"targetHasExistingText={targetHasExistingText}, previewDecision={previewDecision}");
+                        ShowCopyToClipboardOverlay(textToInject);
                     }
                 }
                 else
@@ -1272,8 +1261,7 @@ public class TrayContext : ApplicationContext
         int durationMs,
         string? prefixTextForPreview,
         bool targetHasExistingText,
-        byte[]? audioDataForPlayback,
-        string? actionText = null)
+        byte[]? audioDataForPlayback)
     {
         HideTransientOverlaysForTextBox();
 
@@ -1290,7 +1278,6 @@ public class TrayContext : ApplicationContext
             showCountdownBar: true,
             tapToCancel: true,
             includeRemoteAction: false,
-            remoteActionText: actionText,
             remoteActionColor: ClipboardFallbackActionColor,
             prefixText: prefixTextForPreview,
             prefixColor: PreviewPrefixColor,
@@ -1646,6 +1633,21 @@ public class TrayContext : ApplicationContext
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
         _overlayManager.HideAll();
+        ShowHelloOverlay();
+    }
+
+    private void ShowHelloOverlay()
+    {
+        if (_transcriptionService == null)
+            return;
+
+        ShowOverlay(
+            $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
+            StartupReadyOverlayColor,
+            2000,
+            overlayKey: HelloOverlayKey,
+            trackInStack: true,
+            showHideStackIcon: true);
     }
 
     private void OnOverlayTapped(object? sender, int messageId)
@@ -1656,6 +1658,8 @@ public class TrayContext : ApplicationContext
     private void OnOverlayCopyTapped(object? sender, OverlayCopyTappedEventArgs e)
     {
         _ = TryResolvePendingPastePreviewFromOverlayTap(e.MessageId, "overlay copy tap");
+        Log.Info(
+            $"Copy-to-clipboard overlay triggered via overlay click (message={e.MessageId}, textLength={e.CopiedText?.Length ?? 0}).");
         if (!string.IsNullOrWhiteSpace(e.CopiedText))
         {
             _ = TextInjector.InjectText(e.CopiedText);
@@ -1666,9 +1670,13 @@ public class TrayContext : ApplicationContext
     private void ShowCopyToClipboardOverlay(string copiedText)
     {
         if (string.IsNullOrWhiteSpace(copiedText))
+        {
+            Log.Info("Copy-to-clipboard overlay skipped: source text empty.");
             return;
+        }
 
         _overlayManager.DismissCopyActionOverlays();
+        Log.Info($"Showing copy-to-clipboard overlay for pasted text (len={copiedText.Length}).");
 
         ShowOverlay(
             ClipboardFallbackActionText,
