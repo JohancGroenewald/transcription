@@ -10,6 +10,7 @@ public interface IOverlayManager : IDisposable
     event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
     event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
     event EventHandler<OverlayStartListeningIconTappedEventArgs>? OverlayStartListeningIconTapped;
+    event EventHandler<OverlayStopListeningIconTappedEventArgs>? OverlayStopListeningIconTapped;
     event EventHandler? OverlayStackEmptied;
 
     int ShowMessage(
@@ -40,6 +41,7 @@ public interface IOverlayManager : IDisposable
         bool fullWidthText = false,
         bool showHideStackIcon = false,
         bool showStartListeningIcon = false,
+        bool showStopListeningIcon = false,
         bool showHelloTextFrame = false);
 
     void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon);

@@ -52,6 +52,13 @@ public class OverlayForm : Form
     private const int StartListeningIconHorizontalPaddingPx = 2;
     private const int StartListeningIconMinInset = 2;
     private const int StartListeningIconVerticalOffsetPx = 0;
+    private const int StopListeningIconMinHeight = 30;
+    private const int StopListeningIconMinWidth = 28;
+    private const int StopListeningIconPaddingPx = 18;
+    private const int StopListeningIconHorizontalOffsetPx = 2;
+    private const int StopListeningIconHorizontalPaddingPx = 2;
+    private const int StopListeningIconMinInset = 2;
+    private const int StopListeningIconVerticalOffsetPx = 0;
     private const float HelloTextFrameWidth = 1.0f;
     private const int HelloTextFramePaddingPx = 2;
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
@@ -129,9 +136,11 @@ public class OverlayForm : Form
     private Rectangle _countdownPlaybackIconBounds = Rectangle.Empty;
     private bool _showHideStackIcon;
     private bool _showStartListeningIcon;
+    private bool _showStopListeningIcon;
     private bool _showHelloTextFrame;
     private Rectangle _hideStackIconBounds = Rectangle.Empty;
     private Rectangle _startListeningIconBounds = Rectangle.Empty;
+    private Rectangle _stopListeningIconBounds = Rectangle.Empty;
     private int _lastLoggedHideStackMessageId;
     private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
 
@@ -141,6 +150,7 @@ public class OverlayForm : Form
     public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
     public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
     public event EventHandler<OverlayStartListeningIconTappedEventArgs>? OverlayStartListeningIconTapped;
+    public event EventHandler<OverlayStopListeningIconTappedEventArgs>? OverlayStopListeningIconTapped;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -289,9 +299,11 @@ public class OverlayForm : Form
             _countdownPlaybackIconBounds = Rectangle.Empty;
             _showHideStackIcon = false;
             _showStartListeningIcon = false;
+            _showStopListeningIcon = false;
             _showHelloTextFrame = false;
             _hideStackIconBounds = Rectangle.Empty;
             _startListeningIconBounds = Rectangle.Empty;
+            _stopListeningIconBounds = Rectangle.Empty;
             _showCopyTapFeedbackBorder = false;
             _activeBorderColor = BorderColor;
             ResetTapToCancel();
@@ -346,6 +358,7 @@ public class OverlayForm : Form
         bool fullWidthText = false,
         bool showHideStackIcon = false,
         bool showStartListeningIcon = false,
+        bool showStopListeningIcon = false,
         bool showHelloTextFrame = false)
     {
         if (InvokeRequired)
@@ -373,6 +386,7 @@ public class OverlayForm : Form
                 fullWidthText,
                 showHideStackIcon,
                 showStartListeningIcon,
+                showStopListeningIcon,
                 showHelloTextFrame)));
         }
 
@@ -390,6 +404,7 @@ public class OverlayForm : Form
                 : countdownPlaybackIcon;
             _showHideStackIcon = showHideStackIcon;
             _showStartListeningIcon = showStartListeningIcon;
+            _showStopListeningIcon = showStopListeningIcon;
             _showHelloTextFrame = showHelloTextFrame;
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
@@ -408,6 +423,7 @@ public class OverlayForm : Form
             _allowCopyTap = allowCopyTap;
             _hideStackIconBounds = Rectangle.Empty;
             _startListeningIconBounds = Rectangle.Empty;
+            _stopListeningIconBounds = Rectangle.Empty;
             _lastUseFullWidthText = fullWidthText;
             _lastCountdownPlaybackIcon = _countdownPlaybackIcon;
 
@@ -597,7 +613,9 @@ public class OverlayForm : Form
                 countdownPlaybackIcon: _lastCountdownPlaybackIcon,
                 fullWidthText: _lastUseFullWidthText,
                 showHideStackIcon: _showHideStackIcon,
-                showStartListeningIcon: _showStartListeningIcon);
+                showStartListeningIcon: _showStartListeningIcon,
+                showStopListeningIcon: _showStopListeningIcon,
+                showHelloTextFrame: _showHelloTextFrame);
     }
 
     public void PromoteToTopmost()
@@ -695,8 +713,13 @@ public class OverlayForm : Form
         var startListeningIconReservePx = _showStartListeningIcon
             ? GetStartListeningIconReservePx()
             : 0;
+        var stopListeningIconReservePx = _showStopListeningIcon
+            ? GetStopListeningIconReservePx()
+            : 0;
         var contentLeft = Padding.Left + hideStackIconReservePx;
-        var contentWidth = Math.Max(1, ClientSize.Width - Padding.Horizontal - hideStackIconReservePx - startListeningIconReservePx);
+        var contentWidth = Math.Max(
+            1,
+            ClientSize.Width - Padding.Horizontal - hideStackIconReservePx - startListeningIconReservePx - stopListeningIconReservePx);
 
         var cursorY = Padding.Top;
 
@@ -788,6 +811,15 @@ public class OverlayForm : Form
             StartListeningIconMinHeight + StartListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, StartListeningIconHorizontalOffsetPx);
+    }
+
+    private int GetStopListeningIconReservePx()
+    {
+        var iconRenderWidth = Math.Max(
+            StopListeningIconMinWidth,
+            StopListeningIconMinHeight + StopListeningIconHorizontalPaddingPx + HideStackIconPaddingPx);
+
+        return iconRenderWidth + Math.Max(0, StopListeningIconHorizontalOffsetPx);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -884,8 +916,15 @@ public class OverlayForm : Form
         if (_showHideStackIcon)
             DrawHideStackIcon(e.Graphics);
 
+        var rightReservedPx = 0;
+        if (_showStopListeningIcon)
+        {
+            DrawStopListeningIcon(e.Graphics, rightReservedPx);
+            rightReservedPx += GetStopListeningIconReservePx();
+        }
+
         if (_showStartListeningIcon)
-            DrawStartListeningIcon(e.Graphics);
+            DrawStartListeningIcon(e.Graphics, rightReservedPx);
     }
 
     private void DrawHideStackIcon(Graphics graphics)
@@ -952,7 +991,56 @@ public class OverlayForm : Form
         LogHideStackBounds();
     }
 
-    private void DrawStartListeningIcon(Graphics graphics)
+    private void DrawStopListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
+    {
+        var iconReferenceBounds = _label.Bounds;
+        if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
+            iconReferenceBounds = GetHideStackIconReferenceBounds();
+
+        var iconHeight = Math.Max(1, iconReferenceBounds.Height);
+        if (_showHelloTextFrame)
+            iconHeight += (HelloTextFramePaddingPx * 2);
+        var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
+        var baseIconY = referenceCenterY - (iconHeight / 2);
+        var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + StopListeningIconVerticalOffsetPx));
+
+        var iconRenderWidth = Math.Max(
+            StopListeningIconMinWidth,
+            iconHeight + StopListeningIconHorizontalPaddingPx + StopListeningIconPaddingPx);
+        var desiredLeft = Width - iconRenderWidth - Math.Max(1, StopListeningIconHorizontalOffsetPx + existingRightReservedPx);
+        var iconLeft = Math.Max(
+            0,
+            Math.Min(
+                desiredLeft,
+                Width - Math.Max(1, iconRenderWidth)));
+
+        var iconBounds = new Rectangle(
+            iconLeft,
+            iconY,
+            Math.Max(1, iconRenderWidth),
+            Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
+
+        var clickableBounds = new Rectangle(
+            iconBounds.Left,
+            iconBounds.Top,
+            Math.Max(1, Math.Min(Width - iconBounds.Left, iconHeight + StopListeningIconPaddingPx)),
+            Math.Max(1, iconHeight));
+
+        var iconColor = _label.ForeColor;
+        var iconBrush = new SolidBrush(iconColor);
+        var iconSize = Math.Max(2, Math.Min(iconBounds.Width, iconBounds.Height) - (Math.Max(StopListeningIconMinInset + 1, iconHeight / 5) * 2));
+        var iconSquare = new Rectangle(
+            iconBounds.Left + ((iconBounds.Width - iconSize) / 2),
+            iconBounds.Top + ((iconBounds.Height - iconSize) / 2),
+            Math.Max(2, iconSize),
+            Math.Max(2, iconSize));
+        graphics.FillRectangle(iconBrush, iconSquare);
+        iconBrush.Dispose();
+
+        _stopListeningIconBounds = clickableBounds;
+    }
+
+    private void DrawStartListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
@@ -968,7 +1056,7 @@ public class OverlayForm : Form
         var iconRenderWidth = Math.Max(
             StartListeningIconMinWidth,
             iconHeight + StartListeningIconHorizontalPaddingPx + StartListeningIconPaddingPx);
-        var desiredLeft = Width - iconRenderWidth - Math.Max(1, StartListeningIconHorizontalOffsetPx);
+        var desiredLeft = Width - iconRenderWidth - Math.Max(1, StartListeningIconHorizontalOffsetPx + existingRightReservedPx);
         var iconLeft = Math.Max(
             0,
             Math.Min(
@@ -1557,6 +1645,9 @@ public class OverlayForm : Form
         if (HandleStartListeningIconTap(sender, e))
             return;
 
+        if (HandleStopListeningIconTap(sender, e))
+            return;
+
         if (!_allowCopyTap)
             return;
 
@@ -1631,6 +1722,22 @@ public class OverlayForm : Form
 
         _tapHandledForCurrentPress = true;
         OverlayStartListeningIconTapped?.Invoke(this, new OverlayStartListeningIconTappedEventArgs(_activeMessageId));
+        return true;
+    }
+
+    private bool HandleStopListeningIconTap(object? sender, MouseEventArgs e)
+    {
+        if (!_showStopListeningIcon)
+            return false;
+
+        var clickPoint = TranslateToFormClientPoint(sender, e.Location);
+        if (_stopListeningIconBounds.IsEmpty || !_stopListeningIconBounds.Contains(clickPoint))
+            return false;
+
+        _tapHandledForCurrentPress = true;
+        OverlayStopListeningIconTapped?.Invoke(
+            this,
+            new OverlayStopListeningIconTappedEventArgs(_activeMessageId));
         return true;
     }
 
@@ -1866,6 +1973,16 @@ public sealed class OverlayHideStackIconTappedEventArgs : EventArgs
 public sealed class OverlayStartListeningIconTappedEventArgs : EventArgs
 {
     public OverlayStartListeningIconTappedEventArgs(int messageId)
+    {
+        MessageId = messageId;
+    }
+
+    public int MessageId { get; }
+}
+
+public sealed class OverlayStopListeningIconTappedEventArgs : EventArgs
+{
+    public OverlayStopListeningIconTappedEventArgs(int messageId)
     {
         MessageId = messageId;
     }

@@ -150,6 +150,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
         _overlayManager.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
         _overlayManager.OverlayStartListeningIconTapped += OnOverlayStartListeningIconTapped;
+        _overlayManager.OverlayStopListeningIconTapped += OnOverlayStopListeningIconTapped;
         _overlayManager.OverlayStackEmptied += OnOverlayStackEmptied;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
@@ -781,6 +782,8 @@ public class TrayContext : ApplicationContext
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
         bool showHideStackIcon = false,
+        bool showStartListeningIcon = false,
+        bool showStopListeningIcon = false,
         bool showHelloTextFrame = false)
     {
         Log.Info(
@@ -830,6 +833,8 @@ public class TrayContext : ApplicationContext
             countdownPlaybackIcon: countdownPlaybackIcon,
             fullWidthText: fullWidthText,
             showHideStackIcon: showHideStackIcon,
+            showStartListeningIcon: showStartListeningIcon,
+            showStopListeningIcon: showStopListeningIcon,
             showHelloTextFrame: showHelloTextFrame);
     }
 
@@ -1040,6 +1045,7 @@ public class TrayContext : ApplicationContext
             autoPosition: false,
             animateHide: true,
             showListeningLevelMeter: true,
+            showStopListeningIcon: true,
             listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
     }
 
@@ -1316,6 +1322,7 @@ public class TrayContext : ApplicationContext
             _overlayManager.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
             _overlayManager.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
             _overlayManager.OverlayStartListeningIconTapped -= OnOverlayStartListeningIconTapped;
+            _overlayManager.OverlayStopListeningIconTapped -= OnOverlayStopListeningIconTapped;
             _overlayManager.OverlayStackEmptied -= OnOverlayStackEmptied;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
@@ -1734,6 +1741,23 @@ public class TrayContext : ApplicationContext
             Log.Info($"Hello start icon tapped. message={e.MessageId}");
             RequestListen();
         }
+    }
+
+    private void OnOverlayStopListeningIconTapped(
+        object? sender,
+        OverlayStopListeningIconTappedEventArgs e)
+    {
+        if (!_isRecording)
+            return;
+
+        if (!_overlayManager.TryGetOverlayKey(e.MessageId, out var overlayKey))
+            return;
+
+        if (!string.Equals(overlayKey, ListeningOverlayKey, StringComparison.Ordinal))
+            return;
+
+        Log.Info($"Listening stop icon tapped. message={e.MessageId}");
+        OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
