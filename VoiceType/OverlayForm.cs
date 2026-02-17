@@ -52,6 +52,10 @@ public class OverlayForm : Form
     private const int StartListeningIconHorizontalPaddingPx = 2;
     private const int StartListeningIconMinInset = 2;
     private const int StartListeningIconVerticalOffsetPx = 0;
+    private static readonly Color StartListeningIconFillColor = Color.FromArgb(255, 34, 171, 77);
+    private static readonly Color StartListeningIconStrokeColor = Color.FromArgb(255, 206, 255, 214);
+    private static readonly Color StartListeningIconGlyphColor = Color.FromArgb(255, 243, 255, 245);
+    private const int StartListeningIconCornerRadius = 8;
     private const int StopListeningIconMinHeight = 30;
     private const int StopListeningIconMinWidth = 28;
     private const int StopListeningIconPaddingPx = 18;
@@ -1069,13 +1073,23 @@ public class OverlayForm : Form
             Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
 
+        using var iconBgPath = CreateRoundedRectanglePath(iconBounds, StartListeningIconCornerRadius);
+        using var iconBgBrush = new SolidBrush(StartListeningIconFillColor);
+        using var iconBgPen = new Pen(StartListeningIconStrokeColor, Math.Max(1.0f, Math.Min(3.0f, iconHeight / 12.0f)))
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+        graphics.FillPath(iconBgBrush, iconBgPath);
+        graphics.DrawPath(iconBgPen, iconBgPath);
+
         var clickableBounds = new Rectangle(
             iconBounds.Left,
             iconBounds.Top,
             Math.Max(1, Math.Min(Width - iconBounds.Left, iconHeight + StartListeningIconPaddingPx)),
             Math.Max(1, iconHeight));
 
-        var iconColor = _label.ForeColor;
+        var iconColor = StartListeningIconGlyphColor;
         var lineWidth = Math.Max(2.0f, Math.Min(4.2f, iconHeight / 7.0f));
         using var iconPen = new Pen(iconColor, lineWidth)
         {
