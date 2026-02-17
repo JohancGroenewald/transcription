@@ -656,15 +656,20 @@ public class OverlayForm : Form
         var reservedCountdownHeight = _lastShowCountdownBar ? GetCountdownBarReservedHeight() : 0;
         var metaAreaHeight = actionLineHeight + prefixLineHeight + (hasActionText ? ActionLineSpacing : 0)
             + (hasPrefixText ? ActionLineSpacing : 0);
+        var hideStackIconReservePx = _showHideStackIcon
+            ? GetHideStackIconReservePx()
+            : 0;
+        var contentLeft = Padding.Left + hideStackIconReservePx;
+        var contentWidth = Math.Max(1, ClientSize.Width - Padding.Horizontal - hideStackIconReservePx);
 
         var cursorY = Padding.Top;
 
         if (_lastShowActionLine)
         {
             _actionLabel.Bounds = new Rectangle(
-                Padding.Left,
+                contentLeft,
                 cursorY,
-                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                contentWidth,
                 actionLineHeight);
             cursorY += actionLineHeight + ActionLineSpacing;
         }
@@ -677,9 +682,9 @@ public class OverlayForm : Form
         if (hasPrefixText)
         {
             _prefixLabel.Bounds = new Rectangle(
-                Padding.Left,
+                contentLeft,
                 cursorY,
-                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                contentWidth,
                 prefixLineHeight);
             cursorY += prefixLineHeight + ActionLineSpacing;
         }
@@ -690,14 +695,14 @@ public class OverlayForm : Form
 
         if (!centerTextBlock)
         {
-            _actionLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
+            _actionLabel.Width = contentWidth;
             _actionLabel.Height = actionLineHeight;
-            _prefixLabel.Width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
+            _prefixLabel.Width = contentWidth;
             _prefixLabel.Height = prefixLineHeight;
             _label.Bounds = new Rectangle(
-                Padding.Left,
+                contentLeft,
                 cursorY,
-                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                contentWidth,
                 Math.Max(20, availableHeight));
             _label.TextAlign = ContentAlignment.MiddleCenter;
             _actionLabel.BringToFront();
@@ -710,13 +715,14 @@ public class OverlayForm : Form
             return;
         }
 
-        var maxLabelWidth = Math.Max(40, ClientSize.Width - Padding.Horizontal);
+        var maxLabelWidth = Math.Max(40, contentWidth);
         var maxLabelHeight = Math.Max(
             20,
             ClientSize.Height - Padding.Vertical - metaAreaHeight - reservedCountdownHeight);
         var labelWidth = Math.Clamp(measuredTextSize.Width, 1, maxLabelWidth);
         var labelHeight = Math.Clamp(measuredTextSize.Height, 1, maxLabelHeight);
-        var left = Math.Max(Padding.Left, (ClientSize.Width - labelWidth) / 2);
+        var contentRight = contentLeft + contentWidth;
+        var left = Math.Max(contentLeft, Math.Min(contentRight - labelWidth, contentLeft + (contentWidth - labelWidth) / 2));
         var centeredAreaHeight = Math.Max(1, maxLabelHeight);
         var top = Math.Max(
             Padding.Top,
@@ -728,6 +734,20 @@ public class OverlayForm : Form
     private static int GetCountdownBarReservedHeight()
     {
         return CountdownBarHeight + CountdownBarBottomMargin + CountdownBarAreaPadding;
+    }
+
+    private int GetHideStackIconReservePx()
+    {
+        var baseHideStackFontSize = Math.Max(10, _overlayFontSizePt - 1);
+        var iconFontSize = Math.Max(10, (int)Math.Round(baseHideStackFontSize * 1.5));
+        using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
+        var iconTextSize = TextRenderer.MeasureText(
+            HideStackIconGlyph,
+            hideFont,
+            new Size(int.MaxValue / 4, int.MaxValue / 4),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+
+        return iconTextSize.Width + HideStackIconPaddingPx;
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -746,9 +766,6 @@ public class OverlayForm : Form
         DrawListeningLevelMeter(e.Graphics);
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
-
-        if (_showHideStackIcon)
-            DrawHideStackIcon(e.Graphics);
 
         if (!TryGetCountdownProgress(out var remainingFraction))
         {
@@ -821,6 +838,9 @@ public class OverlayForm : Form
         e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         e.Graphics.DrawString(iconText, playbackIconFont, iconBrush, iconBounds, iconFormat);
         _countdownPlaybackIconBounds = iconBounds;
+
+        if (_showHideStackIcon)
+            DrawHideStackIcon(e.Graphics);
     }
 
     private void DrawHideStackIcon(Graphics graphics)
