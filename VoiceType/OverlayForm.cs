@@ -121,6 +121,8 @@ public class OverlayForm : Form
     private bool _showHideStackIcon;
     private bool _showHelloTextFrame;
     private Rectangle _hideStackIconBounds = Rectangle.Empty;
+    private int _lastLoggedHideStackMessageId;
+    private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
@@ -924,6 +926,26 @@ public class OverlayForm : Form
             hideFormat);
 
         _hideStackIconBounds = clickableBounds;
+        LogHideStackBounds();
+    }
+
+    private void LogHideStackBounds()
+    {
+        if (_hideStackIconBounds.IsEmpty || !_showHideStackIcon)
+            return;
+
+        var now = DateTime.UtcNow;
+        if (_activeMessageId == _lastLoggedHideStackMessageId && now < _nextHideStackPositionLogAt)
+            return;
+
+        _lastLoggedHideStackMessageId = _activeMessageId;
+        _nextHideStackPositionLogAt = now.AddSeconds(1);
+
+        Log.Info(
+            $"Hide-stack positioning | messageId={_activeMessageId}, text='{_label.Text}', " +
+            $"labelBounds={_label.Bounds.X},{_label.Bounds.Y},{_label.Bounds.Width},{_label.Bounds.Height}, " +
+            $"hideIconBounds={_hideStackIconBounds.X},{_hideStackIconBounds.Y},{_hideStackIconBounds.Width},{_hideStackIconBounds.Height}, " +
+            $"formBounds={Bounds.X},{Bounds.Y},{Bounds.Width},{Bounds.Height}");
     }
 
     private void DrawHelloTextFrame(Graphics graphics)
