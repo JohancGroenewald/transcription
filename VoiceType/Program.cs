@@ -202,7 +202,7 @@ static class Program
         }
 
         var request = launchRequest.Value;
-        var listenAfterStartup = request == LaunchRequest.Listen;
+        var listenAfterStartup = request == LaunchRequest.Listen || request == LaunchRequest.Activate;
         var listenIgnorePrefixOnStartup = listenAfterStartup && requestIgnorePrefix;
         var routedToExistingInstance = false;
 
@@ -668,11 +668,11 @@ static class Program
         Console.WriteLine("  --ignore-prefix           Use with --listen to skip configured pasted text prefix for this invocation.");
         Console.WriteLine("  --submit                  Send Enter, or paste without auto-send if preview is active.");
         Console.WriteLine("  --close                   Request graceful close (finishes current work first).");
-        Console.WriteLine("  --activate                Bring the existing instance to foreground (no listen).");
+        Console.WriteLine("  --activate                Bring the existing instance to foreground and start listening.");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");
-        Console.WriteLine("  --create-activate-shortcut  Create VoiceTypeActivate.exe.lnk for --listen.");
+        Console.WriteLine("  --create-activate-shortcut  Create VoiceTypeActivate.exe.lnk for --activate.");
         Console.WriteLine("  --create-submit-shortcut  Create VoiceTypeSubmit.exe.lnk for --submit.");
         Console.WriteLine(
             "  --create-listen-ignore-prefix-shortcut " +

@@ -589,6 +589,7 @@ public class TrayContext : ApplicationContext
 
             Log.Info("Remote activate requested");
             RestoreHiddenStackOnReactivation();
+            RequestListen(ignorePastedTextPrefix: false);
         });
     }
 
