@@ -760,8 +760,9 @@ public class OverlayForm : Form
             hideFont,
             new Size(int.MaxValue / 4, int.MaxValue / 4),
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
-        return iconTextSize.Width + HideStackIconPaddingPx;
+        return iconRenderWidth + Math.Max(0, HideStackIconHorizontalOffsetPx);
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -884,27 +885,25 @@ public class OverlayForm : Form
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
         var iconHeight = Math.Max(1, iconTextSize.Height);
-        var contentBounds = _label.Bounds;
-        var contentTop = Math.Max(0, contentBounds.Top);
-        var contentHeight = Math.Max(1, contentBounds.Height);
-        var baseIconY = contentTop + ((contentHeight - iconHeight) / 2);
-        var iconY = Math.Max(0, baseIconY + HideStackIconVerticalOffsetPx);
-        iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+        var contentTop = Math.Max(0, Padding.Top);
+        var contentHeight = Math.Max(1, ClientSize.Height - Padding.Vertical);
+        var baseIconY = contentTop + ((contentHeight - Math.Min(iconHeight, contentHeight - 2)) / 2);
+        var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
         var iconLeft = Math.Max(
             0,
             Math.Min(
-                contentBounds.Left + HideStackIconHorizontalOffsetPx,
+                Padding.Left + HideStackIconHorizontalOffsetPx,
                 Width - iconRenderWidth - Math.Max(1, HideStackIconHorizontalOffsetPx)));
         var iconBounds = new Rectangle(
             iconLeft,
             iconY,
             iconRenderWidth,
-            Math.Max(1, iconHeight));
+            Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
         var clickableBounds = new Rectangle(
             iconBounds.Left,
             iconBounds.Top,
-            Math.Max(1, iconTextSize.Width + HideStackIconPaddingPx),
+            Math.Max(1, iconRenderWidth),
             Math.Max(1, iconHeight));
 
         graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
