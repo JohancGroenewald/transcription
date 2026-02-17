@@ -1714,14 +1714,18 @@ public class TrayContext : ApplicationContext
         if (_transcriptionService == null)
             return;
 
-        ShowOverlay(
+        var messageId = _overlayManager.ShowMessage(
             $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
             StartupReadyOverlayColor,
             2000,
             overlayKey: HelloOverlayKey,
             trackInStack: true,
             showHideStackIcon: true,
-            showHelloTextFrame: true);
+            showHelloTextFrame: true,
+            fullWidthText: false);
+
+        if (messageId == 0)
+            Log.Info("Hello overlay fallback call did not render any message.");
     }
 
     private void OnOverlayTapped(object? sender, int messageId)
