@@ -37,11 +37,12 @@ public class OverlayForm : Form
     private const float CopyTapBorderWidth = 3.0f;
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
-    private const int HideStackIconVerticalOffsetPx = -5;
+    private const int HideStackIconVerticalOffsetPx = -15;
     private const float HideStackIconScale = 3.0f;
     private const string HideStackIconGlyph = "×";
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
+    private const int HideStackIconHorizontalOffsetPx = -4;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -875,7 +876,7 @@ public class OverlayForm : Form
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx);
         var iconBounds = new Rectangle(
-            Padding.Left,
+            Math.Max(0, Padding.Left + HideStackIconHorizontalOffsetPx),
             iconY,
             iconRenderWidth,
             Math.Max(1, iconHeight));
