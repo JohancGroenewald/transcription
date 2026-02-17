@@ -882,9 +882,16 @@ public class OverlayForm : Form
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
         var iconHeight = Math.Max(1, iconTextSize.Height);
+        var labelTextSize = TextRenderer.MeasureText(
+            graphics,
+            _label.Text,
+            _label.Font,
+            new Size(int.MaxValue / 4, int.MaxValue / 4),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        var labelTextHeight = Math.Max(1, labelTextSize.Height);
         var contentBounds = _label.Bounds;
-        var contentTop = Math.Max(0, contentBounds.Top);
-        var contentHeight = Math.Max(1, contentBounds.Height);
+        var contentTop = Math.Max(0, contentBounds.Top + Math.Max(0, (contentBounds.Height - labelTextHeight) / 2));
+        var contentHeight = Math.Max(1, Math.Min(contentBounds.Height, labelTextHeight));
         var baseIconY = contentTop + ((contentHeight - iconHeight) / 2);
         var iconY = Math.Max(0, baseIconY + HideStackIconVerticalOffsetPx);
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));

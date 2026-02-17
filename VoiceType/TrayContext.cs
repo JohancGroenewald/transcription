@@ -727,8 +727,6 @@ public class TrayContext : ApplicationContext
         if (!_enableOverlayPopups)
             return 0;
 
-        _isStackHiddenByUser = false;
-
         var effectiveDurationMs = durationMs.HasValue
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
             : _overlayDurationMs;
@@ -1658,7 +1656,10 @@ public class TrayContext : ApplicationContext
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
-        if (_isShuttingDown || _shutdownRequested || _isStackHiddenByUser)
+        if (_isShuttingDown || _shutdownRequested)
+            return;
+
+        if (_isStackHiddenByUser)
             return;
 
         ShowHelloOverlay();
@@ -1666,8 +1667,16 @@ public class TrayContext : ApplicationContext
 
     private void RestoreHiddenStackOnReactivation()
     {
-        if (_isShuttingDown || _isStackHiddenByUser || _transcriptionService == null)
+        if (_isShuttingDown || _transcriptionService == null)
             return;
+
+        if (_isStackHiddenByUser)
+        {
+            _isStackHiddenByUser = false;
+
+            if (_overlayManager.HasTrackedOverlays())
+                return;
+        }
 
         if (_overlayManager.HasTrackedOverlays())
             return;

@@ -129,7 +129,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool isSubmittedAction = false,
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
-        bool showHideStackIcon = false)
+        bool showHideStackIcon = false,
+        bool showHelloTextFrame = false)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -168,7 +169,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     copyText,
                     countdownPlaybackIcon,
                     fullWidthText,
-                    showHideStackIcon);
+                    showHideStackIcon,
+                    showHelloTextFrame);
                 if (localMessageId == 0)
                     return 0;
 
@@ -217,7 +219,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 copyText,
                 countdownPlaybackIcon,
                 fullWidthText,
-                showHideStackIcon);
+                showHideStackIcon,
+                showHelloTextFrame);
 
             if (managedOverlay.LocalMessageId == 0)
             {

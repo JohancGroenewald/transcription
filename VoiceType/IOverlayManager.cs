@@ -36,7 +36,8 @@ public interface IOverlayManager : IDisposable
         bool isSubmittedAction = false,
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
-        bool showHideStackIcon = false);
+        bool showHideStackIcon = false,
+        bool showHelloTextFrame = false);
 
     void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon);
 
