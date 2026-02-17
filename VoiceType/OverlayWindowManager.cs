@@ -932,7 +932,14 @@ public sealed class OverlayWindowManager : IOverlayManager
         if (visibleOverlays.Count == 0)
             return;
 
-        var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        // Keep overlays anchored to the primary working area for deterministic visibility.
+        var workingArea = Screen.PrimaryScreen?.WorkingArea
+            ?? Screen.FromPoint(Cursor.Position).WorkingArea;
+        if (workingArea.IsEmpty)
+            workingArea = Screen.AllScreens.FirstOrDefault(s => !s.Bounds.IsEmpty)?.WorkingArea ?? Rectangle.Empty;
+
+        if (workingArea.IsEmpty)
+            return;
         var maximumStackHeight = Math.Max(0, workingArea.Height - 4);
         const int interOverlaySpacing = 0;
 

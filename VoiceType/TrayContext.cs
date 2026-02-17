@@ -1737,7 +1737,14 @@ public class TrayContext : ApplicationContext
             return;
 
         if (e.Button is MouseButtons.Left)
+        {
+            Log.Info("Tray icon left-click.");
             RestoreHiddenStackOnReactivation();
+        }
+        else if (e.Button is MouseButtons.Right)
+        {
+            Log.Info("Tray icon right-click.");
+        }
     }
 
     private void OnTrayIconMouseUp(object? sender, MouseEventArgs e)
@@ -1745,15 +1752,11 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown)
             return;
 
-        if (e.Button is MouseButtons.Right)
-        {
-            RestoreHiddenStackOnReactivation();
-            _trayIcon.ContextMenuStrip?.Show(Cursor.Position);
-            return;
-        }
-
         if (e.Button is MouseButtons.Left)
+        {
+            Log.Info("Tray icon mouse-up (left).");
             RestoreHiddenStackOnReactivation();
+        }
     }
 
     private void ShowHelloOverlay()
