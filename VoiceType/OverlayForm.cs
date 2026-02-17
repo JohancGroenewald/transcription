@@ -43,6 +43,9 @@ public class OverlayForm : Form
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
+    private const float HelloTextFrameWidth = 1.0f;
+    private const int HelloTextFramePaddingPx = 2;
+    private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -116,6 +119,7 @@ public class OverlayForm : Form
     private bool _allowCopyTap = true;
     private Rectangle _countdownPlaybackIconBounds = Rectangle.Empty;
     private bool _showHideStackIcon;
+    private bool _showHelloTextFrame;
     private Rectangle _hideStackIconBounds = Rectangle.Empty;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
@@ -270,6 +274,7 @@ public class OverlayForm : Form
             _lastCountdownPlaybackIcon = string.Empty;
             _countdownPlaybackIconBounds = Rectangle.Empty;
             _showHideStackIcon = false;
+            _showHelloTextFrame = false;
             _hideStackIconBounds = Rectangle.Empty;
             _showCopyTapFeedbackBorder = false;
             _activeBorderColor = BorderColor;
@@ -323,7 +328,8 @@ public class OverlayForm : Form
         string? copyText = null,
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
-        bool showHideStackIcon = false)
+        bool showHideStackIcon = false,
+        bool showHelloTextFrame = false)
     {
         if (InvokeRequired)
         {
@@ -348,7 +354,8 @@ public class OverlayForm : Form
                 copyText,
                 countdownPlaybackIcon,
                 fullWidthText,
-                showHideStackIcon)));
+                showHideStackIcon,
+                showHelloTextFrame)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -364,6 +371,7 @@ public class OverlayForm : Form
                 ? string.Empty
                 : countdownPlaybackIcon;
             _showHideStackIcon = showHideStackIcon;
+            _showHelloTextFrame = showHelloTextFrame;
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
             _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
@@ -771,6 +779,9 @@ public class OverlayForm : Form
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
 
+        if (_showHelloTextFrame)
+            DrawHelloTextFrame(e.Graphics);
+
         var hasCountdown = TryGetCountdownProgress(out var remainingFraction);
         if (hasCountdown)
         {
@@ -871,7 +882,10 @@ public class OverlayForm : Form
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
         var iconHeight = Math.Max(1, iconTextSize.Height);
-        var baseIconY = _label.Bounds.Top + Math.Max(0, (_label.Bounds.Height - iconHeight) / 2);
+        var contentBounds = _label.Bounds;
+        var contentTop = Math.Max(0, contentBounds.Top);
+        var contentHeight = Math.Max(1, contentBounds.Height);
+        var baseIconY = contentTop + ((contentHeight - iconHeight) / 2);
         var iconY = Math.Max(0, baseIconY + HideStackIconVerticalOffsetPx);
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx);
@@ -896,6 +910,35 @@ public class OverlayForm : Form
             hideFormat);
 
         _hideStackIconBounds = clickableBounds;
+    }
+
+    private void DrawHelloTextFrame(Graphics graphics)
+    {
+        if (string.IsNullOrWhiteSpace(_label.Text))
+            return;
+
+        var textMeasureSize = TextRenderer.MeasureText(
+            graphics,
+            _label.Text,
+            _label.Font,
+            new Size(_label.Bounds.Width, int.MaxValue / 4),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+        var textHeight = Math.Max(1, textMeasureSize.Height);
+        var textWidth = Math.Max(1, Math.Min(_label.Bounds.Width, textMeasureSize.Width));
+        var textLeft = _label.Bounds.Left + Math.Max(0, (_label.Bounds.Width - textWidth) / 2);
+        var textTop = _label.Bounds.Top + Math.Max(0, (_label.Bounds.Height - textHeight) / 2);
+
+        var frame = Rectangle.Inflate(
+            new Rectangle(textLeft, textTop, textWidth, textHeight),
+            HelloTextFramePaddingPx,
+            HelloTextFramePaddingPx);
+        frame.Intersect(new Rectangle(0, 0, Width, Height));
+        if (frame.IsEmpty)
+            return;
+
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var framePen = new Pen(HelloTextFrameColor, HelloTextFrameWidth);
+        graphics.DrawRectangle(framePen, frame);
     }
 
     private void DrawFullWidthText(Graphics graphics)

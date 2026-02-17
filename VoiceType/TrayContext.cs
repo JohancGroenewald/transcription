@@ -169,6 +169,7 @@ public class TrayContext : ApplicationContext
             ContextMenuStrip = BuildMenu()
         };
         _trayIcon.MouseClick += OnTrayIconMouseClick;
+        _trayIcon.MouseUp += OnTrayIconMouseUp;
         HookShutdownEvents();
 
         _hotkeyWindow = new HotkeyWindow();
@@ -247,7 +248,11 @@ public class TrayContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         UpdateRuntimeMenuItems();
-        menu.Opening += (_, _) => UpdateRuntimeMenuItems();
+        menu.Opening += (_, _) =>
+        {
+            UpdateRuntimeMenuItems();
+            RestoreHiddenStackOnReactivation();
+        };
         menu.Closed += OnTrayMenuClosed;
         menu.Items.Add(_versionMenuItem);
         menu.Items.Add(_startedAtMenuItem);
@@ -716,7 +721,8 @@ public class TrayContext : ApplicationContext
         bool isSubmittedAction = false,
         string? countdownPlaybackIcon = null,
         bool fullWidthText = false,
-        bool showHideStackIcon = false)
+        bool showHideStackIcon = false,
+        bool showHelloTextFrame = false)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -761,7 +767,8 @@ public class TrayContext : ApplicationContext
             isSubmittedAction: isSubmittedAction,
             countdownPlaybackIcon: countdownPlaybackIcon,
             fullWidthText: fullWidthText,
-            showHideStackIcon: showHideStackIcon);
+            showHideStackIcon: showHideStackIcon,
+            showHelloTextFrame: showHelloTextFrame);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
@@ -1645,13 +1652,13 @@ public class TrayContext : ApplicationContext
 
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
-        _overlayManager.HideAll(suppressStackEmptyNotification: true);
         _isStackHiddenByUser = true;
+        _overlayManager.HideAll();
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
-        if (_isShuttingDown || _shutdownRequested)
+        if (_isShuttingDown || _shutdownRequested || _isStackHiddenByUser)
             return;
 
         ShowHelloOverlay();
@@ -1659,17 +1666,25 @@ public class TrayContext : ApplicationContext
 
     private void RestoreHiddenStackOnReactivation()
     {
-        if (_isShuttingDown)
+        if (_isShuttingDown || _isStackHiddenByUser || _transcriptionService == null)
             return;
 
-        if (!_isStackHiddenByUser && _overlayManager.HasTrackedOverlays())
+        if (_overlayManager.HasTrackedOverlays())
             return;
 
-        _isStackHiddenByUser = false;
         ShowHelloOverlay();
     }
 
     private void OnTrayIconMouseClick(object? sender, MouseEventArgs e)
+    {
+        if (_isShuttingDown)
+            return;
+
+        if (e.Button is MouseButtons.Left or MouseButtons.Right)
+            RestoreHiddenStackOnReactivation();
+    }
+
+    private void OnTrayIconMouseUp(object? sender, MouseEventArgs e)
     {
         if (_isShuttingDown)
             return;
@@ -1689,7 +1704,8 @@ public class TrayContext : ApplicationContext
             2000,
             overlayKey: HelloOverlayKey,
             trackInStack: true,
-            showHideStackIcon: true);
+            showHideStackIcon: true,
+            showHelloTextFrame: true);
     }
 
     private void OnOverlayTapped(object? sender, int messageId)
