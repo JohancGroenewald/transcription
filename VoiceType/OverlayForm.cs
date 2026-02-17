@@ -985,19 +985,8 @@ public class OverlayForm : Form
         if (string.IsNullOrWhiteSpace(_label.Text))
             return;
 
-        var textMeasureSize = TextRenderer.MeasureText(
-            graphics,
-            _label.Text,
-            _label.Font,
-            new Size(_label.Bounds.Width, int.MaxValue / 4),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-        var textHeight = Math.Max(1, textMeasureSize.Height);
-        var textWidth = Math.Max(1, Math.Min(_label.Bounds.Width, textMeasureSize.Width));
-        var textLeft = _label.Bounds.Left + Math.Max(0, (_label.Bounds.Width - textWidth) / 2);
-        var textTop = _label.Bounds.Top + Math.Max(0, (_label.Bounds.Height - textHeight) / 2);
-
         var frame = Rectangle.Inflate(
-            new Rectangle(textLeft, textTop, textWidth, textHeight),
+            _label.Bounds,
             HelloTextFramePaddingPx,
             HelloTextFramePaddingPx);
         frame.Intersect(new Rectangle(0, 0, Width, Height));
