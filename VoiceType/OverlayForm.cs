@@ -41,6 +41,7 @@ public class OverlayForm : Form
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
+    private const int HelloHideStackIconHorizontalOffsetPx = -6;
     private const int HideStackIconCornerRadius = 6;
     private const int HideStackIconMinHeight = 30;
     private const int HideStackIconMinWidth = 28;
@@ -1035,10 +1036,13 @@ public class OverlayForm : Form
         var iconRenderWidth = Math.Max(
             HideStackIconMinWidth,
             iconHeight + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+        var helloBoxOffsetPx = _showHelloTextFrame
+            ? HelloHideStackIconHorizontalOffsetPx
+            : 0;
         var iconLeft = Math.Max(
             0,
             Math.Min(
-                Padding.Left + HideStackIconHorizontalOffsetPx,
+                Padding.Left + HideStackIconHorizontalOffsetPx + helloBoxOffsetPx,
                 Width - iconRenderWidth - Math.Max(1, HideStackIconHorizontalOffsetPx)));
         var iconBounds = new Rectangle(
             iconLeft,
