@@ -45,6 +45,7 @@ public class OverlayForm : Form
     private const int HideStackIconMinHeight = 30;
     private const int HideStackIconMinWidth = 28;
     private const int HideStackIconMinInset = 2;
+    private const float ListeningOverlayIconScale = 0.5f;
     private static readonly Color HideStackIconFillColor = Color.FromArgb(255, 208, 52, 52);
     private static readonly Color HideStackIconStrokeColor = Color.FromArgb(255, 255, 214, 214);
     private static readonly Color HideStackIconGlyphColor = Color.FromArgb(255, 255, 236, 236);
@@ -846,6 +847,28 @@ public class OverlayForm : Form
         return Math.Max(iconHeight, _profiledOverlayControlIconHeightPx);
     }
 
+    private float GetListeningOverlayIconScale()
+    {
+        return _showListeningLevelMeter ? ListeningOverlayIconScale : 1.0f;
+    }
+
+    private static Rectangle ScaleBoundsAroundCenter(Rectangle bounds, float scale)
+    {
+        if (bounds.IsEmpty || scale >= 0.999f)
+            return bounds;
+
+        var centerX = bounds.Left + (bounds.Width / 2.0f);
+        var centerY = bounds.Top + (bounds.Height / 2.0f);
+        var scaledWidth = Math.Max(1, (int)Math.Round(bounds.Width * scale));
+        var scaledHeight = Math.Max(1, (int)Math.Round(bounds.Height * scale));
+
+        return new Rectangle(
+            (int)Math.Round(centerX - (scaledWidth / 2.0f)),
+            (int)Math.Round(centerY - (scaledHeight / 2.0f)),
+            scaledWidth,
+            scaledHeight);
+    }
+
     private int GetHideStackIconReservePx()
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
@@ -1000,6 +1023,7 @@ public class OverlayForm : Form
     private void DrawHideStackIcon(Graphics graphics)
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
+        var iconScale = GetListeningOverlayIconScale();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
@@ -1019,10 +1043,12 @@ public class OverlayForm : Form
             iconY,
             Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
+        var scaledIconBounds = ScaleBoundsAroundCenter(iconBounds, iconScale);
+        var scaledIconHeight = Math.Max(1, scaledIconBounds.Height);
 
-        using var iconBgPath = CreateRoundedRectanglePath(iconBounds, HideStackIconCornerRadius);
+        using var iconBgPath = CreateRoundedRectanglePath(scaledIconBounds, HideStackIconCornerRadius);
         using var iconBgBrush = new SolidBrush(HideStackIconFillColor);
-        using var iconBgPen = new Pen(HideStackIconStrokeColor, Math.Max(1.0f, Math.Min(2.6f, iconHeight / 12.0f)))
+        using var iconBgPen = new Pen(HideStackIconStrokeColor, Math.Max(1.0f, Math.Min(2.6f, scaledIconHeight / 12.0f)))
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
@@ -1031,20 +1057,20 @@ public class OverlayForm : Form
         graphics.DrawPath(iconBgPen, iconBgPath);
 
         var clickableBounds = new Rectangle(
-            iconBounds.Left,
-            iconBounds.Top,
-            Math.Max(1, iconHeight + HideStackIconPaddingPx + HideStackIconHorizontalPaddingPx),
-            Math.Max(1, iconHeight));
+            scaledIconBounds.Left,
+            scaledIconBounds.Top,
+            Math.Max(1, scaledIconBounds.Width),
+            Math.Max(1, scaledIconBounds.Height));
 
-        var glyphInset = Math.Max(HideStackIconMinInset + 1, iconHeight / 5);
-        var glyphSize = Math.Max(2, iconBounds.Height - (glyphInset * 2));
+        var glyphInset = Math.Max(HideStackIconMinInset + 1, scaledIconHeight / 5);
+        var glyphSize = Math.Max(2, scaledIconBounds.Height - (glyphInset * 2));
         var glyphBounds = new Rectangle(
-            iconBounds.Left + ((iconBounds.Width - glyphSize) / 2),
-            iconBounds.Top + ((iconBounds.Height - glyphSize) / 2),
+            scaledIconBounds.Left + ((scaledIconBounds.Width - glyphSize) / 2),
+            scaledIconBounds.Top + ((scaledIconBounds.Height - glyphSize) / 2),
             Math.Max(1, glyphSize),
             Math.Max(1, glyphSize));
         var lineColor = HideStackIconGlyphColor;
-        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, iconHeight / 7.0f));
+        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, scaledIconHeight / 7.0f));
         using var iconPen = new Pen(lineColor, lineWidth)
         {
             StartCap = System.Drawing.Drawing2D.LineCap.Round,
@@ -1071,6 +1097,7 @@ public class OverlayForm : Form
     private void DrawStopListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
+        var iconScale = GetListeningOverlayIconScale();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
@@ -1093,10 +1120,12 @@ public class OverlayForm : Form
             iconY,
             Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
+        var scaledIconBounds = ScaleBoundsAroundCenter(iconBounds, iconScale);
+        var scaledIconHeight = Math.Max(1, scaledIconBounds.Height);
 
-        using var iconBgPath = CreateRoundedRectanglePath(iconBounds, StopListeningIconCornerRadius);
+        using var iconBgPath = CreateRoundedRectanglePath(scaledIconBounds, StopListeningIconCornerRadius);
         using var iconBgBrush = new SolidBrush(StopListeningIconFillColor);
-        using var iconBgPen = new Pen(StopListeningIconStrokeColor, Math.Max(1.0f, Math.Min(3.0f, iconHeight / 12.0f)))
+        using var iconBgPen = new Pen(StopListeningIconStrokeColor, Math.Max(1.0f, Math.Min(3.0f, scaledIconHeight / 12.0f)))
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
@@ -1105,18 +1134,19 @@ public class OverlayForm : Form
         graphics.DrawPath(iconBgPen, iconBgPath);
 
         var clickableBounds = new Rectangle(
-            iconBounds.Left,
-            iconBounds.Top,
-            Math.Max(1, Math.Min(Width - iconBounds.Left, iconHeight + StopListeningIconPaddingPx)),
-            Math.Max(1, iconHeight));
+            scaledIconBounds.Left,
+            scaledIconBounds.Top,
+            Math.Max(1, scaledIconBounds.Width),
+            Math.Max(1, scaledIconBounds.Height));
 
         var iconColor = StopListeningIconGlyphColor;
         var iconSize = Math.Max(
             2,
-            Math.Min(iconBounds.Width, iconBounds.Height) - (Math.Max(StopListeningIconMinInset + 1, iconHeight / 5) * 2));
+            Math.Min(scaledIconBounds.Width, scaledIconBounds.Height)
+                - (Math.Max(StopListeningIconMinInset + 1, scaledIconHeight / 5) * 2));
         var iconSquare = new Rectangle(
-            iconBounds.Left + ((iconBounds.Width - iconSize) / 2),
-            iconBounds.Top + ((iconBounds.Height - iconSize) / 2),
+            scaledIconBounds.Left + ((scaledIconBounds.Width - iconSize) / 2),
+            scaledIconBounds.Top + ((scaledIconBounds.Height - iconSize) / 2),
             Math.Max(2, iconSize),
             Math.Max(2, iconSize));
         using var iconBrush = new SolidBrush(iconColor);
