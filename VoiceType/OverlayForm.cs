@@ -872,12 +872,6 @@ public class OverlayForm : Form
             10,
             (int)Math.Round(baseHideStackFontSize * HideStackIconScale));
         using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
-        using var hideBrush = new SolidBrush(Color.Red);
-        using var hideFormat = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
 
         var iconTextSize = TextRenderer.MeasureText(
             HideStackIconGlyph,
@@ -924,12 +918,19 @@ public class OverlayForm : Form
             Math.Max(1, iconHeight));
 
         graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-        graphics.DrawString(
+        var iconDrawFlags = TextFormatFlags.NoPrefix
+            | TextFormatFlags.NoPadding
+            | TextFormatFlags.HorizontalCenter
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.SingleLine
+            | TextFormatFlags.PreserveGraphicsTranslateTransform;
+        TextRenderer.DrawText(
+            graphics,
             HideStackIconGlyph,
             hideFont,
-            hideBrush,
             iconBounds,
-            hideFormat);
+            Color.Red,
+            iconDrawFlags);
 
         _hideStackIconBounds = clickableBounds;
         LogHideStackBounds();
