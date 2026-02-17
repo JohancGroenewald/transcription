@@ -847,6 +847,13 @@ public class OverlayForm : Form
         return Math.Max(iconHeight, _profiledOverlayControlIconHeightPx);
     }
 
+    private float GetOverlayIconScale()
+    {
+        return (_showListeningLevelMeter || _showHideStackIcon || _showStartListeningIcon)
+            ? ListeningOverlayIconScale
+            : 1.0f;
+    }
+
     private static Rectangle ScaleBoundsAroundCenter(Rectangle bounds, float scale)
     {
         if (bounds.IsEmpty || scale >= 0.999f)
@@ -1018,7 +1025,7 @@ public class OverlayForm : Form
     private void DrawHideStackIcon(Graphics graphics)
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
-        var iconScale = _showListeningLevelMeter ? ListeningOverlayIconScale : 1.0f;
+        var iconScale = GetOverlayIconScale();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
@@ -1092,7 +1099,7 @@ public class OverlayForm : Form
     private void DrawStopListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
-        var iconScale = _showListeningLevelMeter ? ListeningOverlayIconScale : 1.0f;
+        var iconScale = GetOverlayIconScale();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
@@ -1153,7 +1160,7 @@ public class OverlayForm : Form
     private void DrawCancelListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
-        var iconScale = _showListeningLevelMeter ? ListeningOverlayIconScale : 1.0f;
+        var iconScale = GetOverlayIconScale();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
@@ -1217,6 +1224,7 @@ public class OverlayForm : Form
     private void DrawStartListeningIcon(Graphics graphics, int existingRightReservedPx = 0)
     {
         var iconHeight = GetOverlayControlIconReferenceHeight();
+        var iconScale = GetOverlayIconScale();
         var iconReferenceBounds = _label.Bounds;
         if (iconReferenceBounds.IsEmpty || iconReferenceBounds.Height <= 0)
             iconReferenceBounds = GetHideStackIconReferenceBounds();
@@ -1239,10 +1247,12 @@ public class OverlayForm : Form
             iconY,
             Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
+        var scaledIconBounds = ScaleBoundsAroundCenter(iconBounds, iconScale);
+        var scaledIconHeight = Math.Max(1, scaledIconBounds.Height);
 
-        using var iconBgPath = CreateRoundedRectanglePath(iconBounds, StartListeningIconCornerRadius);
+        using var iconBgPath = CreateRoundedRectanglePath(scaledIconBounds, StartListeningIconCornerRadius);
         using var iconBgBrush = new SolidBrush(StartListeningIconFillColor);
-        using var iconBgPen = new Pen(StartListeningIconStrokeColor, Math.Max(1.0f, Math.Min(3.0f, iconHeight / 12.0f)))
+        using var iconBgPen = new Pen(StartListeningIconStrokeColor, Math.Max(1.0f, Math.Min(3.0f, scaledIconHeight / 12.0f)))
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
@@ -1251,25 +1261,25 @@ public class OverlayForm : Form
         graphics.DrawPath(iconBgPen, iconBgPath);
 
         var clickableBounds = new Rectangle(
-            iconBounds.Left,
-            iconBounds.Top,
-            Math.Max(1, Math.Min(Width - iconBounds.Left, iconHeight + StartListeningIconPaddingPx)),
-            Math.Max(1, iconHeight));
+            scaledIconBounds.Left,
+            scaledIconBounds.Top,
+            Math.Max(1, scaledIconBounds.Width),
+            Math.Max(1, scaledIconBounds.Height));
 
         var iconColor = StartListeningIconGlyphColor;
-        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, iconHeight / 7.0f));
+        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, scaledIconHeight / 7.0f));
         using var iconPen = new Pen(iconColor, lineWidth)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
         };
 
-        var glyphInset = Math.Max(StartListeningIconMinInset + 1, iconHeight / 5);
+        var glyphInset = Math.Max(StartListeningIconMinInset + 1, scaledIconHeight / 5);
         var glyphBounds = new Rectangle(
-            iconBounds.Left + glyphInset,
-            iconBounds.Top + glyphInset,
-            Math.Max(2, iconBounds.Width - (glyphInset * 2)),
-            Math.Max(2, iconBounds.Height - (glyphInset * 2)));
+            scaledIconBounds.Left + glyphInset,
+            scaledIconBounds.Top + glyphInset,
+            Math.Max(2, scaledIconBounds.Width - (glyphInset * 2)),
+            Math.Max(2, scaledIconBounds.Height - (glyphInset * 2)));
 
         var headSize = Math.Max(4, Math.Min(glyphBounds.Width, Math.Max(6, glyphBounds.Height / 2)));
         var stemHeight = Math.Max(2, Math.Min(
