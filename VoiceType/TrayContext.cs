@@ -1738,8 +1738,6 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
-        LogHelloStackState("reactivation-start");
-        Log.Info("Restoring overlay stack after reactivation.");
         _stackBootstrap.ClearHiddenByUser();
         _stackBootstrap.OnReactivation("reactivation");
 
@@ -1747,7 +1745,6 @@ public class TrayContext : ApplicationContext
             _stackBootstrap.OnStartup("reactivation-fallback");
 
         EnsureHelloOverlayBootstrapped("reactivation-fallback");
-        LogHelloStackState("reactivation-end");
         QueueDeferredHelloOverlayReseed("reactivation");
     }
 

@@ -202,7 +202,8 @@ static class Program
         }
 
         var request = launchRequest.Value;
-        var listenAfterStartup = request == LaunchRequest.Listen || request == LaunchRequest.Activate;
+        var listenAfterStartup = request == LaunchRequest.Listen;
+        var activateAfterStartup = request == LaunchRequest.Activate;
         var listenIgnorePrefixOnStartup = listenAfterStartup && requestIgnorePrefix;
         var routedToExistingInstance = false;
 
@@ -432,6 +433,8 @@ static class Program
 
             if (listenAfterStartup)
                 trayContext.RequestListen(ignorePastedTextPrefix: listenIgnorePrefixOnStartup);
+            if (activateAfterStartup)
+                trayContext.RequestActivate();
 
             Application.Run(trayContext);
         }
