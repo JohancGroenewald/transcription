@@ -38,8 +38,6 @@ public class OverlayForm : Form
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
     private const int HideStackIconVerticalOffsetPx = 0;
-    private const float HideStackIconScale = 3.0f;
-    private const string HideStackIconGlyph = "×";
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
@@ -753,15 +751,10 @@ public class OverlayForm : Form
 
     private int GetHideStackIconReservePx()
     {
-        var baseHideStackFontSize = Math.Max(10, _overlayFontSizePt - 1);
-        var iconFontSize = Math.Max(10, (int)Math.Round(baseHideStackFontSize * HideStackIconScale));
-        using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
-        var iconTextSize = TextRenderer.MeasureText(
-            HideStackIconGlyph,
-            hideFont,
-            new Size(int.MaxValue / 4, int.MaxValue / 4),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+        var baseIconSize = Math.Max(12, _overlayFontSizePt + 4);
+        var iconRenderWidth = Math.Max(
+            24,
+            baseIconSize + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, HideStackIconHorizontalOffsetPx);
     }
@@ -867,20 +860,8 @@ public class OverlayForm : Form
 
     private void DrawHideStackIcon(Graphics graphics)
     {
-        var baseHideStackFontSize = Math.Max(10, _overlayFontSizePt - 1);
-        var iconFontSize = Math.Max(
-            10,
-            (int)Math.Round(baseHideStackFontSize * HideStackIconScale));
-        using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
-
-        var iconTextSize = TextRenderer.MeasureText(
-            HideStackIconGlyph,
-            hideFont,
-            new Size(int.MaxValue / 4, int.MaxValue / 4),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-
-        var iconHeight = Math.Max(1, iconTextSize.Height);
-        var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
+        var baseIconScale = Math.Max(1, _overlayFontSizePt - 1);
+        var iconHeight = Math.Max(12, baseIconScale + 4);
         var iconReferenceBounds = GetHideStackIconReferenceBounds();
         var iconHeightCap = Math.Max(
             14,
@@ -891,6 +872,9 @@ public class OverlayForm : Form
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
+        var iconRenderWidth = Math.Max(
+            24,
+            iconHeight + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
         var iconLeft = Math.Max(
             0,
             Math.Min(
@@ -899,7 +883,7 @@ public class OverlayForm : Form
         var iconBounds = new Rectangle(
             iconLeft,
             iconY,
-            iconRenderWidth,
+            Math.Max(1, iconRenderWidth),
             Math.Max(1, Math.Min(iconHeight, Height - iconY - 2)));
 
         var iconOutlineBounds = new Rectangle(
@@ -920,23 +904,36 @@ public class OverlayForm : Form
         var clickableBounds = new Rectangle(
             iconBounds.Left,
             iconBounds.Top,
-            Math.Max(1, iconRenderWidth),
+            Math.Max(1, iconHeight + HideStackIconPaddingPx + HideStackIconHorizontalPaddingPx),
             Math.Max(1, iconHeight));
 
-        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-        var iconDrawFlags = TextFormatFlags.NoPrefix
-            | TextFormatFlags.NoPadding
-            | TextFormatFlags.HorizontalCenter
-            | TextFormatFlags.VerticalCenter
-            | TextFormatFlags.SingleLine
-            | TextFormatFlags.PreserveGraphicsTranslateTransform;
-        TextRenderer.DrawText(
-            graphics,
-            HideStackIconGlyph,
-            hideFont,
-            iconBounds,
-            Color.Red,
-            iconDrawFlags);
+        var glyphInset = Math.Max(2, iconHeight / 4);
+        var glyphSize = Math.Max(2, iconBounds.Height - (glyphInset * 2));
+        var glyphBounds = new Rectangle(
+            iconBounds.Left + ((iconBounds.Width - glyphSize) / 2),
+            iconBounds.Top + ((iconBounds.Height - glyphSize) / 2),
+            Math.Max(1, glyphSize),
+            Math.Max(1, glyphSize));
+        var lineColor = Color.Red;
+        var lineWidth = Math.Max(1.25f, Math.Min(2.5f, iconHeight / 10f));
+        using var iconPen = new Pen(lineColor, lineWidth)
+        {
+            StartCap = System.Drawing.Drawing2D.LineCap.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round
+        };
+        var margin = Math.Max(2, (int)Math.Round(glyphSize * 0.18));
+        graphics.DrawLine(
+            iconPen,
+            glyphBounds.Left + margin,
+            glyphBounds.Top + margin,
+            glyphBounds.Right - margin,
+            glyphBounds.Bottom - margin);
+        graphics.DrawLine(
+            iconPen,
+            glyphBounds.Left + margin,
+            glyphBounds.Bottom - margin,
+            glyphBounds.Right - margin,
+            glyphBounds.Top + margin);
 
         _hideStackIconBounds = clickableBounds;
         LogHideStackBounds();
