@@ -42,6 +42,10 @@ public class OverlayForm : Form
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
     private const int HideStackIconCornerRadius = 6;
+    private const float HideStackIconScaleFactor = 1.6f;
+    private const int HideStackIconMinHeight = 28;
+    private const int HideStackIconMinWidth = 26;
+    private const int HideStackIconMinInset = 2;
     private const float HelloTextFrameWidth = 1.0f;
     private const int HelloTextFramePaddingPx = 2;
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
@@ -751,9 +755,11 @@ public class OverlayForm : Form
 
     private int GetHideStackIconReservePx()
     {
-        var baseIconSize = Math.Max(12, _overlayFontSizePt + 4);
+        var baseIconSize = Math.Max(
+            HideStackIconMinHeight,
+            (int)Math.Round(Math.Max(10, _overlayFontSizePt - 1) * HideStackIconScaleFactor));
         var iconRenderWidth = Math.Max(
-            24,
+            HideStackIconMinWidth,
             baseIconSize + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
 
         return iconRenderWidth + Math.Max(0, HideStackIconHorizontalOffsetPx);
@@ -861,7 +867,7 @@ public class OverlayForm : Form
     private void DrawHideStackIcon(Graphics graphics)
     {
         var baseIconScale = Math.Max(1, _overlayFontSizePt - 1);
-        var iconHeight = Math.Max(12, baseIconScale + 4);
+        var iconHeight = Math.Max(HideStackIconMinHeight, (int)Math.Round(baseIconScale * HideStackIconScaleFactor));
         var iconReferenceBounds = GetHideStackIconReferenceBounds();
         var iconHeightCap = Math.Max(
             14,
@@ -873,7 +879,7 @@ public class OverlayForm : Form
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
         var iconRenderWidth = Math.Max(
-            24,
+            HideStackIconMinWidth,
             iconHeight + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
         var iconLeft = Math.Max(
             0,
@@ -907,7 +913,7 @@ public class OverlayForm : Form
             Math.Max(1, iconHeight + HideStackIconPaddingPx + HideStackIconHorizontalPaddingPx),
             Math.Max(1, iconHeight));
 
-        var glyphInset = Math.Max(2, iconHeight / 4);
+        var glyphInset = Math.Max(HideStackIconMinInset, iconHeight / 4);
         var glyphSize = Math.Max(2, iconBounds.Height - (glyphInset * 2));
         var glyphBounds = new Rectangle(
             iconBounds.Left + ((iconBounds.Width - glyphSize) / 2),
@@ -915,7 +921,7 @@ public class OverlayForm : Form
             Math.Max(1, glyphSize),
             Math.Max(1, glyphSize));
         var lineColor = Color.Red;
-        var lineWidth = Math.Max(1.25f, Math.Min(2.5f, iconHeight / 10f));
+        var lineWidth = Math.Max(2.0f, Math.Min(3.8f, iconHeight / 7.5f));
         using var iconPen = new Pen(lineColor, lineWidth)
         {
             StartCap = System.Drawing.Drawing2D.LineCap.Round,
