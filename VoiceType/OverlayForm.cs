@@ -767,77 +767,80 @@ public class OverlayForm : Form
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
 
-        if (!TryGetCountdownProgress(out var remainingFraction))
+        var hasCountdown = TryGetCountdownProgress(out var remainingFraction);
+        if (hasCountdown)
+        {
+            var trackMargin = Math.Max(8, Padding.Left);
+            var iconText = _countdownPlaybackIcon;
+            var iconTextSize = Size.Empty;
+            if (!string.IsNullOrWhiteSpace(iconText))
+            {
+                using var iconFont = new Font(
+                    OverlayFontFamily,
+                    Math.Max(10, _overlayFontSizePt - 1),
+                    FontStyle.Regular);
+                iconTextSize = TextRenderer.MeasureText(
+                    e.Graphics,
+                    iconText,
+                    iconFont,
+                    new Size(int.MaxValue / 4, int.MaxValue / 4),
+                    TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            }
+
+            var iconSpacing = string.IsNullOrWhiteSpace(iconText) ? 0 : CountdownPlaybackIconGapPx;
+            var trackWidth = Math.Max(
+                80,
+                Width - (trackMargin * 2) - iconTextSize.Width - iconSpacing);
+            var trackTop = Math.Max(2, Height - CountdownBarBottomMargin - CountdownBarHeight);
+            var trackBounds = new Rectangle(trackMargin, trackTop, trackWidth, CountdownBarHeight);
+            var fillWidth = (int)Math.Round(trackBounds.Width * remainingFraction);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            if (fillWidth > 0)
+            {
+                var fillBounds = new Rectangle(trackBounds.Left, trackBounds.Top, fillWidth, trackBounds.Height);
+                var fillColor = Color.FromArgb(220, _label.ForeColor);
+                using var fillBrush = new SolidBrush(fillColor);
+                using var fillPath = CreateRoundedRectanglePath(fillBounds, fillBounds.Height);
+                e.Graphics.FillPath(fillBrush, fillPath);
+            }
+
+            if (!string.IsNullOrWhiteSpace(iconText))
+            {
+                using var playbackIconFont = new Font(
+                    OverlayFontFamily,
+                    Math.Max(10, _overlayFontSizePt - 1),
+                    FontStyle.Regular);
+                using var iconBrush = new SolidBrush(_label.ForeColor);
+                var iconX = Math.Min(
+                    Math.Max(trackBounds.Right + iconSpacing, trackMargin),
+                    Math.Max(trackMargin, Width - Padding.Right - iconTextSize.Width));
+                var iconY = Math.Max(
+                    0,
+                    trackBounds.Top - ((Math.Max(CountdownBarHeight, iconTextSize.Height) - CountdownBarHeight) / 2));
+                var iconBounds = new Rectangle(
+                    iconX,
+                    iconY,
+                    Math.Max(1, iconTextSize.Width),
+                    Math.Max(1, Math.Min(Height - iconY - 2, Math.Max(CountdownBarHeight, iconTextSize.Height))));
+                using var iconFormat = new StringFormat
+                {
+                    LineAlignment = StringAlignment.Center,
+                    Alignment = StringAlignment.Near
+                };
+                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                e.Graphics.DrawString(iconText, playbackIconFont, iconBrush, iconBounds, iconFormat);
+                _countdownPlaybackIconBounds = iconBounds;
+            }
+            else
+            {
+                _countdownPlaybackIconBounds = Rectangle.Empty;
+            }
+        }
+        else
         {
             _countdownPlaybackIconBounds = Rectangle.Empty;
-            return;
         }
-
-        var trackMargin = Math.Max(8, Padding.Left);
-        var iconText = _countdownPlaybackIcon;
-        var iconTextSize = Size.Empty;
-        if (!string.IsNullOrWhiteSpace(iconText))
-        {
-            using var iconFont = new Font(
-                OverlayFontFamily,
-                Math.Max(10, _overlayFontSizePt - 1),
-                FontStyle.Regular);
-            iconTextSize = TextRenderer.MeasureText(
-                e.Graphics,
-                iconText,
-                iconFont,
-                new Size(int.MaxValue / 4, int.MaxValue / 4),
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        }
-
-        var iconSpacing = string.IsNullOrWhiteSpace(iconText) ? 0 : CountdownPlaybackIconGapPx;
-        var trackWidth = Math.Max(
-            80,
-            Width - (trackMargin * 2) - iconTextSize.Width - iconSpacing);
-        var trackTop = Math.Max(2, Height - CountdownBarBottomMargin - CountdownBarHeight);
-        var trackBounds = new Rectangle(trackMargin, trackTop, trackWidth, CountdownBarHeight);
-        var fillWidth = (int)Math.Round(trackBounds.Width * remainingFraction);
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-        if (fillWidth > 0)
-        {
-            var fillBounds = new Rectangle(trackBounds.Left, trackBounds.Top, fillWidth, trackBounds.Height);
-            var fillColor = Color.FromArgb(220, _label.ForeColor);
-            using var fillBrush = new SolidBrush(fillColor);
-            using var fillPath = CreateRoundedRectanglePath(fillBounds, fillBounds.Height);
-            e.Graphics.FillPath(fillBrush, fillPath);
-        }
-
-        if (string.IsNullOrWhiteSpace(iconText))
-        {
-            _countdownPlaybackIconBounds = Rectangle.Empty;
-            return;
-        }
-
-        using var playbackIconFont = new Font(
-            OverlayFontFamily,
-            Math.Max(10, _overlayFontSizePt - 1),
-            FontStyle.Regular);
-        using var iconBrush = new SolidBrush(_label.ForeColor);
-        var iconX = Math.Min(
-            Math.Max(trackBounds.Right + iconSpacing, trackMargin),
-            Math.Max(trackMargin, Width - Padding.Right - iconTextSize.Width));
-        var iconY = Math.Max(
-            0,
-            trackBounds.Top - ((Math.Max(CountdownBarHeight, iconTextSize.Height) - CountdownBarHeight) / 2));
-        var iconBounds = new Rectangle(
-            iconX,
-            iconY,
-            Math.Max(1, iconTextSize.Width),
-            Math.Max(1, Math.Min(Height - iconY - 2, Math.Max(CountdownBarHeight, iconTextSize.Height))));
-        using var iconFormat = new StringFormat
-        {
-            LineAlignment = StringAlignment.Center,
-            Alignment = StringAlignment.Near
-        };
-        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-        e.Graphics.DrawString(iconText, playbackIconFont, iconBrush, iconBounds, iconFormat);
-        _countdownPlaybackIconBounds = iconBounds;
 
         if (_showHideStackIcon)
             DrawHideStackIcon(e.Graphics);
