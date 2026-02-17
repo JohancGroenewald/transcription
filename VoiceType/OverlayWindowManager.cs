@@ -101,6 +101,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
     public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
+    public event EventHandler? OverlayStackEmptied;
 
     public int ShowMessage(
         string text,
@@ -718,24 +719,33 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     private void RemoveOverlayLocked(OverlayForm overlay)
     {
-        if (!_activeOverlays.Remove(overlay, out var managed))
-            return;
-
-        if (ReferenceEquals(_activeCopyTapBorderOverlay, overlay))
+        bool shouldNotifyStackEmpty = false;
+        lock (_sync)
         {
-            _activeCopyTapBorderOverlay = null;
-            overlay.SetCopyTapBorderVisible(false);
+            if (!_activeOverlays.Remove(overlay, out var managed))
+                return;
+
+            if (ReferenceEquals(_activeCopyTapBorderOverlay, overlay))
+            {
+                _activeCopyTapBorderOverlay = null;
+                overlay.SetCopyTapBorderVisible(false);
+            }
+
+            _stackSpine.Remove(managed);
+            var overlayKeys = _overlaysByKey
+                .Where(pair => ReferenceEquals(pair.Value, overlay))
+                .Select(pair => pair.Key)
+                .ToList();
+            foreach (var key in overlayKeys)
+                _overlaysByKey.Remove(key);
+            UnhookOverlay(overlay);
+            overlay.Dispose();
+
+            shouldNotifyStackEmpty = _stackSpine.GetTrackedOverlays().Count == 0;
         }
 
-        _stackSpine.Remove(managed);
-        var overlayKeys = _overlaysByKey
-            .Where(pair => ReferenceEquals(pair.Value, overlay))
-            .Select(pair => pair.Key)
-            .ToList();
-        foreach (var key in overlayKeys)
-            _overlaysByKey.Remove(key);
-        UnhookOverlay(overlay);
-        overlay.Dispose();
+        if (shouldNotifyStackEmpty)
+            OverlayStackEmptied?.Invoke(this, EventArgs.Empty);
     }
 
     private List<OverlayForm> ReorderOverlaysForDismissal(IEnumerable<OverlayForm> overlays)

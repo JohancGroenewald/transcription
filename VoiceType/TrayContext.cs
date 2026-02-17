@@ -146,6 +146,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.OverlayCopyTapped += OnOverlayCopyTapped;
         _overlayManager.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
         _overlayManager.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
+        _overlayManager.OverlayStackEmptied += OnOverlayStackEmptied;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recorder = new AudioRecorder();
@@ -1230,6 +1231,7 @@ public class TrayContext : ApplicationContext
             _overlayManager.OverlayCopyTapped -= OnOverlayCopyTapped;
             _overlayManager.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
             _overlayManager.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
+            _overlayManager.OverlayStackEmptied -= OnOverlayStackEmptied;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
@@ -1633,6 +1635,14 @@ public class TrayContext : ApplicationContext
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
         _overlayManager.HideAll();
+    }
+
+    private void OnOverlayStackEmptied(object? sender, EventArgs e)
+    {
+        if (_isShuttingDown || _shutdownRequested)
+            return;
+
+        ShowHelloOverlay();
     }
 
     private void ShowHelloOverlay()

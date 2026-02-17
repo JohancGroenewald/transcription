@@ -9,6 +9,7 @@ public interface IOverlayManager : IDisposable
     event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
     event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
+    event EventHandler? OverlayStackEmptied;
 
     int ShowMessage(
         string text,
