@@ -124,6 +124,7 @@ public class TrayContext : ApplicationContext
     private bool _isTranscribing;
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
+    private bool _isStackHiddenByUser;
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
@@ -246,6 +247,7 @@ public class TrayContext : ApplicationContext
         var menu = new ContextMenuStrip();
         UpdateRuntimeMenuItems();
         menu.Opening += (_, _) => UpdateRuntimeMenuItems();
+        menu.Closed += OnTrayMenuClosed;
         menu.Items.Add(_versionMenuItem);
         menu.Items.Add(_startedAtMenuItem);
         menu.Items.Add(_uptimeMenuItem);
@@ -476,8 +478,14 @@ public class TrayContext : ApplicationContext
         LoadTranscriptionService();
         RefreshHotkeyRegistration();
         SetReadyState();
+        RestoreHiddenStackOnReactivation();
         if (restorePreviousFocus)
             RestorePreviousFocus(previousForegroundWindow, settingsWindow);
+    }
+
+    private void OnTrayMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
+    {
+        RestoreHiddenStackOnReactivation();
     }
 
     private void OnExit(object? sender, EventArgs e) => RequestShutdown();
@@ -711,6 +719,8 @@ public class TrayContext : ApplicationContext
     {
         if (!_enableOverlayPopups)
             return 0;
+
+        _isStackHiddenByUser = false;
 
         var effectiveDurationMs = durationMs.HasValue
             ? (durationMs.Value <= 0 ? 0 : AppConfig.NormalizeOverlayDuration(durationMs.Value))
@@ -1635,6 +1645,7 @@ public class TrayContext : ApplicationContext
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
         _overlayManager.HideAll(suppressStackEmptyNotification: true);
+        _isStackHiddenByUser = true;
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
@@ -1642,6 +1653,15 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _shutdownRequested)
             return;
 
+        ShowHelloOverlay();
+    }
+
+    private void RestoreHiddenStackOnReactivation()
+    {
+        if (!_isStackHiddenByUser)
+            return;
+
+        _isStackHiddenByUser = false;
         ShowHelloOverlay();
     }
 
