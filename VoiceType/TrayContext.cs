@@ -1633,7 +1633,6 @@ public class TrayContext : ApplicationContext
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
         _overlayManager.HideAll();
-        ShowHelloOverlay();
     }
 
     private void ShowHelloOverlay()
