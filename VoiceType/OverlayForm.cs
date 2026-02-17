@@ -37,12 +37,11 @@ public class OverlayForm : Form
     private const float CopyTapBorderWidth = 3.0f;
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
-    private const int HideStackIconVerticalOffsetPx = -15;
+    private const int HideStackIconVerticalOffsetPx = 0;
     private const float HideStackIconScale = 3.0f;
     private const string HideStackIconGlyph = "×";
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
-    private const int HideStackIconHorizontalOffsetPx = -4;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -743,7 +742,7 @@ public class OverlayForm : Form
     private int GetHideStackIconReservePx()
     {
         var baseHideStackFontSize = Math.Max(10, _overlayFontSizePt - 1);
-        var iconFontSize = Math.Max(10, (int)Math.Round(baseHideStackFontSize * 1.5));
+        var iconFontSize = Math.Max(10, (int)Math.Round(baseHideStackFontSize * HideStackIconScale));
         using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
         var iconTextSize = TextRenderer.MeasureText(
             HideStackIconGlyph,
@@ -751,7 +750,7 @@ public class OverlayForm : Form
             new Size(int.MaxValue / 4, int.MaxValue / 4),
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
-        return iconTextSize.Width + HideStackIconPaddingPx;
+        return 0;
     }
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
@@ -876,7 +875,9 @@ public class OverlayForm : Form
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx);
         var iconBounds = new Rectangle(
-            Math.Max(0, Padding.Left + HideStackIconHorizontalOffsetPx),
+            Math.Max(
+                0,
+                _label.Bounds.Left + Math.Max(0, (_label.Bounds.Width - iconRenderWidth) / 2)),
             iconY,
             iconRenderWidth,
             Math.Max(1, iconHeight));
