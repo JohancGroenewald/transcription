@@ -1692,9 +1692,6 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
-        if (_stackBootstrap.IsHiddenByUser)
-            return;
-
         if (!_overlayManager.HasTrackedOverlays())
             _stackBootstrap.OnStartup("stack-emptied-fallback");
     }
@@ -1704,11 +1701,8 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
-        var wasHiddenByUser = _stackBootstrap.IsHiddenByUser;
+        _stackBootstrap.ClearHiddenByUser();
         _stackBootstrap.OnReactivation("reactivation");
-
-        if (wasHiddenByUser)
-            return;
 
         if (!_overlayManager.HasTrackedOverlays())
             _stackBootstrap.OnStartup("reactivation-fallback");
@@ -1719,9 +1713,6 @@ public class TrayContext : ApplicationContext
     private void EnsureHelloOverlayBootstrapped(string reason)
     {
         if (_transcriptionService == null || _isShuttingDown || _shutdownRequested)
-            return;
-
-        if (_stackBootstrap.IsHiddenByUser)
             return;
 
         if (_overlayManager.HasTrackedOverlay(HelloOverlayKey))

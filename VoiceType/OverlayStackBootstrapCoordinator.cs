@@ -35,6 +35,11 @@ internal sealed class OverlayStackBootstrapCoordinator
         _isHiddenByUser = true;
     }
 
+    public void ClearHiddenByUser()
+    {
+        _isHiddenByUser = false;
+    }
+
     public void OnStartup(string reason)
     {
         EnsureHello(reason);
@@ -49,14 +54,6 @@ internal sealed class OverlayStackBootstrapCoordinator
     {
         if (_isTranscriptionReady() && !_isShuttingDown() && !_isShutdownRequested())
         {
-            if (_isHiddenByUser)
-            {
-                _isHiddenByUser = false;
-                _log($"Stack reactivation ({reason}) cleared user-hidden state.");
-                EnsureHello(reason);
-                return;
-            }
-
             EnsureHello(reason);
         }
     }
@@ -68,12 +65,6 @@ internal sealed class OverlayStackBootstrapCoordinator
 
         if (!_isTranscriptionReady())
             return;
-
-        if (_isHiddenByUser)
-        {
-            _log($"Stack bootstrap skipped ({reason}) because stack is hidden by user.");
-            return;
-        }
 
         _log($"Stack bootstrap ({reason}) reset + reseed hello overlay.");
         _overlayManager.ResetTrackedStack();
