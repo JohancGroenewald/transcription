@@ -880,23 +880,30 @@ public class OverlayForm : Form
             hideFont,
             new Size(int.MaxValue / 4, int.MaxValue / 4),
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-
-        var iconHeight = Math.Max(1, iconTextSize.Height);
-        var labelTextSize = TextRenderer.MeasureText(
+        var textSize = TextRenderer.MeasureText(
             graphics,
             _label.Text,
             _label.Font,
             new Size(int.MaxValue / 4, int.MaxValue / 4),
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        var labelTextHeight = Math.Max(1, labelTextSize.Height);
+
+        var iconHeight = Math.Max(1, iconTextSize.Height);
+        var labelTextHeight = Math.Max(1, textSize.Height);
+        var labelTextWidth = Math.Max(1, Math.Min(_label.Bounds.Width, textSize.Width));
         var contentBounds = _label.Bounds;
         var contentTop = Math.Max(0, contentBounds.Top + Math.Max(0, (contentBounds.Height - labelTextHeight) / 2));
         var contentHeight = Math.Max(1, Math.Min(contentBounds.Height, labelTextHeight));
+        var labelTextLeft = contentBounds.Left + Math.Max(0, (contentBounds.Width - labelTextWidth) / 2);
         var baseIconY = contentTop + ((contentHeight - iconHeight) / 2);
         var iconY = Math.Max(0, baseIconY + HideStackIconVerticalOffsetPx);
         iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, iconY));
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx);
-        var iconLeft = Math.Max(0, HideStackIconHorizontalOffsetPx);
+        var computedIconLeft = Math.Max(
+            0,
+            Math.Max(
+                HideStackIconHorizontalOffsetPx,
+                labelTextLeft - iconRenderWidth - HideStackIconPaddingPx));
+        var iconLeft = Math.Max(0, Math.Min(computedIconLeft, Math.Max(0, contentBounds.Right - iconRenderWidth - HideStackIconHorizontalOffsetPx)));
         var iconBounds = new Rectangle(
             iconLeft,
             iconY,
