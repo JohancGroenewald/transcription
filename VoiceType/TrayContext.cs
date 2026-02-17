@@ -44,6 +44,7 @@ public class TrayContext : ApplicationContext
     private static readonly Color RemoteActionPopupListenColor = Color.CadetBlue;
     private static readonly Color RemoteActionPopupSubmitColor = Color.MediumTurquoise;
     private static readonly Color RemoteActionPopupCloseColor = Color.Crimson;
+    private const string DefaultTranscriptionPrompt = "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
     private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
     private const string HelloOverlayKey = "hello-overlay";
     private const string ListeningOverlayKey = "listening-overlay";
@@ -97,6 +98,7 @@ public class TrayContext : ApplicationContext
     private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _uptimeMenuItem = new() { Enabled = false };
     private TranscriptionService? _transcriptionService;
+    private string _transcriptionPrompt = DefaultTranscriptionPrompt;
     private bool _autoEnter;
     private bool _enableOverlayPopups = true;
     private int _overlayDurationMs = AppConfig.DefaultOverlayDurationMs;
@@ -151,6 +153,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
         _overlayManager.OverlayStartListeningIconTapped += OnOverlayStartListeningIconTapped;
         _overlayManager.OverlayStopListeningIconTapped += OnOverlayStopListeningIconTapped;
+        _overlayManager.OverlayCancelListeningIconTapped += OnOverlayCancelListeningIconTapped;
         _overlayManager.OverlayStackEmptied += OnOverlayStackEmptied;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
@@ -237,6 +240,9 @@ public class TrayContext : ApplicationContext
         _remoteActionPopupLevel = AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel);
         _enablePastedTextPrefix = config.EnablePastedTextPrefix;
         _pastedTextPrefix = config.PastedTextPrefix ?? string.Empty;
+        _transcriptionPrompt = string.IsNullOrWhiteSpace(config.TranscriptionPrompt)
+            ? DefaultTranscriptionPrompt
+            : config.TranscriptionPrompt.Trim();
         Log.Info(
             $"Config loaded: model={config.Model}, autoEnter={_autoEnter}, overlayPopups={_enableOverlayPopups}, " +
             $"previewPlayback={_enablePreviewPlayback}, " +
@@ -248,7 +254,7 @@ public class TrayContext : ApplicationContext
                 config.ApiKey,
                 config.Model,
                 config.EnableTranscriptionPrompt,
-                config.TranscriptionPrompt);
+                _transcriptionPrompt);
         else
             _transcriptionService = null;
     }
@@ -345,9 +351,11 @@ public class TrayContext : ApplicationContext
                 using var transcriptionCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
                 transcriptionCts.CancelAfter(TranscriptionTimeout);
                 var rawText = await _transcriptionService.TranscribeAsync(audioData, transcriptionCts.Token);
-                var text = PretextDetector.StripFlowDirectives(rawText);
+                var sanitizedText = PretextDetector.RemoveModelLeadingPreamble(rawText);
+                var textAfterPromptStrip = PretextDetector.StripPromptEcho(sanitizedText, _transcriptionPrompt);
+                var text = PretextDetector.StripFlowDirectives(textAfterPromptStrip);
                 if (!string.Equals(rawText, text, StringComparison.Ordinal))
-                    Log.Info($"Flow directives stripped from transcription ({rawText.Length} -> {text.Length} chars).");
+                    Log.Info($"Transcription sanitized ({rawText.Length} -> {text.Length} chars): preamble/prompt/flow cleaned.");
 
                 Log.Info($"Transcription completed ({text.Length} chars)");
 
@@ -531,7 +539,19 @@ public class TrayContext : ApplicationContext
 
     private void OnTrayMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
     {
-        Log.Info("Tray menu closed.");
+        if (_isOpeningSettings)
+        {
+            Log.Info("Tray menu closed while opening settings; skipping stack restoration.");
+            return;
+        }
+
+        if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+        {
+            Log.Info("Tray menu closed due to item click; skipping stack restoration.");
+            return;
+        }
+
+        Log.Info($"Tray menu closed (reason={e.CloseReason}).");
         RestoreHiddenStackOnReactivation();
     }
 
@@ -784,6 +804,7 @@ public class TrayContext : ApplicationContext
         bool showHideStackIcon = false,
         bool showStartListeningIcon = false,
         bool showStopListeningIcon = false,
+        bool showCancelListeningIcon = false,
         bool showHelloTextFrame = false)
     {
         Log.Info(
@@ -835,6 +856,7 @@ public class TrayContext : ApplicationContext
             showHideStackIcon: showHideStackIcon,
             showStartListeningIcon: showStartListeningIcon,
             showStopListeningIcon: showStopListeningIcon,
+            showCancelListeningIcon: showCancelListeningIcon,
             showHelloTextFrame: showHelloTextFrame);
     }
 
@@ -1046,6 +1068,7 @@ public class TrayContext : ApplicationContext
             animateHide: true,
             showListeningLevelMeter: true,
             showStopListeningIcon: true,
+            showCancelListeningIcon: true,
             listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
     }
 
@@ -1323,6 +1346,7 @@ public class TrayContext : ApplicationContext
             _overlayManager.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
             _overlayManager.OverlayStartListeningIconTapped -= OnOverlayStartListeningIconTapped;
             _overlayManager.OverlayStopListeningIconTapped -= OnOverlayStopListeningIconTapped;
+            _overlayManager.OverlayCancelListeningIconTapped -= OnOverlayCancelListeningIconTapped;
             _overlayManager.OverlayStackEmptied -= OnOverlayStackEmptied;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
@@ -1758,6 +1782,47 @@ public class TrayContext : ApplicationContext
 
         Log.Info($"Listening stop icon tapped. message={e.MessageId}");
         OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+    }
+
+    private void OnOverlayCancelListeningIconTapped(
+        object? sender,
+        OverlayCancelListeningIconTappedEventArgs e)
+    {
+        if (!_overlayManager.TryGetOverlayKey(e.MessageId, out var overlayKey))
+            return;
+
+        if (!string.Equals(overlayKey, ListeningOverlayKey, StringComparison.Ordinal))
+            return;
+
+        CancelActiveListening();
+    }
+
+    private void CancelActiveListening()
+    {
+        if (!_isRecording)
+        {
+            _overlayManager.HideOverlay(ListeningOverlayKey);
+            return;
+        }
+
+        _isRecording = false;
+        StopListeningOverlay();
+        _overlayManager.HideOverlay(ListeningOverlayKey);
+        _trayIcon.Icon = _appIcon;
+        _trayIcon.Text = $"VoiceType - Ready ({BuildHotkeyHint()})";
+
+        try
+        {
+            _ = _recorder.Stop();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to stop recorder for cancel action.", ex);
+        }
+
+        _ignorePastedTextPrefixForNextTranscription = false;
+        ShowOverlay("Recording canceled", NeutralOverlayColor, 1500);
+        CompleteShutdownIfRequested();
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)

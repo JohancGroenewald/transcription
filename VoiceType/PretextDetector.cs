@@ -4,6 +4,73 @@ namespace VoiceType;
 
 public static class PretextDetector
 {
+    private const string DefaultTranscriptionPrompt = "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
+
+    private static readonly string[] ModelPreambleLinesToStrip =
+    [
+        "\"You will receive additional context/instructions (separated by ### delimiters) from the user. Do not reply to the context/instructions and do not include it in the final transcription.\"",
+        "You will receive additional context/instructions (separated by ### delimiters) from the user. Do not reply to the context/instructions and do not include it in the final transcription."
+    ];
+
+    private static readonly string[] PromptEchoCandidates =
+    [
+        DefaultTranscriptionPrompt,
+        "The speaker is always English."
+    ];
+
+    public static string StripPromptEcho(string text, string? prompt)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+
+        var trimmedLeading = text.TrimStart();
+        if (string.IsNullOrWhiteSpace(trimmedLeading))
+            return string.Empty;
+
+        var candidates = new List<string>(PromptEchoCandidates);
+        var promptCandidate = NormalizePrompt(prompt);
+        if (!string.IsNullOrWhiteSpace(promptCandidate))
+            candidates.Add(promptCandidate);
+        while (true)
+        {
+            var matched = false;
+            foreach (var candidate in candidates.Where(c => !string.IsNullOrWhiteSpace(c)))
+            {
+                if (trimmedLeading.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    trimmedLeading = trimmedLeading[candidate.Length..].TrimStart();
+                    if (string.IsNullOrWhiteSpace(trimmedLeading))
+                        return string.Empty;
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched)
+                return trimmedLeading;
+        }
+    }
+
+    public static string RemoveModelLeadingPreamble(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+
+        var current = text;
+        while (true)
+        {
+            var trimmed = current.TrimStart();
+            if (string.IsNullOrWhiteSpace(trimmed))
+                return string.Empty;
+
+            var stripped = StripKnownLeadingPreamble(trimmed);
+            if (stripped is null)
+                return trimmed;
+
+            current = stripped;
+        }
+    }
+
     public static string StripFlowDirectives(string text)
     {
         if (string.IsNullOrEmpty(text))
@@ -65,6 +132,31 @@ public static class PretextDetector
         return sb.ToString().Trim();
     }
 
+    private static string? NormalizePrompt(string? prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+            return null;
+
+        var trimmed = prompt.Trim();
+        if (trimmed.StartsWith('"') && trimmed.EndsWith('"') && trimmed.Length > 1)
+            return trimmed[1..^1];
+
+        return trimmed;
+    }
+
+    private static string? StripKnownLeadingPreamble(string text)
+    {
+        foreach (var prefix in ModelPreambleLinesToStrip)
+        {
+            if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return text[prefix.Length..].TrimStart();
+            }
+        }
+
+        return null;
+    }
+
     private static bool IsSpaceOrTab(char ch) => ch is ' ' or '\t';
 
     private static bool IsNoSpaceAfter(char ch)
@@ -79,4 +171,3 @@ public static class PretextDetector
         return ch is '.' or ',' or '!' or '?' or ':' or ';' or ')' or ']' or '}' or '"' or '\'';
     }
 }
-

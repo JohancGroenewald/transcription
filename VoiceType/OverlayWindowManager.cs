@@ -104,6 +104,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
     public event EventHandler<OverlayStartListeningIconTappedEventArgs>? OverlayStartListeningIconTapped;
     public event EventHandler<OverlayStopListeningIconTappedEventArgs>? OverlayStopListeningIconTapped;
+    public event EventHandler<OverlayCancelListeningIconTappedEventArgs>? OverlayCancelListeningIconTapped;
     public event EventHandler? OverlayStackEmptied;
 
     private static string GetOverlayDebugLabel(ManagedOverlay managed)
@@ -174,6 +175,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool showHideStackIcon = false,
         bool showStartListeningIcon = false,
         bool showStopListeningIcon = false,
+        bool showCancelListeningIcon = false,
         bool showHelloTextFrame = false)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -223,6 +225,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                     showHideStackIcon,
                     showStartListeningIcon,
                     showStopListeningIcon,
+                    showCancelListeningIcon,
                     showHelloTextFrame);
                 if (localMessageId == 0)
                     return 0;
@@ -284,6 +287,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 showHideStackIcon,
                 showStartListeningIcon,
                 showStopListeningIcon,
+                showCancelListeningIcon,
                 showHelloTextFrame);
 
             if (managedOverlay.LocalMessageId == 0)
@@ -749,6 +753,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
         overlay.OverlayStartListeningIconTapped += OnOverlayStartListeningIconTapped;
         overlay.OverlayStopListeningIconTapped += OnOverlayStopListeningIconTapped;
+        overlay.OverlayCancelListeningIconTapped += OnOverlayCancelListeningIconTapped;
         overlay.OverlayHorizontalDragged += OnOverlayHorizontalDragged;
 
         _activeOverlays.Add(overlay, managed);
@@ -936,6 +941,28 @@ public sealed class OverlayWindowManager : IOverlayManager
             new OverlayStopListeningIconTappedEventArgs(globalMessageId));
     }
 
+    private void OnOverlayCancelListeningIconTapped(object? sender, OverlayCancelListeningIconTappedEventArgs e)
+    {
+        if (sender is not OverlayForm overlay)
+            return;
+
+        int globalMessageId;
+        lock (_sync)
+        {
+            if (!_activeOverlays.TryGetValue(overlay, out var managed))
+                return;
+
+            if (managed.LocalMessageId != e.MessageId)
+                return;
+
+            globalMessageId = managed.GlobalMessageId;
+        }
+
+        OverlayCancelListeningIconTapped?.Invoke(
+            this,
+            new OverlayCancelListeningIconTappedEventArgs(globalMessageId));
+    }
+
     private void OnOverlayHorizontalDragged(object? sender, OverlayHorizontalDraggedEventArgs e)
     {
         if (sender is not OverlayForm overlay)
@@ -1074,6 +1101,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
         overlay.OverlayStartListeningIconTapped -= OnOverlayStartListeningIconTapped;
         overlay.OverlayStopListeningIconTapped -= OnOverlayStopListeningIconTapped;
+        overlay.OverlayCancelListeningIconTapped -= OnOverlayCancelListeningIconTapped;
         overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 
