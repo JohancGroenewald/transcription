@@ -882,6 +882,12 @@ public class OverlayForm : Form
         var iconHeight = Math.Max(1, iconTextSize.Height);
         var iconRenderWidth = Math.Max(1, iconTextSize.Width + HideStackIconHorizontalPaddingPx + HideStackIconPaddingPx);
         var iconReferenceBounds = GetHideStackIconReferenceBounds();
+        var iconHeightCap = Math.Max(
+            14,
+            Math.Min(
+                iconReferenceBounds.Height,
+                Math.Max(14, Height - Padding.Vertical - 4)));
+        iconHeight = Math.Max(12, Math.Min(iconHeight, iconHeightCap));
         var referenceCenterY = iconReferenceBounds.Top + (iconReferenceBounds.Height / 2);
         var baseIconY = referenceCenterY - (iconHeight / 2);
         var iconY = Math.Max(0, Math.Min(Height - iconHeight - 2, baseIconY + HideStackIconVerticalOffsetPx));
