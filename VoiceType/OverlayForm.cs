@@ -38,7 +38,7 @@ public class OverlayForm : Form
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
     private const string HideStackIconGlyph = "×";
-    private const int HideStackIconPaddingPx = 12;
+    private const int HideStackIconPaddingPx = 18;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -825,7 +825,9 @@ public class OverlayForm : Form
 
     private void DrawHideStackIcon(Graphics graphics)
     {
-        using var hideFont = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
+        var baseHideStackFontSize = Math.Max(10, _overlayFontSizePt - 1);
+        var iconFontSize = Math.Max(10, (int)Math.Round(baseHideStackFontSize * 1.5));
+        using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
         using var hideBrush = new SolidBrush(_label.ForeColor);
         using var hideFormat = new StringFormat
         {
@@ -840,9 +842,12 @@ public class OverlayForm : Form
             TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
         var iconHeight = Math.Max(1, iconTextSize.Height);
+        var iconY = Math.Max(
+            _label.Bounds.Top,
+            _label.Bounds.Top + Math.Max(0, (_label.Bounds.Height - iconHeight) / 2));
         var iconBounds = new Rectangle(
             Padding.Left,
-            Math.Max(0, (Height - iconHeight) / 2),
+            iconY,
             Math.Max(1, iconTextSize.Width),
             Math.Max(1, iconHeight));
         var clickableBounds = new Rectangle(
