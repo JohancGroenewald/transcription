@@ -100,6 +100,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     public event EventHandler<int>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
+    public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
 
     public int ShowMessage(
         string text,
@@ -125,7 +126,8 @@ public sealed class OverlayWindowManager : IOverlayManager
         string? copyText = null,
         bool isSubmittedAction = false,
         string? countdownPlaybackIcon = null,
-        bool fullWidthText = false)
+        bool fullWidthText = false,
+        bool showHideStackIcon = false)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -163,7 +165,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     !isClipboardCopyAction,
                     copyText,
                     countdownPlaybackIcon,
-                    fullWidthText);
+                    fullWidthText,
+                    showHideStackIcon);
                 if (localMessageId == 0)
                     return 0;
 
@@ -211,7 +214,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                 !isClipboardCopyAction,
                 copyText,
                 countdownPlaybackIcon,
-                fullWidthText);
+                fullWidthText,
+                showHideStackIcon);
 
             if (managedOverlay.LocalMessageId == 0)
             {
@@ -565,6 +569,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayTapped += OnOverlayTapped;
         overlay.OverlayCopyTapped += OnOverlayCopyTapped;
         overlay.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
+        overlay.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
         overlay.OverlayHorizontalDragged += OnOverlayHorizontalDragged;
 
         _activeOverlays.Add(overlay, managed);
@@ -676,6 +681,26 @@ public sealed class OverlayWindowManager : IOverlayManager
             new OverlayCountdownPlaybackIconTappedEventArgs(globalMessageId, e.IconText));
     }
 
+    private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
+    {
+        if (sender is not OverlayForm overlay)
+            return;
+
+        int globalMessageId;
+        lock (_sync)
+        {
+            if (!_activeOverlays.TryGetValue(overlay, out var managed))
+                return;
+
+            if (managed.LocalMessageId != e.MessageId)
+                return;
+
+            globalMessageId = managed.GlobalMessageId;
+        }
+
+        OverlayHideStackIconTapped?.Invoke(this, new OverlayHideStackIconTappedEventArgs(globalMessageId));
+    }
+
     private void OnOverlayHorizontalDragged(object? sender, OverlayHorizontalDraggedEventArgs e)
     {
         if (sender is not OverlayForm overlay)
@@ -782,6 +807,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         overlay.OverlayTapped -= OnOverlayTapped;
         overlay.OverlayCopyTapped -= OnOverlayCopyTapped;
         overlay.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
+        overlay.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
         overlay.OverlayHorizontalDragged -= OnOverlayHorizontalDragged;
     }
 

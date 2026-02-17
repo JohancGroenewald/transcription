@@ -144,6 +144,7 @@ public class TrayContext : ApplicationContext
         _overlayManager.OverlayTapped += OnOverlayTapped;
         _overlayManager.OverlayCopyTapped += OnOverlayCopyTapped;
         _overlayManager.OverlayCountdownPlaybackIconTapped += OnOverlayCountdownPlaybackIconTapped;
+        _overlayManager.OverlayHideStackIconTapped += OnOverlayHideStackIconTapped;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recorder = new AudioRecorder();
@@ -188,7 +189,8 @@ public class TrayContext : ApplicationContext
                 StartupReadyOverlayColor,
                 2000,
                 overlayKey: "hello-overlay",
-                trackInStack: true);
+                trackInStack: true,
+                showHideStackIcon: true);
         }
 
         Log.Info("VoiceType started successfully");
@@ -714,7 +716,8 @@ public class TrayContext : ApplicationContext
         string? copyText = null,
         bool isSubmittedAction = false,
         string? countdownPlaybackIcon = null,
-        bool fullWidthText = false)
+        bool fullWidthText = false,
+        bool showHideStackIcon = false)
     {
         if (!_enableOverlayPopups)
             return 0;
@@ -756,7 +759,8 @@ public class TrayContext : ApplicationContext
             copyText: copyText,
             isSubmittedAction: isSubmittedAction,
             countdownPlaybackIcon: countdownPlaybackIcon,
-            fullWidthText: fullWidthText);
+            fullWidthText: fullWidthText,
+            showHideStackIcon: showHideStackIcon);
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
@@ -1236,6 +1240,7 @@ public class TrayContext : ApplicationContext
             _overlayManager.OverlayTapped -= OnOverlayTapped;
             _overlayManager.OverlayCopyTapped -= OnOverlayCopyTapped;
             _overlayManager.OverlayCountdownPlaybackIconTapped -= OnOverlayCountdownPlaybackIconTapped;
+            _overlayManager.OverlayHideStackIconTapped -= OnOverlayHideStackIconTapped;
             _recorder.InputLevelChanged -= OnRecorderInputLevelChanged;
             _trayIcon.Dispose();
             _hotkeyWindow.Dispose();
@@ -1636,6 +1641,11 @@ public class TrayContext : ApplicationContext
         OverlayCountdownPlaybackIconTappedEventArgs e)
     {
         SetPreviewPlaybackEnabled(!_enablePreviewPlayback);
+    }
+
+    private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
+    {
+        _overlayManager.HideAll();
     }
 
     private void OnOverlayTapped(object? sender, int messageId)

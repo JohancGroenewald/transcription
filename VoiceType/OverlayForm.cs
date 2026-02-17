@@ -37,6 +37,8 @@ public class OverlayForm : Form
     private const float CopyTapBorderWidth = 3.0f;
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
+    private const string HideStackIconGlyph = "×";
+    private const int HideStackIconPaddingPx = 12;
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -109,11 +111,14 @@ public class OverlayForm : Form
     private Color _activeBorderColor = BorderColor;
     private bool _allowCopyTap = true;
     private Rectangle _countdownPlaybackIconBounds = Rectangle.Empty;
+    private bool _showHideStackIcon;
+    private Rectangle _hideStackIconBounds = Rectangle.Empty;
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
     public event EventHandler<OverlayHorizontalDraggedEventArgs>? OverlayHorizontalDragged;
     public event EventHandler<OverlayCountdownPlaybackIconTappedEventArgs>? OverlayCountdownPlaybackIconTapped;
+    public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -260,6 +265,8 @@ public class OverlayForm : Form
             _countdownPlaybackIcon = string.Empty;
             _lastCountdownPlaybackIcon = string.Empty;
             _countdownPlaybackIconBounds = Rectangle.Empty;
+            _showHideStackIcon = false;
+            _hideStackIconBounds = Rectangle.Empty;
             _showCopyTapFeedbackBorder = false;
             _activeBorderColor = BorderColor;
             ResetTapToCancel();
@@ -311,7 +318,8 @@ public class OverlayForm : Form
         bool allowCopyTap = true,
         string? copyText = null,
         string? countdownPlaybackIcon = null,
-        bool fullWidthText = false)
+        bool fullWidthText = false,
+        bool showHideStackIcon = false)
     {
         if (InvokeRequired)
         {
@@ -335,7 +343,8 @@ public class OverlayForm : Form
                 allowCopyTap,
                 copyText,
                 countdownPlaybackIcon,
-                fullWidthText)));
+                fullWidthText,
+                showHideStackIcon)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -350,6 +359,7 @@ public class OverlayForm : Form
             _countdownPlaybackIcon = string.IsNullOrWhiteSpace(countdownPlaybackIcon)
                 ? string.Empty
                 : countdownPlaybackIcon;
+            _showHideStackIcon = showHideStackIcon;
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
             _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
@@ -365,6 +375,7 @@ public class OverlayForm : Form
             _showListeningLevelMeter = showListeningLevelMeter;
             _listeningLevelPercent = Math.Clamp(listeningLevelPercent, 0, 100);
             _allowCopyTap = allowCopyTap;
+            _hideStackIconBounds = Rectangle.Empty;
             _lastUseFullWidthText = fullWidthText;
             _lastCountdownPlaybackIcon = _countdownPlaybackIcon;
 
@@ -552,7 +563,8 @@ public class OverlayForm : Form
                 _lastPrefixText,
                 _lastPrefixColor,
                 countdownPlaybackIcon: _lastCountdownPlaybackIcon,
-                fullWidthText: _lastUseFullWidthText);
+                fullWidthText: _lastUseFullWidthText,
+                showHideStackIcon: _showHideStackIcon);
     }
 
     public void PromoteToTopmost()
@@ -735,6 +747,9 @@ public class OverlayForm : Form
         if (_lastUseFullWidthText)
             DrawFullWidthText(e.Graphics);
 
+        if (_showHideStackIcon)
+            DrawHideStackIcon(e.Graphics);
+
         if (!TryGetCountdownProgress(out var remainingFraction))
         {
             _countdownPlaybackIconBounds = Rectangle.Empty;
@@ -806,6 +821,45 @@ public class OverlayForm : Form
         e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         e.Graphics.DrawString(iconText, playbackIconFont, iconBrush, iconBounds, iconFormat);
         _countdownPlaybackIconBounds = iconBounds;
+    }
+
+    private void DrawHideStackIcon(Graphics graphics)
+    {
+        using var hideFont = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
+        using var hideBrush = new SolidBrush(_label.ForeColor);
+        using var hideFormat = new StringFormat
+        {
+            Alignment = StringAlignment.Near,
+            LineAlignment = StringAlignment.Center
+        };
+
+        var iconTextSize = TextRenderer.MeasureText(
+            HideStackIconGlyph,
+            hideFont,
+            new Size(int.MaxValue / 4, int.MaxValue / 4),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+
+        var iconHeight = Math.Max(1, iconTextSize.Height);
+        var iconBounds = new Rectangle(
+            Padding.Left,
+            Math.Max(0, (Height - iconHeight) / 2),
+            Math.Max(1, iconTextSize.Width),
+            Math.Max(1, iconHeight));
+        var clickableBounds = new Rectangle(
+            iconBounds.Left,
+            iconBounds.Top,
+            Math.Max(1, iconTextSize.Width + HideStackIconPaddingPx),
+            Math.Max(1, iconHeight));
+
+        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        graphics.DrawString(
+            HideStackIconGlyph,
+            hideFont,
+            hideBrush,
+            iconBounds,
+            hideFormat);
+
+        _hideStackIconBounds = clickableBounds;
     }
 
     private void DrawFullWidthText(Graphics graphics)
@@ -1247,14 +1301,17 @@ public class OverlayForm : Form
         if (e.Button != MouseButtons.Left)
             return;
 
-        if (!_allowCopyTap)
-            return;
-
         if (_ignoreNextClickAfterDrag)
         {
             _ignoreNextClickAfterDrag = false;
             return;
         }
+
+        if (HandleHideStackIconTap(sender, e))
+            return;
+
+        if (!_allowCopyTap)
+            return;
 
         if (HandleCountdownPlaybackIconTap(sender, e))
             return;
@@ -1299,6 +1356,20 @@ public class OverlayForm : Form
         OverlayCountdownPlaybackIconTapped?.Invoke(
             this,
             new OverlayCountdownPlaybackIconTappedEventArgs(_activeMessageId, _countdownPlaybackIcon));
+        return true;
+    }
+
+    private bool HandleHideStackIconTap(object? sender, MouseEventArgs e)
+    {
+        if (!_showHideStackIcon)
+            return false;
+
+        var clickPoint = TranslateToFormClientPoint(sender, e.Location);
+        if (_hideStackIconBounds.IsEmpty || !_hideStackIconBounds.Contains(clickPoint))
+            return false;
+
+        _tapHandledForCurrentPress = true;
+        OverlayHideStackIconTapped?.Invoke(this, new OverlayHideStackIconTappedEventArgs(_activeMessageId));
         return true;
     }
 
@@ -1519,4 +1590,14 @@ public sealed class OverlayCountdownPlaybackIconTappedEventArgs : EventArgs
 
     public int MessageId { get; }
     public string? IconText { get; }
+}
+
+public sealed class OverlayHideStackIconTappedEventArgs : EventArgs
+{
+    public OverlayHideStackIconTappedEventArgs(int messageId)
+    {
+        MessageId = messageId;
+    }
+
+    public int MessageId { get; }
 }
