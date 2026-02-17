@@ -41,7 +41,7 @@ public class OverlayForm : Form
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
     private const int HideStackIconHorizontalOffsetPx = 2;
-    private const int HelloHideStackIconHorizontalOffsetPx = -6;
+    private const int HelloHideStackIconHorizontalOffsetPx = -12;
     private const int HideStackIconCornerRadius = 6;
     private const int HideStackIconMinHeight = 30;
     private const int HideStackIconMinWidth = 28;
@@ -166,6 +166,7 @@ public class OverlayForm : Form
     private Rectangle _startListeningIconBounds = Rectangle.Empty;
     private Rectangle _stopListeningIconBounds = Rectangle.Empty;
     private Rectangle _cancelListeningIconBounds = Rectangle.Empty;
+    private float _overlayIconScale = 1.0f;
     private static int _profiledOverlayControlIconHeightPx = HideStackIconMinHeight;
     private int _lastLoggedHideStackMessageId;
     private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
@@ -329,6 +330,7 @@ public class OverlayForm : Form
             _showStopListeningIcon = false;
             _showCancelListeningIcon = false;
             _showHelloTextFrame = false;
+            _overlayIconScale = 1.0f;
             _hideStackIconBounds = Rectangle.Empty;
             _startListeningIconBounds = Rectangle.Empty;
             _stopListeningIconBounds = Rectangle.Empty;
@@ -438,6 +440,13 @@ public class OverlayForm : Form
             _showStopListeningIcon = showStopListeningIcon;
             _showCancelListeningIcon = showCancelListeningIcon;
             _showHelloTextFrame = showHelloTextFrame;
+            _overlayIconScale = (showListeningLevelMeter
+                || showHideStackIcon
+                || showStartListeningIcon
+                || showStopListeningIcon
+                || showCancelListeningIcon)
+                ? ListeningOverlayIconScale
+                : 1.0f;
             _lastActionText = string.IsNullOrWhiteSpace(actionText) ? string.Empty : actionText;
             _lastActionColor = EnsureOpaque(actionColor ?? ActionTextColor);
             _lastShowActionLine = !string.IsNullOrWhiteSpace(_lastActionText);
@@ -850,9 +859,7 @@ public class OverlayForm : Form
 
     private float GetOverlayIconScale()
     {
-        return (_showListeningLevelMeter || _showHideStackIcon || _showStartListeningIcon)
-            ? ListeningOverlayIconScale
-            : 1.0f;
+        return _overlayIconScale;
     }
 
     private static Rectangle ScaleBoundsAroundCenter(Rectangle bounds, float scale)
