@@ -124,7 +124,6 @@ public class TrayContext : ApplicationContext
     private bool _isTranscribing;
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
-    private bool _suppressNextHelloOnStackEmpty;
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
@@ -1635,18 +1634,11 @@ public class TrayContext : ApplicationContext
 
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
-        _suppressNextHelloOnStackEmpty = true;
-        _overlayManager.HideAll();
+        _overlayManager.HideAll(suppressStackEmptyNotification: true);
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
-        if (_suppressNextHelloOnStackEmpty)
-        {
-            _suppressNextHelloOnStackEmpty = false;
-            return;
-        }
-
         if (_isShuttingDown || _shutdownRequested)
             return;
 

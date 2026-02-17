@@ -48,7 +48,7 @@ public interface IOverlayManager : IDisposable
 
     void ApplyFadeProfile(int overlayFadeProfile);
 
-    void HideAll();
+    void HideAll(bool suppressStackEmptyNotification = false);
 
     void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140);
 

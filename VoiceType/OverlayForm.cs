@@ -38,6 +38,7 @@ public class OverlayForm : Form
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
     private const int HideStackIconVerticalOffsetPx = -5;
+    private const float HideStackIconScale = 1.65f;
     private const string HideStackIconGlyph = "×";
     private const int HideStackIconPaddingPx = 18;
     private const int HideStackIconHorizontalPaddingPx = 2;
@@ -851,7 +852,9 @@ public class OverlayForm : Form
     private void DrawHideStackIcon(Graphics graphics)
     {
         var baseHideStackFontSize = Math.Max(10, _overlayFontSizePt - 1);
-        var iconFontSize = Math.Max(10, (int)Math.Round(baseHideStackFontSize * 1.5));
+        var iconFontSize = Math.Max(
+            10,
+            (int)Math.Round(baseHideStackFontSize * HideStackIconScale));
         using var hideFont = new Font(OverlayFontFamily, iconFontSize, FontStyle.Bold);
         using var hideBrush = new SolidBrush(Color.Red);
         using var hideFormat = new StringFormat

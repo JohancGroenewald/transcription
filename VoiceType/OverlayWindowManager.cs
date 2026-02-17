@@ -87,6 +87,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     private int _overlayFadeDurationMs;
     private int _overlayFadeTickIntervalMs;
     private OverlayForm? _activeCopyTapBorderOverlay;
+    private int _suppressStackEmptyNotificationDepth;
 
     public OverlayWindowManager(Func<OverlayForm>? overlayFactory = null)
     {
@@ -276,7 +277,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             overlay.ApplyCountdownPlaybackIcon(countdownPlaybackIcon);
     }
 
-    public void HideAll()
+    public void HideAll(bool suppressStackEmptyNotification = false)
     {
         List<OverlayForm> overlaysToHide;
         lock (_sync)
@@ -286,6 +287,25 @@ public sealed class OverlayWindowManager : IOverlayManager
                 .Where(managed => _activeOverlays.ContainsKey(managed.Form))
                 .Select(managed => managed.Form)
                 .ToList();
+        }
+
+        if (suppressStackEmptyNotification)
+        {
+            lock (_sync)
+            {
+                _suppressStackEmptyNotificationDepth++;
+            }
+        }
+
+        if (overlaysToHide.Count == 0 && suppressStackEmptyNotification)
+        {
+            lock (_sync)
+            {
+                _suppressStackEmptyNotificationDepth = Math.Max(
+                    0,
+                    _suppressStackEmptyNotificationDepth - 1);
+            }
+            return;
         }
 
         FadeOverlaysTopToBottom(overlaysToHide);
@@ -720,6 +740,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     private void RemoveOverlayLocked(OverlayForm overlay)
     {
         bool shouldNotifyStackEmpty = false;
+        bool suppressStackEmptyNotification = false;
         lock (_sync)
         {
             if (!_activeOverlays.Remove(overlay, out var managed))
@@ -742,9 +763,14 @@ public sealed class OverlayWindowManager : IOverlayManager
             overlay.Dispose();
 
             shouldNotifyStackEmpty = _stackSpine.GetTrackedOverlays().Count == 0;
+            if (shouldNotifyStackEmpty && _suppressStackEmptyNotificationDepth > 0)
+            {
+                _suppressStackEmptyNotificationDepth--;
+                suppressStackEmptyNotification = true;
+            }
         }
 
-        if (shouldNotifyStackEmpty)
+        if (shouldNotifyStackEmpty && !suppressStackEmptyNotification)
             OverlayStackEmptied?.Invoke(this, EventArgs.Empty);
     }
 
