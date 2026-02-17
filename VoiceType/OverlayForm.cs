@@ -875,7 +875,7 @@ public class OverlayForm : Form
         using var hideBrush = new SolidBrush(Color.Red);
         using var hideFormat = new StringFormat
         {
-            Alignment = StringAlignment.Near,
+            Alignment = StringAlignment.Center,
             LineAlignment = StringAlignment.Center
         };
 
