@@ -7,6 +7,7 @@ static class Program
     private enum LaunchRequest
     {
         Default,
+        Activate,
         Close,
         Listen,
         Submit,
@@ -18,6 +19,7 @@ static class Program
     private const string ListenEventName = MutexName + "_Listen";
     private const string ListenIgnorePrefixEventName = MutexName + "_ListenIgnorePrefix";
     private const string SubmitEventName = MutexName + "_Submit";
+    private const string ActivateEventName = MutexName + "_Activate";
     private const string CloseCompletedEventNamePrefix = MutexName + "_CloseCompleted_";
     private static readonly TimeSpan ReplaceWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromMinutes(2);
@@ -28,6 +30,7 @@ static class Program
     private static EventWaitHandle? _listenEvent;
     private static EventWaitHandle? _listenIgnorePrefixEvent;
     private static EventWaitHandle? _submitEvent;
+    private static EventWaitHandle? _activateEvent;
     private static EventWaitHandle? _closeCompletedEvent;
 
     [DllImport("kernel32.dll")]
@@ -112,8 +115,8 @@ static class Program
             EnsureConsoleForCliOutput();
             var succeeded = ShortcutManager.TryCreateCurrentExecutableShortcut(
                 shortcutFileName: "VoiceTypeActivate.exe.lnk",
-                arguments: "--listen",
-                description: "Trigger VoiceType listen mode",
+                arguments: "--activate",
+                description: "Trigger VoiceType activation flow",
                 out var message);
             if (succeeded)
                 Console.WriteLine(message);
@@ -159,15 +162,21 @@ static class Program
         }
 
         var requestClose = args.Contains("--close", StringComparer.OrdinalIgnoreCase);
+        var requestActivate = args.Contains("--activate", StringComparer.OrdinalIgnoreCase);
         var requestListen = args.Contains("--listen", StringComparer.OrdinalIgnoreCase);
         var requestIgnorePrefix = args.Contains("--ignore-prefix", StringComparer.OrdinalIgnoreCase);
         var requestSubmit = args.Contains("--submit", StringComparer.OrdinalIgnoreCase);
         var requestReplaceExisting = args.Contains("--replace-existing", StringComparer.OrdinalIgnoreCase);
-        var launchRequest = GetLaunchRequest(requestClose, requestListen, requestSubmit, requestReplaceExisting);
+        var launchRequest = GetLaunchRequest(
+            requestClose,
+            requestActivate,
+            requestListen,
+            requestSubmit,
+            requestReplaceExisting);
         if (launchRequest == null)
         {
             EnsureConsoleForCliOutput();
-            Console.Error.WriteLine("Specify only one of: --close, --listen, --submit, --replace-existing.");
+            Console.Error.WriteLine("Specify only one of: --activate, --close, --listen, --submit, --replace-existing.");
             Environment.ExitCode = 2;
             return;
         }
@@ -208,6 +217,11 @@ static class Program
         {
             switch (request)
             {
+                case LaunchRequest.Activate:
+                    if (SignalExistingInstanceActivate())
+                        return;
+                    break;
+
                 case LaunchRequest.Close:
                     routedToExistingInstance = SignalExistingInstanceExit();
                     if (routedToExistingInstance)
@@ -283,6 +297,7 @@ static class Program
                 EventResetMode.AutoReset,
                 ListenIgnorePrefixEventName);
             _submitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SubmitEventName);
+            _activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
             _closeCompletedEvent = new EventWaitHandle(
                 false,
                 EventResetMode.ManualReset,
@@ -389,6 +404,32 @@ static class Program
             { IsBackground = true };
             submitThread.Start();
 
+            var activateThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        _activateEvent.WaitOne();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        trayContext.RequestActivate();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+                }
+            })
+            { IsBackground = true };
+            activateThread.Start();
+
             if (listenAfterStartup)
                 trayContext.RequestListen(ignorePastedTextPrefix: listenIgnorePrefixOnStartup);
 
@@ -399,6 +440,8 @@ static class Program
             _closeCompletedEvent?.Set();
             _closeCompletedEvent?.Dispose();
             _closeCompletedEvent = null;
+            _activateEvent?.Dispose();
+            _activateEvent = null;
             _submitEvent?.Dispose();
             _submitEvent = null;
             _listenIgnorePrefixEvent?.Dispose();
@@ -426,12 +469,14 @@ static class Program
 
     private static LaunchRequest? GetLaunchRequest(
         bool requestClose,
+        bool requestActivate,
         bool requestListen,
         bool requestSubmit,
         bool requestReplaceExisting)
     {
         var explicitRequestCount =
             (requestClose ? 1 : 0) +
+            (requestActivate ? 1 : 0) +
             (requestListen ? 1 : 0) +
             (requestSubmit ? 1 : 0) +
             (requestReplaceExisting ? 1 : 0);
@@ -440,6 +485,8 @@ static class Program
 
         if (requestClose)
             return LaunchRequest.Close;
+        if (requestActivate)
+            return LaunchRequest.Activate;
         if (requestListen)
             return LaunchRequest.Listen;
         if (requestSubmit)
@@ -483,6 +530,18 @@ static class Program
     private static bool SignalExistingInstanceSubmit()
     {
         if (EventWaitHandle.TryOpenExisting(SubmitEventName, out var evt))
+        {
+            evt.Set();
+            evt.Dispose();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool SignalExistingInstanceActivate()
+    {
+        if (EventWaitHandle.TryOpenExisting(ActivateEventName, out var evt))
         {
             evt.Set();
             evt.Dispose();
@@ -609,6 +668,7 @@ static class Program
         Console.WriteLine("  --ignore-prefix           Use with --listen to skip configured pasted text prefix for this invocation.");
         Console.WriteLine("  --submit                  Send Enter, or paste without auto-send if preview is active.");
         Console.WriteLine("  --close                   Request graceful close (finishes current work first).");
+        Console.WriteLine("  --activate                Bring the existing instance to foreground (no listen).");
         Console.WriteLine("  --replace-existing        Close running instance and start this one.");
         Console.WriteLine("  --pin-to-taskbar          Best-effort pin executable to taskbar.");
         Console.WriteLine("  --unpin-from-taskbar      Best-effort unpin executable from taskbar.");

@@ -577,6 +577,21 @@ public class TrayContext : ApplicationContext
         RequestListen(ignorePastedTextPrefix: false);
     }
 
+    public void RequestActivate()
+    {
+        if (_isShuttingDown)
+            return;
+
+        Invoke(() =>
+        {
+            if (_shutdownRequested || _isShuttingDown)
+                return;
+
+            Log.Info("Remote activate requested");
+            RestoreHiddenStackOnReactivation();
+        });
+    }
+
     public void RequestListen(bool ignorePastedTextPrefix)
     {
         if (_isShuttingDown)
