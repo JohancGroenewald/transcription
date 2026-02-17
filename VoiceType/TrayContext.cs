@@ -87,6 +87,7 @@ public class TrayContext : ApplicationContext
     private readonly NotifyIcon _trayIcon;
     private readonly Control _uiDispatcher;
     private readonly IOverlayManager _overlayManager;
+    private readonly OverlayStackBootstrapCoordinator _stackBootstrap;
     private readonly HotkeyWindow _hotkeyWindow;
     private readonly AudioRecorder _recorder;
     private readonly System.Windows.Forms.Timer _listeningOverlayTimer;
@@ -124,7 +125,6 @@ public class TrayContext : ApplicationContext
     private bool _isTranscribing;
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
-    private bool _isStackHiddenByUser;
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
@@ -160,6 +160,14 @@ public class TrayContext : ApplicationContext
             : (Icon)SystemIcons.Application.Clone();
         extractedIcon?.Dispose();
         LoadTranscriptionService();
+        // Refresh dependency now that transcription state is loaded.
+        _stackBootstrap = new OverlayStackBootstrapCoordinator(
+            _overlayManager,
+            () => _isShuttingDown,
+            () => _shutdownRequested,
+            () => _transcriptionService != null,
+            Log.Info,
+            ShowHelloOverlay);
 
         _trayIcon = new NotifyIcon
         {
@@ -189,7 +197,7 @@ public class TrayContext : ApplicationContext
         }
         else
         {
-            ResetStackAndBootstrapHello("startup");
+            _stackBootstrap.OnStartup("startup");
         }
 
         Log.Info("VoiceType started successfully");
@@ -1650,19 +1658,13 @@ public class TrayContext : ApplicationContext
 
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
-        _isStackHiddenByUser = true;
+        _stackBootstrap.MarkHiddenByUser();
         _overlayManager.HideAll();
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
-        if (_isShuttingDown || _shutdownRequested)
-            return;
-
-        if (_isStackHiddenByUser)
-            return;
-
-        ResetStackAndBootstrapHello("stack-emptied");
+        _stackBootstrap.OnStackEmptied("stack-emptied");
     }
 
     private void RestoreHiddenStackOnReactivation()
@@ -1670,25 +1672,7 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
-        if (_isStackHiddenByUser)
-            _isStackHiddenByUser = false;
-        ResetStackAndBootstrapHello("reactivation");
-    }
-
-    private void ResetStackAndBootstrapHello(string reason)
-    {
-        if (_transcriptionService == null || _isShuttingDown || _shutdownRequested)
-            return;
-
-        if (_isStackHiddenByUser)
-        {
-            Log.Info($"Stack bootstrap skipped ({reason}) because stack is hidden by user.");
-            return;
-        }
-
-        Log.Info($"Stack bootstrap ({reason}) reset + reseed hello overlay.");
-        _overlayManager.ResetTrackedStack();
-        ShowHelloOverlay();
+        _stackBootstrap.OnReactivation("reactivation");
     }
 
     private void OnTrayIconMouseClick(object? sender, MouseEventArgs e)
