@@ -1694,6 +1694,8 @@ public class TrayContext : ApplicationContext
 
         if (!_overlayManager.HasTrackedOverlays())
             _stackBootstrap.OnStartup("stack-emptied-fallback");
+
+        QueueDeferredHelloOverlayReseed("stack-emptied");
     }
 
     private void RestoreHiddenStackOnReactivation()
@@ -1701,6 +1703,7 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
+        Log.Info("Restoring overlay stack after reactivation.");
         _stackBootstrap.ClearHiddenByUser();
         _stackBootstrap.OnReactivation("reactivation");
 
@@ -1708,6 +1711,29 @@ public class TrayContext : ApplicationContext
             _stackBootstrap.OnStartup("reactivation-fallback");
 
         EnsureHelloOverlayBootstrapped("reactivation-fallback");
+        QueueDeferredHelloOverlayReseed("reactivation");
+    }
+
+    private void QueueDeferredHelloOverlayReseed(string reason)
+    {
+        if (_isShuttingDown || _transcriptionService == null)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(80).ConfigureAwait(false);
+                if (_isShuttingDown || _transcriptionService == null)
+                    return;
+
+                Invoke(() => EnsureHelloOverlayBootstrapped($"deferred:{reason}"));
+            }
+            catch
+            {
+                // Ignore best-effort reseed retries.
+            }
+        });
     }
 
     private void EnsureHelloOverlayBootstrapped(string reason)
