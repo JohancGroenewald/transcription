@@ -104,6 +104,45 @@ public sealed class OverlayWindowManager : IOverlayManager
     public event EventHandler<OverlayHideStackIconTappedEventArgs>? OverlayHideStackIconTapped;
     public event EventHandler? OverlayStackEmptied;
 
+    private static string GetOverlayDebugLabel(ManagedOverlay managed)
+    {
+        var isDisposed = managed?.Form.IsDisposed == true;
+        var visible = managed is not null && managed.Form.Visible;
+        return managed is null
+            ? "<unknown>"
+            : $"seq={managed.Sequence},global={managed.GlobalMessageId},local={managed.LocalMessageId}," +
+              $"key={managed.OverlayKey ?? "<none>"}," +
+              $"track={managed.TrackInStack},visible={visible},disposed={isDisposed}," +
+              $"remote={managed.IsRemoteAction},copy={managed.IsClipboardCopyAction},submitted={managed.IsSubmittedAction}," +
+              $"size={managed.Form.Width}x{managed.Form.Height}";
+    }
+
+    private void LogOverlayStackSnapshot(string reason)
+    {
+        List<string> stackEntries;
+        int activeCount;
+        int trackedCount;
+        lock (_sync)
+        {
+            activeCount = _activeOverlays.Count;
+            trackedCount = _stackSpine.GetTrackedOverlays().Count;
+            stackEntries = _stackSpine.GetTrackedOverlays()
+                .OrderBy(x => x.Sequence)
+                .Select(GetOverlayDebugLabel)
+                .ToList();
+        }
+
+        if (stackEntries.Count == 0)
+        {
+            Log.Info($"Overlay stack snapshot ({reason}): active={activeCount}, tracked={trackedCount}, entries=none");
+            return;
+        }
+
+        Log.Info(
+            $"Overlay stack snapshot ({reason}): active={activeCount}, tracked={trackedCount}, " +
+            $"entries=[{string.Join(" | ", stackEntries)}]");
+    }
+
     public int ShowMessage(
         string text,
         Color? color = null,
@@ -135,6 +174,12 @@ public sealed class OverlayWindowManager : IOverlayManager
         if (string.IsNullOrWhiteSpace(text))
             return 0;
 
+        Log.Info(
+            $"ShowMessage request: key={overlayKey ?? "<none>"}, textLen={text.Length}, " +
+            $"track={trackInStack}, autoPosition={autoPosition}, autoHide={autoHide}, duration={durationMs}, " +
+            $"countdown={showCountdownBar}, remote={isRemoteAction}, copyAction={isClipboardCopyAction}, submitted={isSubmittedAction}");
+        LogOverlayStackSnapshot($"show-message-start:{overlayKey ?? "<none>"}");
+
         var effectiveCountdownBar = showCountdownBar;
         var globalMessageId = 0;
         lock (_sync)
@@ -142,6 +187,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             if (!string.IsNullOrWhiteSpace(overlayKey) &&
                 TryGetActiveOverlay(overlayKey, out var managed))
             {
+                LogOverlayStackSnapshot($"show-message-update-before:{overlayKey ?? "<none>"}");
                 globalMessageId = ++_globalMessageId;
                 var wasTrackedInStack = managed.TrackInStack;
                 var effectiveDurationMs = autoHide
@@ -179,6 +225,10 @@ public sealed class OverlayWindowManager : IOverlayManager
                 managed.TrackInStack = trackInStack;
                 managed.IsClipboardCopyAction = isClipboardCopyAction;
                 managed.IsSubmittedAction = isSubmittedAction;
+                Log.Info(
+                    $"ShowMessage updated overlay key={overlayKey}, global={globalMessageId}, local={managed.LocalMessageId}, " +
+                    $"seq={managed.Sequence}, wasTracked={wasTrackedInStack}, nowTracked={managed.TrackInStack}");
+                LogOverlayStackSnapshot($"show-message-update-after:{overlayKey ?? "<none>"}");
                 if (wasTrackedInStack || trackInStack)
                     RepositionVisibleOverlaysLocked();
 
@@ -186,12 +236,17 @@ public sealed class OverlayWindowManager : IOverlayManager
             }
 
             globalMessageId = ++_globalMessageId;
+            LogOverlayStackSnapshot($"show-message-create-before:{overlayKey ?? "<none>"}");
+            Log.Info($"ShowMessage creating overlay key={overlayKey ?? "<none>"}, global={globalMessageId}");
             var managedOverlay = CreateOverlay(text, color, durationMs,
                 textAlign, centerTextBlock, showCountdownBar, tapToCancel, remoteActionText,
                 remoteActionColor, prefixText, prefixColor, overlayKey, trackInStack,
                 isRemoteAction, isClipboardCopyAction, isSubmittedAction);
             if (managedOverlay is null)
+            {
+                Log.Info("ShowMessage failed to create overlay.");
                 return 0;
+            }
 
             managedOverlay.GlobalMessageId = globalMessageId;
             var createDurationMs = autoHide
@@ -227,6 +282,10 @@ public sealed class OverlayWindowManager : IOverlayManager
                 RemoveOverlayLocked(managedOverlay.Form);
                 return 0;
             }
+            Log.Info(
+                $"ShowMessage created overlay key={overlayKey ?? "<none>"}, global={globalMessageId}, " +
+                $"local={managedOverlay.LocalMessageId}, seq={managedOverlay.Sequence}, track={trackInStack}");
+            LogOverlayStackSnapshot($"show-message-create-after:{overlayKey ?? "<none>"}");
             if (trackInStack)
                 RepositionVisibleOverlaysLocked();
 
@@ -299,9 +358,12 @@ public sealed class OverlayWindowManager : IOverlayManager
         List<OverlayForm> overlaysToDispose;
         lock (_sync)
         {
+            LogOverlayStackSnapshot("reset-before");
             overlaysToDispose = _activeOverlays.Keys
                 .Where(x => !x.IsDisposed)
                 .ToList();
+            Log.Info(
+                $"ResetTrackedStack: active={overlaysToDispose.Count}, stack={_stackSpine.GetTrackedOverlays().Count}");
 
             _activeOverlays.Clear();
             _overlaysByKey.Clear();
@@ -317,6 +379,8 @@ public sealed class OverlayWindowManager : IOverlayManager
             UnhookOverlay(overlay);
             overlay.Dispose();
         }
+
+        LogOverlayStackSnapshot("reset-after");
     }
 
     public void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon)
@@ -335,6 +399,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public void HideAll(bool suppressStackEmptyNotification = false)
     {
+        Log.Info($"HideAll invoked: suppressStackEmptyNotification={suppressStackEmptyNotification}");
         List<OverlayForm> overlaysToHide;
         lock (_sync)
         {
@@ -344,6 +409,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 .Select(managed => managed.Form)
                 .ToList();
         }
+        Log.Info($"HideAll candidate count={overlaysToHide.Count}");
 
         if (suppressStackEmptyNotification)
         {
@@ -386,6 +452,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public void FadeVisibleOverlaysTopToBottom(int delayBetweenMs = 140)
     {
+        Log.Info($"FadeVisibleOverlaysTopToBottom requested (delay={delayBetweenMs}, profile={_overlayFadeProfile})");
         var delay = delayBetweenMs < 0
             ? 0
             : delayBetweenMs;
@@ -407,6 +474,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 .Where(managed => _activeOverlays.ContainsKey(managed.Form))
                 .ToList();
         }
+        Log.Info($"FadeVisibleOverlaysTopToBottom candidate count={orderedOverlays.Count}");
 
         for (var index = 0; index < orderedOverlays.Count; index++)
         {
@@ -437,6 +505,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public void HideOverlay(string overlayKey)
     {
+        Log.Info($"HideOverlay called: key={overlayKey ?? "<none>"}");
         if (string.IsNullOrWhiteSpace(overlayKey))
             return;
 
@@ -452,6 +521,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         if (overlaysToHide.Count == 0)
             return;
+        Log.Info($"HideOverlay candidate count={overlaysToHide.Count}");
 
         FadeOverlaysTopToBottom(
             ReorderOverlaysForDismissal(overlaysToHide)
@@ -628,6 +698,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool isClipboardCopyAction,
         bool isSubmittedAction)
     {
+        Log.Info(
+            $"CreateOverlay: key={overlayKey ?? "<none>"}, textLen={text.Length}, duration={durationMs}, " +
+            $"track={trackInStack}, remote={isRemoteAction}, copyAction={isClipboardCopyAction}, submitted={isSubmittedAction}");
         var overlay = _overlayFactory();
         overlay.ApplyHudSettings(
             _overlayOpacityPercent,
@@ -653,6 +726,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         _stackSpine.Register(managed);
         if (!string.IsNullOrWhiteSpace(overlayKey))
             _overlaysByKey[overlayKey] = overlay;
+        Log.Info(
+            $"CreateOverlay registered: global={managed.GlobalMessageId}, seq={managed.Sequence}, " +
+            $"stackTracked={_stackSpine.GetTrackedOverlays().Count}");
 
         return managed;
     }
@@ -684,6 +760,15 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         if (overlay.Visible)
             return;
+
+        int globalMessageId = 0;
+        lock (_sync)
+        {
+            if (_activeOverlays.TryGetValue(overlay, out var managed))
+                globalMessageId = managed.GlobalMessageId;
+        }
+
+        Log.Info($"Overlay visibility changed to false: global={globalMessageId}, formVisible={overlay.Visible}");
 
         lock (_sync)
         {
@@ -799,6 +884,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool suppressStackEmptyNotification = false;
         lock (_sync)
         {
+            var trackedBefore = _stackSpine.GetTrackedOverlays().Count;
             if (!_activeOverlays.Remove(overlay, out var managed))
                 return;
 
@@ -817,6 +903,10 @@ public sealed class OverlayWindowManager : IOverlayManager
                 _overlaysByKey.Remove(key);
             UnhookOverlay(overlay);
             overlay.Dispose();
+            var trackedAfter = _stackSpine.GetTrackedOverlays().Count;
+            Log.Info(
+                $"Overlay removed: global={managed.GlobalMessageId}, local={managed.LocalMessageId}, key={managed.OverlayKey ?? "<none>"}, " +
+                $"trackedBefore={trackedBefore}, trackedAfter={trackedAfter}");
 
             shouldNotifyStackEmpty = _stackSpine.GetTrackedOverlays().Count == 0;
             if (shouldNotifyStackEmpty && _suppressStackEmptyNotificationDepth > 0)
@@ -871,6 +961,12 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     private void FadeAndDismissOverlay(OverlayForm overlay, int delayMs = 0)
     {
+        if (overlay is null)
+        {
+            Log.Info("FadeAndDismissOverlay ignored: overlay was null");
+            return;
+        }
+
         if (overlay.IsDisposed)
         {
             RemoveOverlayLocked(overlay);
@@ -889,6 +985,9 @@ public sealed class OverlayWindowManager : IOverlayManager
         var fadeTickIntervalMs = _overlayFadeProfile == AppConfig.OffOverlayFadeProfile
             ? 16
             : Math.Clamp(_overlayFadeTickIntervalMs, 8, 200);
+        Log.Info(
+            $"FadeAndDismissOverlay: delay={delayMs}, duration={fadeDurationMs}, " +
+            $"tickInterval={fadeTickIntervalMs}");
 
         overlay.FadeOut(Math.Max(0, delayMs), fadeDurationMs, fadeTickIntervalMs);
     }
@@ -924,6 +1023,7 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     private void RepositionVisibleOverlaysLocked()
     {
+        Log.Info($"Reposition overlays requested");
         var visibleOverlays = _stackSpine
             .GetTrackedOverlays()
             .Where(managed => _activeOverlays.ContainsKey(managed.Form))
@@ -931,6 +1031,10 @@ public sealed class OverlayWindowManager : IOverlayManager
 
         if (visibleOverlays.Count == 0)
             return;
+
+        var totalHeight = visibleOverlays.Sum(x => x.Form.Height)
+            + (visibleOverlays.Count - 1) * 0;
+        Log.Info($"Reposition overlays: count={visibleOverlays.Count}, totalHeight={totalHeight}, topSeq={visibleOverlays[0].Sequence}, bottomSeq={visibleOverlays[^1].Sequence}");
 
         // Keep overlays anchored to the primary working area for deterministic visibility.
         var workingArea = Screen.PrimaryScreen?.WorkingArea
@@ -963,6 +1067,7 @@ public sealed class OverlayWindowManager : IOverlayManager
             visibleOverlays.Remove(removableOverlay);
             FadeAndDismissOverlay(removableOverlay.Form);
         }
+        Log.Info($"Reposition overlays after overflow trim count={visibleOverlays.Count}");
 
         var cursorY = workingArea.Bottom - 4;
             foreach (var managed in visibleOverlays)
@@ -980,6 +1085,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 overlay.Location = new Point(x, cursorY);
                 cursorY -= interOverlaySpacing;
             }
+        LogOverlayStackSnapshot("reposition-complete");
     }
 
     private static bool ShouldEvictAsUnnecessaryWhenStackOverflows(ManagedOverlay managedOverlay)

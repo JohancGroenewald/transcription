@@ -198,6 +198,9 @@ public class TrayContext : ApplicationContext
         }
         else
         {
+            Log.Info(
+                $"Startup ready path: transcriptionReady=true, hiddenByUser={_stackBootstrap.IsHiddenByUser}, " +
+                $"hasTrackedOverlays={_overlayManager.HasTrackedOverlays()}, hasHello={_overlayManager.HasTrackedOverlay(HelloOverlayKey)}");
             _stackBootstrap.OnStartup("startup");
             _uiDispatcher.BeginInvoke(new Action(() => EnsureHelloOverlayBootstrapped("startup-post-pump")));
         }
@@ -461,12 +464,14 @@ public class TrayContext : ApplicationContext
 
     private void OnSettings(object? sender, EventArgs e)
     {
+        LogHelloStackState("settings-selected");
         Log.Info("Settings menu selected.");
         OpenSettings();
     }
 
     private void OpenSettings(bool focusApiKey = false, bool restorePreviousFocus = true)
     {
+        Log.Info($"OpenSettings called: focusApiKey={focusApiKey}, restorePreviousFocus={restorePreviousFocus}, isOpening={_isOpeningSettings}");
         if (_isOpeningSettings)
         {
             Log.Info("Ignoring settings request because settings is already open.");
@@ -517,11 +522,13 @@ public class TrayContext : ApplicationContext
         finally
         {
             _isOpeningSettings = false;
+            LogHelloStackState("settings-closed");
         }
     }
 
     private void OnTrayMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
     {
+        Log.Info("Tray menu closed.");
         RestoreHiddenStackOnReactivation();
     }
 
@@ -755,6 +762,10 @@ public class TrayContext : ApplicationContext
         bool showHideStackIcon = false,
         bool showHelloTextFrame = false)
     {
+        Log.Info(
+            $"ShowOverlay request: textLen={text?.Length ?? 0}, key={overlayKey ?? "<none>"}, " +
+            $"track={trackInStack}, autoHide={autoHide}, includeRemoteAction={includeRemoteAction}, " +
+            $"copyAction={isClipboardCopyAction}, submitted={isSubmittedAction}, remoteLevel={_remoteActionPopupLevel}");
         if (!_enableOverlayPopups)
             return 0;
 
@@ -802,6 +813,7 @@ public class TrayContext : ApplicationContext
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
     {
+        Log.Info($"ShowRemoteActionPopup called: action={action}, details={details ?? "<none>"}, level={_remoteActionPopupLevel}");
         if (_remoteActionPopupLevel <= 0)
         {
             _remoteActionPopupMessage = string.Empty;
@@ -822,11 +834,13 @@ public class TrayContext : ApplicationContext
 
     private void HideProcessingVoiceOverlay()
     {
+        Log.Info("HideProcessingVoiceOverlay called");
         _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
     }
 
     private void HideTransientOverlaysForTextBox()
     {
+        Log.Info("HideTransientOverlaysForTextBox called");
         _overlayManager.HideOverlays(new[]
         {
             "listening-overlay",
@@ -839,6 +853,7 @@ public class TrayContext : ApplicationContext
 
     private void ShowRemoteActionOverlay(string message)
     {
+        Log.Info($"ShowRemoteActionOverlay called: message='{message}'");
         if (!_enableOverlayPopups)
             return;
 
@@ -1681,12 +1696,15 @@ public class TrayContext : ApplicationContext
 
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
+        Log.Info($"Hello X tapped. message={e.MessageId}");
         _stackBootstrap.MarkHiddenByUser();
         _overlayManager.HideAll(suppressStackEmptyNotification: true);
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
     {
+        Log.Info("Overlay stack emptied event.");
+        LogHelloStackState("stack-emptied-event");
         _stackBootstrap.OnStackEmptied("stack-emptied");
 
         if (_isShuttingDown || _transcriptionService == null)
@@ -1695,6 +1713,7 @@ public class TrayContext : ApplicationContext
         if (!_overlayManager.HasTrackedOverlays())
             _stackBootstrap.OnStartup("stack-emptied-fallback");
 
+        LogHelloStackState("stack-emptied-fallback");
         QueueDeferredHelloOverlayReseed("stack-emptied");
     }
 
@@ -1703,6 +1722,7 @@ public class TrayContext : ApplicationContext
         if (_isShuttingDown || _transcriptionService == null)
             return;
 
+        LogHelloStackState("reactivation-start");
         Log.Info("Restoring overlay stack after reactivation.");
         _stackBootstrap.ClearHiddenByUser();
         _stackBootstrap.OnReactivation("reactivation");
@@ -1711,6 +1731,7 @@ public class TrayContext : ApplicationContext
             _stackBootstrap.OnStartup("reactivation-fallback");
 
         EnsureHelloOverlayBootstrapped("reactivation-fallback");
+        LogHelloStackState("reactivation-end");
         QueueDeferredHelloOverlayReseed("reactivation");
     }
 
@@ -1738,11 +1759,18 @@ public class TrayContext : ApplicationContext
 
     private void EnsureHelloOverlayBootstrapped(string reason)
     {
+        LogHelloStackState($"ensure-hello-start:{reason}");
         if (_transcriptionService == null || _isShuttingDown || _shutdownRequested)
+        {
+            Log.Info($"Hello overlay reseed skipped ({reason}) because app is unavailable.");
             return;
+        }
 
         if (_overlayManager.HasTrackedOverlay(HelloOverlayKey))
+        {
+            Log.Info($"Hello overlay already present; no reseed needed ({reason}).");
             return;
+        }
 
         Log.Info($"Hello overlay reseed fallback ({reason})");
         _stackBootstrap.OnStartup("self-heal");
@@ -1779,8 +1807,12 @@ public class TrayContext : ApplicationContext
     private void ShowHelloOverlay()
     {
         if (_transcriptionService == null)
+        {
+            Log.Info("ShowHelloOverlay skipped: transcriptionService is null.");
             return;
+        }
 
+        Log.Info("ShowHelloOverlay called.");
         var messageId = _overlayManager.ShowMessage(
             $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
             StartupReadyOverlayColor,
@@ -1793,6 +1825,17 @@ public class TrayContext : ApplicationContext
 
         if (messageId == 0)
             Log.Info("Hello overlay fallback call did not render any message.");
+    }
+
+    private void LogHelloStackState(string reason)
+    {
+        Log.Info(
+            $"Hello stack state ({reason}): " +
+            $"hiddenByUser={_stackBootstrap.IsHiddenByUser}, " +
+            $"hasTrackedOverlays={_overlayManager.HasTrackedOverlays()}, " +
+            $"hasHello={_overlayManager.HasTrackedOverlay(HelloOverlayKey)}, " +
+            $"transcriptionReady={_transcriptionService != null}, " +
+            $"shutdown={_isShuttingDown}, shutdownRequested={_shutdownRequested}");
     }
 
     private void OnOverlayTapped(object? sender, int messageId)

@@ -32,26 +32,43 @@ internal sealed class OverlayStackBootstrapCoordinator
 
     public void MarkHiddenByUser()
     {
+        if (_isHiddenByUser)
+        {
+            _log("Stack hidden-by-user flag already true.");
+            return;
+        }
+
         _isHiddenByUser = true;
+        _log("Stack hidden-by-user flag set.");
     }
 
     public void ClearHiddenByUser()
     {
+        if (!_isHiddenByUser)
+        {
+            _log("Stack hidden-by-user flag already false.");
+            return;
+        }
+
         _isHiddenByUser = false;
+        _log("Stack hidden-by-user flag cleared.");
     }
 
     public void OnStartup(string reason)
     {
+        _log($"Stack bootstrap startup invoked. reason={reason}, shutdown={_isShuttingDown()}, shutdownRequested={_isShutdownRequested()}, transcriptionReady={_isTranscriptionReady()}, hiddenByUser={_isHiddenByUser}");
         EnsureHello(reason);
     }
 
     public void OnStackEmptied(string reason)
     {
+        _log($"Stack bootstrap stack-emptied invoked. reason={reason}, shutdown={_isShuttingDown()}, shutdownRequested={_isShutdownRequested()}, transcriptionReady={_isTranscriptionReady()}, hiddenByUser={_isHiddenByUser}");
         EnsureHello(reason);
     }
 
     public void OnReactivation(string reason)
     {
+        _log($"Stack bootstrap reactivation invoked. reason={reason}, shutdown={_isShuttingDown()}, shutdownRequested={_isShutdownRequested()}, transcriptionReady={_isTranscriptionReady()}, hiddenByUser={_isHiddenByUser}");
         if (_isTranscriptionReady() && !_isShuttingDown() && !_isShutdownRequested())
         {
             EnsureHello(reason);
@@ -61,10 +78,16 @@ internal sealed class OverlayStackBootstrapCoordinator
     private void EnsureHello(string reason)
     {
         if (_isShuttingDown() || _isShutdownRequested())
+        {
+            _log($"Stack bootstrap ignore ({reason}) because app is shutting down.");
             return;
+        }
 
         if (!_isTranscriptionReady())
+        {
+            _log($"Stack bootstrap ignore ({reason}) because transcription service is not ready.");
             return;
+        }
 
         _log($"Stack bootstrap ({reason}) reset + reseed hello overlay.");
         _overlayManager.ResetTrackedStack();
