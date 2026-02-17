@@ -1682,7 +1682,7 @@ public class TrayContext : ApplicationContext
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
         _stackBootstrap.MarkHiddenByUser();
-        _overlayManager.HideAll();
+        _overlayManager.HideAll(suppressStackEmptyNotification: true);
     }
 
     private void OnOverlayStackEmptied(object? sender, EventArgs e)
