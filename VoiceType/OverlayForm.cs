@@ -1031,10 +1031,15 @@ public class OverlayForm : Form
         if (_showStartListeningIcon)
             DrawStartListeningIcon(e.Graphics, rightReservedPx);
         }
-        catch
+        catch (Exception ex)
         {
             try
             {
+                Log.Error(
+                    $"Overlay paint failed and switched to fallback rendering. " +
+                    $"Type={ex.GetType().Name}, Message={ex.Message}, OverlaySize={Width}x{Height}, " +
+                    $"MessageId={_activeMessageId}, FullWidth={_lastUseFullWidthText}, Opacity={Opacity:F2}, " +
+                    $"ShowBorder={_showOverlayBorder}, ShowHelloTextFrame={_showHelloTextFrame}");
                 e.Graphics.Clear(TransparentOverlayBackgroundColor);
                 using var brush = new SolidBrush(Color.White);
                 using var font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
@@ -1046,13 +1051,16 @@ public class OverlayForm : Form
                 e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
                 var textRect = new Rectangle(4, 4, Math.Max(1, Width - 8), Math.Max(1, Height - 8));
                 e.Graphics.DrawString("Overlay render issue. Check logs.", font, brush, textRect, format);
-            }
-            catch
-            {
-                // Keep best effort fallback rendering.
-            }
 
-            Log.Error("Overlay paint failed and switched to fallback rendering.");
+                if (!string.IsNullOrWhiteSpace(ex.StackTrace))
+                {
+                    Log.Error($"Overlay paint stack trace: {ex.StackTrace}");
+                }
+            }
+            catch (Exception fallbackEx)
+            {
+                Log.Error($"Overlay fallback rendering failure: {fallbackEx}");
+            }
         }
     }
 
