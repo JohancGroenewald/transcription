@@ -13,7 +13,7 @@ public class AppConfigTests
     [Fact]
     public void NormalizeOverlayOpacityPercent_ClampsToBounds()
     {
-        Assert.Equal(AppConfig.MinOverlayOpacityPercent, AppConfig.NormalizeOverlayOpacityPercent(1));
+        Assert.Equal(AppConfig.MinOverlayOpacityPercent, AppConfig.NormalizeOverlayOpacityPercent(0));
         Assert.Equal(87, AppConfig.NormalizeOverlayOpacityPercent(87));
         Assert.Equal(AppConfig.MaxOverlayOpacityPercent, AppConfig.NormalizeOverlayOpacityPercent(500));
     }
