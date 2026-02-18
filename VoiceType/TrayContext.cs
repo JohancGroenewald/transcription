@@ -392,12 +392,20 @@ public class TrayContext : ApplicationContext
                 var metrics = _recorder.LastCaptureMetrics;
                 Log.Info(
                     $"Audio captured: {audioData.Length:N0} bytes, duration={metrics.Duration.TotalSeconds:F2}s, " +
-                    $"rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}");
+                    $"rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}, signal={(metrics.HasAnyNonZeroSample ? "yes" : "no")}");
 
                 if (metrics.IsLikelySilence)
                 {
-                    Log.Info("Skipping transcription because captured audio appears to be silence/noise.");
-                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
+                    if (!metrics.HasAnyNonZeroSample)
+                    {
+                        Log.Info("Skipping transcription because captured audio stream was flat (all samples were zero).");
+                        ShowOverlay("No audio signal detected from the selected microphone", WarningOverlayColor, 2800);
+                    }
+                    else
+                    {
+                        Log.Info("Skipping transcription because captured audio appears to be silence/noise.");
+                        ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
+                    }
                     return;
                 }
 

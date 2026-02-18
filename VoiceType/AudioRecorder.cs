@@ -6,12 +6,14 @@ public readonly record struct AudioCaptureMetrics(
     TimeSpan Duration,
     double Rms,
     double Peak,
-    double ActiveSampleRatio)
+    double ActiveSampleRatio,
+    bool HasAnyNonZeroSample)
 {
     // Conservative silence gate to avoid transcribing pure noise/silence.
     public bool IsLikelySilence =>
         Duration < TimeSpan.FromMilliseconds(250)
-        || (Rms < 0.0025 && Peak < 0.012 && ActiveSampleRatio < 0.01);
+        || (!HasAnyNonZeroSample
+            || (Rms < 0.0025 && Peak < 0.012 && ActiveSampleRatio < 0.01));
 }
 
 public class AudioRecorder : IDisposable
@@ -333,7 +335,15 @@ public class AudioRecorder : IDisposable
         if (rawAudio.Length < 2 || waveFormat.SampleRate <= 0)
             return default;
 
-        var sampleCount = rawAudio.Length / 2;
+        if (waveFormat.BitsPerSample != 16)
+            return default;
+
+        var bytesPerSample = waveFormat.BitsPerSample / 8;
+        var blockSize = bytesPerSample * Math.Max(1, waveFormat.Channels);
+        if (rawAudio.Length < blockSize || blockSize <= 0)
+            return default;
+
+        var sampleCount = rawAudio.Length / blockSize;
         if (sampleCount == 0)
             return default;
 
@@ -342,28 +352,38 @@ public class AudioRecorder : IDisposable
         long sumSquares = 0;
         var peak = 0;
         var activeSamples = 0;
+        var hasAnyNonZeroSample = false;
 
-        for (var i = 0; i < sampleCount; i++)
+        for (var frameIndex = 0; frameIndex < sampleCount; frameIndex++)
         {
-            var offset = i * 2;
-            var sample = (short)(rawAudio[offset] | (rawAudio[offset + 1] << 8));
-            var sampleValue = (int)sample;
-            var abs = Math.Abs(sampleValue);
+            var frameOffset = frameIndex * blockSize;
+            for (var channelIndex = 0; channelIndex < waveFormat.Channels; channelIndex++)
+            {
+                var sampleOffset = frameOffset + (channelIndex * bytesPerSample);
+                if (sampleOffset + bytesPerSample > rawAudio.Length)
+                    break;
 
-            if (abs > peak)
-                peak = abs;
-            if (abs >= activeThreshold)
-                activeSamples++;
+                var sample = (short)(rawAudio[sampleOffset] | (rawAudio[sampleOffset + 1] << 8));
+                var sampleValue = sample;
+                var abs = Math.Abs((int)sampleValue);
 
-            sumSquares += (long)sampleValue * sampleValue;
+                if (abs != 0)
+                    hasAnyNonZeroSample = true;
+                if (abs > peak)
+                    peak = abs;
+                if (abs >= activeThreshold)
+                    activeSamples++;
+
+                sumSquares += (long)sampleValue * sampleValue;
+            }
         }
 
         var duration = TimeSpan.FromSeconds(sampleCount / (double)waveFormat.SampleRate);
-        var rms = Math.Sqrt(sumSquares / (double)sampleCount) / short.MaxValue;
+        var rms = Math.Sqrt(sumSquares / (double)Math.Max(1, sampleCount * waveFormat.Channels)) / short.MaxValue;
         var peakNormalized = peak / (double)short.MaxValue;
-        var activeRatio = activeSamples / (double)sampleCount;
+        var activeRatio = activeSamples / (double)Math.Max(1, sampleCount * waveFormat.Channels);
 
-        return new AudioCaptureMetrics(duration, rms, peakNormalized, activeRatio);
+        return new AudioCaptureMetrics(duration, rms, peakNormalized, activeRatio, hasAnyNonZeroSample);
     }
 
     private static int CalculateInputLevelPercent(byte[] pcm16Buffer, int bytesRecorded)
