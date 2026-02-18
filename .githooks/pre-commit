@@ -7,36 +7,36 @@ PROJECT="$REPO_ROOT/VoiceType/VoiceType.csproj"
 
 has_app_file_changes() {
   [ ! -d "$REPO_ROOT/.git" ] && return 1
-  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR -- | grep -qE '^VoiceType/'
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^VoiceType/'
 }
 
 if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
   exit 0
 fi
 
-if [ -f "$SCRIPT" ]; then
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
-  elif command -v powershell >/dev/null 2>&1; then
-    powershell -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
-  fi
-fi
-
-if [ -f "$CLOSE_SCRIPT" ]; then
-  if command -v pwsh >/dev/null 2>&1; then
-    if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
-      echo "[pre-commit] close-voicetype did not finish in time."
-      exit 1
-    fi
-  elif command -v powershell >/dev/null 2>&1; then
-    if ! powershell -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
-      echo "[pre-commit] close-voicetype did not finish in time."
-      exit 1
-    fi
-  fi
-fi
-
 if has_app_file_changes; then
+  if [ -f "$SCRIPT" ]; then
+    if command -v pwsh >/dev/null 2>&1; then
+      pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
+    elif command -v powershell >/dev/null 2>&1; then
+      powershell -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
+    fi
+  fi
+
+  if [ -f "$CLOSE_SCRIPT" ]; then
+    if command -v pwsh >/dev/null 2>&1; then
+      if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
+        echo "[pre-commit] close-voicetype did not finish in time."
+        exit 1
+      fi
+    elif command -v powershell >/dev/null 2>&1; then
+      if ! powershell -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
+        echo "[pre-commit] close-voicetype did not finish in time."
+        exit 1
+      fi
+    fi
+  fi
+
   if command -v dotnet >/dev/null 2>&1 && [ -f "$PROJECT" ]; then
     if ! dotnet build "$PROJECT" -c Debug; then
       echo "[pre-commit] Build failed. Please fix compilation errors before committing."
