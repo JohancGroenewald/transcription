@@ -18,6 +18,7 @@ public class AudioRecorder : IDisposable
 {
     private static readonly TimeSpan MaxRecordingDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan PostStopDrainTimeout = TimeSpan.FromMilliseconds(600);
+    private static readonly int[] PreferredSampleRates = { 16000, 24000, 32000, 44100, 48000 };
     private readonly object _sync = new();
     private WaveInEvent? _waveIn;
     private MemoryStream? _audioBuffer;
@@ -42,26 +43,104 @@ public class AudioRecorder : IDisposable
         _maxRecordingLimitReached = false;
         _maxRecordingBytes = 0;
 
-        var waveIn = new WaveInEvent
-        {
-            WaveFormat = new WaveFormat(16000, 16, 1) // 16kHz, 16-bit, mono - ideal for speech
-        };
-        _waveIn = waveIn;
-        _waveFormat = waveIn.WaveFormat;
-        _maxRecordingBytes = (long)_waveFormat.AverageBytesPerSecond * (long)MaxRecordingDuration.TotalSeconds;
-
-        waveIn.DataAvailable += OnDataAvailable;
-        waveIn.RecordingStopped += OnRecordingStopped;
-
         try
         {
-            waveIn.StartRecording();
+            StartRecordingWithFallback();
         }
         catch
         {
             CleanupRecorder();
             throw;
         }
+    }
+
+    private void StartRecordingWithFallback()
+    {
+        var deviceCount = WaveIn.DeviceCount;
+        if (deviceCount <= 0)
+        {
+            throw new InvalidOperationException(
+                "No microphone input devices are available. " +
+                "Connect or enable a microphone, then retry.");
+        }
+
+        var attempts = new List<string>();
+        Exception? lastError = null;
+
+        for (int deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
+        {
+            var deviceName = TryGetCaptureDeviceName(deviceIndex);
+
+            foreach (var sampleRate in PreferredSampleRates)
+            {
+                WaveInEvent? waveIn = null;
+                try
+                {
+                    waveIn = new WaveInEvent
+                    {
+                        DeviceNumber = deviceIndex,
+                        WaveFormat = new WaveFormat(sampleRate, 16, 1)
+                    };
+
+                    waveIn.DataAvailable += OnDataAvailable;
+                    waveIn.RecordingStopped += OnRecordingStopped;
+                    waveIn.StartRecording();
+
+                    _waveIn = waveIn;
+                    _waveFormat = waveIn.WaveFormat;
+                    _maxRecordingBytes = (long)_waveFormat.AverageBytesPerSecond * (long)MaxRecordingDuration.TotalSeconds;
+
+                    Log.Info(
+                        $"Recording started on device {deviceIndex} ({deviceName}) at {_waveFormat.SampleRate} Hz");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                    attempts.Add($"device {deviceIndex} ({deviceName}) @ {sampleRate}Hz: {ex.Message}");
+                    // Release failed capture attempt before moving to the next format/device combo.
+                    // Event handlers are attached only to this local instance, so disposal is safe here.
+                    if (waveIn != null)
+                    {
+                        try
+                        {
+                            waveIn.Dispose();
+                        }
+                        catch
+                        {
+                            // Ignore disposal failures while switching attempts.
+                        }
+                    }
+                }
+            }
+        }
+
+        throw BuildStartFailureException(attempts, lastError);
+    }
+
+    private static string TryGetCaptureDeviceName(int deviceIndex)
+    {
+        try
+        {
+            var capabilities = WaveIn.GetCapabilities(deviceIndex);
+            return capabilities.ProductName;
+        }
+        catch
+        {
+            return $"index {deviceIndex}";
+        }
+    }
+
+    private static Exception BuildStartFailureException(List<string> attempts, Exception? lastError)
+    {
+        var attemptText = string.Join(" | ", attempts);
+        var detailText = !string.IsNullOrWhiteSpace(attemptText)
+            ? $"Tried: {attemptText}"
+            : "No capture format/device combinations succeeded.";
+        var baseMessage = "Unable to start microphone capture. Check Windows microphone permissions and device availability.";
+        var rootMessage = lastError?.GetType().Name ?? "UnknownError";
+        return new InvalidOperationException(
+            $"{baseMessage} {detailText} (last error: {rootMessage}: {lastError?.Message})");
     }
 
     /// <summary>

@@ -468,7 +468,7 @@ public class TrayContext : ApplicationContext
                 _isRecording = false;
                 StopListeningOverlay();
                 Log.Error("Failed to start recording", ex);
-                ShowOverlay("Microphone error: " + ex.Message, ErrorOverlayColor, 4000);
+                ShowOverlay(BuildMicrophoneErrorMessage(ex), ErrorOverlayColor, 6000);
                 CompleteShutdownIfRequested();
             }
         }
@@ -1245,6 +1245,44 @@ public class TrayContext : ApplicationContext
         }
 
         return false;
+    }
+
+    private static string BuildMicrophoneErrorMessage(Exception ex)
+    {
+        var root = ex;
+        while (root.InnerException != null)
+            root = root.InnerException;
+
+        var rawMessage = root.Message ?? string.Empty;
+        var lowered = rawMessage.ToLowerInvariant();
+
+        string userTip;
+        if (root is UnauthorizedAccessException ||
+            lowered.Contains("access") && lowered.Contains("denied") ||
+            lowered.Contains("permission"))
+        {
+            userTip = "Windows microphone permission is blocked. Enable VoiceType in Settings > Privacy & Security > Microphone.";
+        }
+        else if (lowered.Contains("no microphone") ||
+            lowered.Contains("no input") ||
+            lowered.Contains("no working microphone") ||
+            lowered.Contains("device") && lowered.Contains("found"))
+        {
+            userTip = "No working microphone detected. Check Windows Sound input device and default device selection.";
+        }
+        else if (lowered.Contains("tried:"))
+        {
+            userTip = "Microphone start failed. Ensure device drivers are installed and no other app is locking the mic.";
+        }
+        else
+        {
+            userTip = rawMessage;
+        }
+
+        if (string.IsNullOrWhiteSpace(userTip))
+            userTip = "Failed to start microphone capture.";
+
+        return $"Microphone error: {userTip}\nTip: check Windows mic settings and permissions, then try again.";
     }
 
     private void Invoke(Action action)
@@ -2097,4 +2135,3 @@ internal sealed class HotkeyPressedEventArgs : EventArgs
 
     public int HotkeyId { get; }
 }
-
