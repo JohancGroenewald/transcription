@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>1.0.300</Version>
+    <Version>1.0.302</Version>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
@@ -31,6 +31,13 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Assets\Fonts\*.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="CreateVoiceTypeShortcuts" AfterTargets="Build"
           Condition="'$(OS)' == 'Windows_NT' and Exists('$(TargetDir)$(AssemblyName).exe') and '$(SkipShortcutGeneration)' != 'true'">
     <PropertyGroup>
@@ -42,6 +49,8 @@
   </Target>
 
 </Project>
+
+
 
 
 

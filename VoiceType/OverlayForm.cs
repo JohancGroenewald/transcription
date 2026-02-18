@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -8,7 +10,11 @@ namespace VoiceType;
 public class OverlayForm : Form
 {
     private static readonly Color DefaultTextColor = Color.FromArgb(255, 255, 188);
-    private const string OverlayFontFamily = "Segoe UI";
+    private const string OverlayFontFamilyFallback = "Segoe UI";
+    private const string OverlayBundledFontFileName = "VoiceTypeOverlay-Regular.ttf";
+    private const string OverlayBundledFontRelativePath = "Assets\\Fonts";
+    private static readonly PrivateFontCollection OverlayFontCollection = new();
+    private static readonly string OverlayFontFamily = ResolveOverlayFontFamily();
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
     private static readonly Color ActionTextColor = Color.FromArgb(255, 229, 159);
     private const int BottomOffset = 18;
@@ -208,7 +214,7 @@ public class OverlayForm : Form
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            Font = new Font(OverlayFontFamily, AppConfig.DefaultOverlayFontSizePt + 1, FontStyle.Bold),
+            Font = CreateOverlayFont(AppConfig.DefaultOverlayFontSizePt + 1, FontStyle.Bold),
             ForeColor = DefaultTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -218,7 +224,7 @@ public class OverlayForm : Form
         _actionLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1), FontStyle.Bold),
+            Font = CreateOverlayFont(Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1), FontStyle.Bold),
             ForeColor = ActionTextColor,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -230,7 +236,7 @@ public class OverlayForm : Form
         _prefixLabel = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = new Font(OverlayFontFamily, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
+            Font = CreateOverlayFont(Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 2), FontStyle.Bold),
             ForeColor = Color.FromArgb(255, 173, 255, 173),
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -262,6 +268,61 @@ public class OverlayForm : Form
 
         // Position: bottom-center, above taskbar
         PositionOnScreen();
+    }
+
+    private static string ResolveOverlayFontFamily()
+    {
+        try
+        {
+            var fontPath = Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath, OverlayBundledFontFileName);
+            if (File.Exists(fontPath))
+            {
+                OverlayFontCollection.AddFontFile(fontPath);
+                if (OverlayFontCollection.Families.Length > 0)
+                {
+                    var familyName = OverlayFontCollection.Families[0].Name;
+                    Log.Info($"Using bundled overlay font: {familyName} ({fontPath})");
+                    return familyName;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to load bundled overlay font. Message={ex.Message}");
+        }
+
+        if (IsFontFamilyAvailable(OverlayFontFamilyFallback))
+            return OverlayFontFamilyFallback;
+
+        return FontFamily.GenericSansSerif.Name;
+    }
+
+    private static bool IsFontFamilyAvailable(string familyName)
+    {
+        try
+        {
+            using var font = new Font(familyName, Math.Max(10, AppConfig.DefaultOverlayFontSizePt - 1));
+            return string.Equals(font.FontFamily.Name, familyName, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException ex)
+        {
+            Log.Error($"Font family check failed for '{familyName}'. Message={ex.Message}");
+            return false;
+        }
+    }
+
+    private static Font CreateOverlayFont(float sizePt, FontStyle style = FontStyle.Regular)
+    {
+        var fontSize = Math.Max(10, sizePt);
+        try
+        {
+            return new Font(OverlayFontFamily, fontSize, style);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to create overlay font '{OverlayFontFamily}' size {fontSize} style {style}. Message={ex.Message}");
+            return new Font(FontFamily.GenericSansSerif, fontSize, style);
+        }
     }
 
     protected override CreateParams CreateParams
@@ -630,13 +691,13 @@ public class OverlayForm : Form
         Opacity = 1.0;
 
         var oldFont = _label.Font;
-        _label.Font = new Font(OverlayFontFamily, _overlayFontSizePt, FontStyle.Bold);
+        _label.Font = CreateOverlayFont(_overlayFontSizePt, FontStyle.Bold);
         oldFont.Dispose();
         var oldActionFont = _actionLabel.Font;
-        _actionLabel.Font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
+        _actionLabel.Font = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
         oldActionFont.Dispose();
         var oldPrefixFont = _prefixLabel.Font;
-        _prefixLabel.Font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
+        _prefixLabel.Font = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
         oldPrefixFont.Dispose();
 
         if (Visible)
@@ -945,10 +1006,7 @@ public class OverlayForm : Form
             var iconTextSize = Size.Empty;
             if (!string.IsNullOrWhiteSpace(iconText))
             {
-                using var iconFont = new Font(
-                    OverlayFontFamily,
-                    Math.Max(10, _overlayFontSizePt - 1),
-                    FontStyle.Regular);
+                using var iconFont = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Regular);
                 iconTextSize = TextRenderer.MeasureText(
                     e.Graphics,
                     iconText,
@@ -977,10 +1035,7 @@ public class OverlayForm : Form
 
             if (!string.IsNullOrWhiteSpace(iconText))
             {
-                using var playbackIconFont = new Font(
-                    OverlayFontFamily,
-                    Math.Max(10, _overlayFontSizePt - 1),
-                    FontStyle.Regular);
+                using var playbackIconFont = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Regular);
                 using var iconBrush = new SolidBrush(_label.ForeColor);
                 var iconX = Math.Min(
                     Math.Max(trackBounds.Right + iconSpacing, trackMargin),
@@ -1042,7 +1097,7 @@ public class OverlayForm : Form
                     $"ShowBorder={_showOverlayBorder}, ShowHelloTextFrame={_showHelloTextFrame}");
                 e.Graphics.Clear(TransparentOverlayBackgroundColor);
                 using var brush = new SolidBrush(Color.White);
-                using var font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
+                using var font = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
                 using var format = new StringFormat
                 {
                     LineAlignment = StringAlignment.Center,
@@ -1614,20 +1669,26 @@ public class OverlayForm : Form
             ? _label.Bounds
             : ClientRectangle;
 
-        var lines = _label.Text.Split('\n');
+        var lines = (_label.Text ?? string.Empty).Split('\n');
+
+        var meterFont = _label.Font;
+        var shouldDisposeMeterFont = false;
+        try
+        {
+            _ = meterFont.Height;
+        }
+        catch (ArgumentException ex)
+        {
+            Log.Error($"Listening level meter font is invalid. Falling back to safe font. Message={ex.Message}");
+            meterFont = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
+            shouldDisposeMeterFont = true;
+        }
+
         var firstLineHeight = Math.Max(
-            _label.Font.Height,
-            TextRenderer.MeasureText(
-                lines.Length > 0 ? lines[0] : string.Empty,
-                _label.Font,
-                new Size(labelArea.Width, int.MaxValue),
-                TextFormatFlags.NoPrefix).Height);
+            meterFont.Height,
+            GetTextHeight(graphics, lines.Length > 0 ? lines[0] : string.Empty, meterFont, labelArea.Width));
         var secondLineHeight = lines.Length > 1
-            ? TextRenderer.MeasureText(
-                lines[1],
-                _label.Font,
-                new Size(labelArea.Width, int.MaxValue),
-                TextFormatFlags.NoPrefix).Height
+            ? GetTextHeight(graphics, lines[1], meterFont, labelArea.Width)
             : 0;
 
         var candidateTop = labelArea.Top + (int)(labelArea.Height * 0.65) - (ListeningMeterHeight / 2);
@@ -1681,6 +1742,33 @@ public class OverlayForm : Form
                     : Color.FromArgb(alpha, ListeningMeterActiveColor));
             var barBounds = new Rectangle(x, y, barWidth, barHeight);
             graphics.FillRectangle(brush, barBounds);
+        }
+
+        if (shouldDisposeMeterFont)
+            meterFont.Dispose();
+    }
+
+    private int GetTextHeight(Graphics graphics, string text, Font font, int maxWidth)
+    {
+        try
+        {
+            return TextRenderer.MeasureText(
+                graphics,
+                text,
+                font,
+                new Size(Math.Max(1, maxWidth), int.MaxValue),
+                TextFormatFlags.NoPrefix).Height;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Listening level meter text measurement failed. Message={ex.Message}");
+            using var fallbackFont = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
+            return TextRenderer.MeasureText(
+                graphics,
+                text,
+                fallbackFont,
+                new Size(Math.Max(1, maxWidth), int.MaxValue),
+                TextFormatFlags.NoPrefix).Height;
         }
     }
 
