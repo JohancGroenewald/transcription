@@ -1,4 +1,27 @@
+param(
+    [switch]$OnlyIfAppFileChanges
+)
+
 $ErrorActionPreference = "Stop"
+
+function Has-AppFileChangesInLatestCommit {
+    param([string]$RepoRoot)
+
+    if (-not (Test-Path (Join-Path $RepoRoot ".git"))) {
+        return $false
+    }
+
+    try {
+        $changedFiles = & git -C $RepoRoot show --name-only --pretty=format: --diff-filter=ACMRD HEAD -- 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return $false
+        }
+        return ($changedFiles | Where-Object { $_ -like "VoiceType/*" } | Select-Object -First 1) -ne $null
+    }
+    catch {
+        return $false
+    }
+}
 
 function Write-Info([string]$message) {
     Write-Host "[post-commit] $message"
@@ -6,6 +29,11 @@ function Write-Info([string]$message) {
 
 try {
     $repoRoot = Split-Path -Parent $PSScriptRoot
+    if ($OnlyIfAppFileChanges -and -not (Has-AppFileChangesInLatestCommit -RepoRoot $repoRoot)) {
+        Write-Info "No app file changes in latest commit. Skipping restart."
+        exit 0
+    }
+
     $debugExePath = Join-Path $repoRoot "VoiceType/bin/Debug/net9.0-windows/VoiceType.exe"
 
     $runningCandidates = @()
