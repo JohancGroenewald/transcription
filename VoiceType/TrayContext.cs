@@ -98,6 +98,8 @@ public class TrayContext : ApplicationContext
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _uptimeMenuItem = new() { Enabled = false };
+    private bool _overlayRuntimeHealthy = true;
+    private bool _overlayFailureMessageShown;
     private TranscriptionService? _transcriptionService;
     private string _transcriptionPrompt = DefaultTranscriptionPrompt;
     private bool _autoEnter;
@@ -119,6 +121,10 @@ public class TrayContext : ApplicationContext
     private bool _enablePastedTextPrefix = true;
     private bool _enablePreviewPlayback = true;
     private bool _enablePreviewPlaybackCleanup;
+    private int _microphoneInputDeviceIndex = AppConfig.DefaultAudioDeviceIndex;
+    private string _microphoneInputDeviceName = string.Empty;
+    private int _audioOutputDeviceIndex = AppConfig.DefaultAudioDeviceIndex;
+    private string _audioOutputDeviceName = string.Empty;
     private string _pastedTextPrefix = string.Empty;
     private bool _ignorePastedTextPrefixForNextTranscription;
     private int _micLevelPercent;
@@ -233,6 +239,14 @@ public class TrayContext : ApplicationContext
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enablePreviewPlayback = config.EnablePreviewPlayback;
         _enablePreviewPlaybackCleanup = config.EnablePreviewPlaybackCleanup;
+        _microphoneInputDeviceIndex = AppConfig.NormalizeAudioDeviceIndex(config.MicrophoneInputDeviceIndex);
+        _microphoneInputDeviceName = string.IsNullOrWhiteSpace(config.MicrophoneInputDeviceName)
+            ? string.Empty
+            : config.MicrophoneInputDeviceName;
+        _audioOutputDeviceIndex = AppConfig.NormalizeAudioDeviceIndex(config.AudioOutputDeviceIndex);
+        _audioOutputDeviceName = string.IsNullOrWhiteSpace(config.AudioOutputDeviceName)
+            ? string.Empty
+            : config.AudioOutputDeviceName;
         _enableOpenSettingsVoiceCommand = config.EnableOpenSettingsVoiceCommand;
         _enableExitAppVoiceCommand = config.EnableExitAppVoiceCommand;
         _enableToggleAutoEnterVoiceCommand = config.EnableToggleAutoEnterVoiceCommand;
@@ -248,8 +262,11 @@ public class TrayContext : ApplicationContext
             $"Config loaded: model={config.Model}, autoEnter={_autoEnter}, overlayPopups={_enableOverlayPopups}, " +
             $"previewPlayback={_enablePreviewPlayback}, " +
             $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
+            $"micInputDevice={DescribeCapturedDeviceSelection()}, " +
+            $"audioOutputDevice={DescribeOutputDeviceSelection()}, " +
             $"settingsDarkMode={config.EnableSettingsDarkMode}");
         _overlayManager.ApplyCountdownPlaybackIcon(GetCountdownPlaybackIcon());
+        ApplyCaptureDeviceSelection();
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _transcriptionService = new TranscriptionService(
                 config.ApiKey,
@@ -258,6 +275,41 @@ public class TrayContext : ApplicationContext
                 _transcriptionPrompt);
         else
             _transcriptionService = null;
+    }
+
+    private void ApplyCaptureDeviceSelection()
+    {
+        try
+        {
+            if (_isRecording)
+                return;
+
+            _recorder.ConfigureCaptureDevice(_microphoneInputDeviceIndex, _microphoneInputDeviceName);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to apply selected microphone input device.", ex);
+        }
+    }
+
+    private string DescribeCapturedDeviceSelection()
+    {
+        if (_microphoneInputDeviceIndex == AppConfig.DefaultAudioDeviceIndex)
+            return "system default";
+
+        return string.IsNullOrWhiteSpace(_microphoneInputDeviceName)
+            ? $"index {_microphoneInputDeviceIndex}"
+            : $"{_microphoneInputDeviceName} (index {_microphoneInputDeviceIndex})";
+    }
+
+    private string DescribeOutputDeviceSelection()
+    {
+        if (_audioOutputDeviceIndex == AppConfig.DefaultAudioDeviceIndex)
+            return "system default";
+
+        return string.IsNullOrWhiteSpace(_audioOutputDeviceName)
+            ? $"index {_audioOutputDeviceIndex}"
+            : $"{_audioOutputDeviceName} (index {_audioOutputDeviceIndex})";
     }
 
     private void ReloadPastedTextPrefixSettings()
@@ -458,7 +510,15 @@ public class TrayContext : ApplicationContext
             {
                 _recorder.Start();
                 _isRecording = true;
-                StartListeningOverlay();
+                try
+                {
+                    StartListeningOverlay();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Listening overlay failed to open; recording continues without visual overlay.", ex);
+                    HandleOverlayFailure("Recording started, but listening overlay could not be displayed.");
+                }
                 _trayIcon.Icon = _appIcon;
                 _trayIcon.Text = $"VoiceType - Recording... ({BuildHotkeyHint()} to stop)";
                 Log.Info("Recording started");
@@ -816,7 +876,7 @@ public class TrayContext : ApplicationContext
             $"ShowOverlay request: textLen={text?.Length ?? 0}, key={overlayKey ?? "<none>"}, " +
             $"track={trackInStack}, autoHide={autoHide}, includeRemoteAction={includeRemoteAction}, " +
             $"copyAction={isClipboardCopyAction}, submitted={isSubmittedAction}, remoteLevel={_remoteActionPopupLevel}");
-        if (!_enableOverlayPopups)
+        if (!_enableOverlayPopups || !_overlayRuntimeHealthy)
             return 0;
 
         var effectiveDurationMs = durationMs.HasValue
@@ -832,37 +892,47 @@ public class TrayContext : ApplicationContext
         if (!resolvedRemoteActionColor.HasValue)
             resolvedRemoteActionColor = ResolveRemoteActionPopupColor();
 
-        return _overlayManager.ShowMessage(
-            text ?? string.Empty,
-            color,
-            effectiveDurationMs,
-            textAlign,
-            centerTextBlock,
-            showCountdownBar,
-            tapToCancel,
-            resolvedRemoteActionMessage,
-            resolvedRemoteActionColor,
-            prefixText,
-            prefixColor,
-            overlayKey,
-            trackInStack,
-            autoPosition,
-            autoHide,
-            isRemoteAction: false,
-            isClipboardCopyAction: isClipboardCopyAction,
-            allowCopyTap: allowCopyTap,
-            animateHide: animateHide,
-            showListeningLevelMeter: showListeningLevelMeter,
-            listeningLevelPercent: listeningLevelPercent,
-            copyText: copyText,
-            isSubmittedAction: isSubmittedAction,
-            countdownPlaybackIcon: countdownPlaybackIcon,
-            fullWidthText: fullWidthText,
-            showHideStackIcon: showHideStackIcon,
-            showStartListeningIcon: showStartListeningIcon,
-            showStopListeningIcon: showStopListeningIcon,
-            showCancelListeningIcon: showCancelListeningIcon,
-            showHelloTextFrame: showHelloTextFrame);
+        try
+        {
+            return _overlayManager.ShowMessage(
+                text ?? string.Empty,
+                color,
+                effectiveDurationMs,
+                textAlign,
+                centerTextBlock,
+                showCountdownBar,
+                tapToCancel,
+                resolvedRemoteActionMessage,
+                resolvedRemoteActionColor,
+                prefixText,
+                prefixColor,
+                overlayKey,
+                trackInStack,
+                autoPosition,
+                autoHide,
+                isRemoteAction: false,
+                isClipboardCopyAction: isClipboardCopyAction,
+                allowCopyTap: allowCopyTap,
+                animateHide: animateHide,
+                showListeningLevelMeter: showListeningLevelMeter,
+                listeningLevelPercent: listeningLevelPercent,
+                copyText: copyText,
+                isSubmittedAction: isSubmittedAction,
+                countdownPlaybackIcon: countdownPlaybackIcon,
+                fullWidthText: fullWidthText,
+                showHideStackIcon: showHideStackIcon,
+                showStartListeningIcon: showStartListeningIcon,
+                showStopListeningIcon: showStopListeningIcon,
+                showCancelListeningIcon: showCancelListeningIcon,
+                showHelloTextFrame: showHelloTextFrame);
+        }
+        catch (Exception ex)
+        {
+            HandleOverlayFailure(
+                "Overlay rendering failed. Recording/transcription continues; overlay notifications are paused for this session.");
+            Log.Error("ShowOverlay failed and overlaying has been disabled for this session.", ex);
+            return 0;
+        }
     }
 
     private void ShowRemoteActionPopup(string action, string? details = null, Color? remoteActionColor = null)
@@ -889,21 +959,28 @@ public class TrayContext : ApplicationContext
     private void HideProcessingVoiceOverlay()
     {
         Log.Info("HideProcessingVoiceOverlay called");
-        _overlayManager.HideOverlay(ProcessingVoiceOverlayKey);
+        SafeOverlayOperation(
+            "Failed to hide processing voice overlay.",
+            () => _overlayManager.HideOverlay(ProcessingVoiceOverlayKey));
     }
 
     private void HideTransientOverlaysForTextBox()
     {
         Log.Info("HideTransientOverlaysForTextBox called");
-        _overlayManager.HideOverlays(new[]
-        {
-            ListeningOverlayKey,
-            PastedAutoSendSkippedOverlayKey,
-            ProcessingVoiceOverlayKey,
-            PasteCanceledOverlayKey,
-            RecordingCanceledOverlayKey
-        });
-        _overlayManager.DismissRemoteActionOverlays();
+        SafeOverlayOperation(
+            "Failed to hide transient overlays before text injection.",
+            () =>
+            {
+                _overlayManager.HideOverlays(new[]
+                {
+                    ListeningOverlayKey,
+                    PastedAutoSendSkippedOverlayKey,
+                    ProcessingVoiceOverlayKey,
+                    PasteCanceledOverlayKey,
+                    RecordingCanceledOverlayKey
+                });
+                _overlayManager.DismissRemoteActionOverlays();
+            });
     }
 
     private void ShowRemoteActionOverlay(string message)
@@ -912,17 +989,25 @@ public class TrayContext : ApplicationContext
         if (!_enableOverlayPopups)
             return;
 
-        _ = _overlayManager.ShowMessage(
-            message,
-            _remoteActionPopupColor,
-            RemoteActionPopupCarryoverMs,
-            ContentAlignment.TopLeft,
-            centerTextBlock: false,
-            showCountdownBar: false,
-            tapToCancel: false,
-            isRemoteAction: true,
-            autoHide: false,
-            fullWidthText: false);
+        if (!_overlayRuntimeHealthy)
+            return;
+
+        SafeOverlayOperation(
+            "Failed to show remote action overlay.",
+            () =>
+            {
+                _ = _overlayManager.ShowMessage(
+                    message,
+                    _remoteActionPopupColor,
+                    RemoteActionPopupCarryoverMs,
+                    ContentAlignment.TopLeft,
+                    centerTextBlock: false,
+                    showCountdownBar: false,
+                    tapToCancel: false,
+                    isRemoteAction: true,
+                    autoHide: false,
+                    fullWidthText: false);
+            });
     }
 
     private void SetRemoteActionPopupContext(string message, Color remoteActionColor)
@@ -1038,7 +1123,7 @@ public class TrayContext : ApplicationContext
 
     private void StartListeningOverlay()
     {
-        if (!_enableOverlayPopups)
+        if (!_enableOverlayPopups || !_overlayRuntimeHealthy)
             return;
 
         _recordingStartedAtUtc = DateTime.UtcNow;
@@ -1060,23 +1145,95 @@ public class TrayContext : ApplicationContext
 
     private void UpdateListeningOverlay()
     {
-        if (!_isRecording || !_enableOverlayPopups)
+        if (!_isRecording || !_enableOverlayPopups || !_overlayRuntimeHealthy)
             return;
 
-        ShowOverlay(
-            BuildListeningOverlayText(),
-            ListeningOverlayColor,
-            0,
-            includeRemoteAction: false,
-            overlayKey: ListeningOverlayKey,
-            trackInStack: true,
-            autoPosition: false,
-            animateHide: true,
-            showListeningLevelMeter: true,
-            showHideStackIcon: true,
-            showStopListeningIcon: true,
-            showCancelListeningIcon: false,
-            listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
+        try
+        {
+            ShowOverlay(
+                BuildListeningOverlayText(),
+                ListeningOverlayColor,
+                0,
+                includeRemoteAction: false,
+                overlayKey: ListeningOverlayKey,
+                trackInStack: true,
+                autoPosition: false,
+                animateHide: true,
+                showListeningLevelMeter: true,
+                allowCopyTap: false,
+                showHideStackIcon: true,
+                showStopListeningIcon: true,
+                showCancelListeningIcon: false,
+                listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Listening overlay update failed; disabling overlay popups for the session.", ex);
+            HandleOverlayFailure("Listening overlay update failed during recording.");
+        }
+    }
+
+    private void HandleOverlayFailure(string reason)
+    {
+        if (!_overlayRuntimeHealthy)
+            return;
+
+        _overlayRuntimeHealthy = false;
+        EnsureTrayIconVisible();
+        _listeningOverlayTimer.Stop();
+        StopListeningOverlay();
+        try
+        {
+            _overlayManager.ResetTrackedStack();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to reset overlay state after overlay failure.", ex);
+            try
+            {
+                _overlayManager.HideAll(suppressStackEmptyNotification: true);
+            }
+            catch (Exception hideEx)
+            {
+                Log.Error("Failed to force hide overlay windows after overlay failure.", hideEx);
+            }
+        }
+
+        if (_overlayFailureMessageShown)
+        {
+            _trayIcon.Text = "VoiceType - Overlay disabled";
+            return;
+        }
+
+        _overlayFailureMessageShown = true;
+        Log.Info($"Overlay system disabled for session: {reason}");
+        try
+        {
+            _trayIcon.BalloonTipTitle = "VoiceType overlay warning";
+            _trayIcon.BalloonTipText = $"VoiceType overlay failed: {reason}. Overlay popups are disabled for this session.";
+            _trayIcon.ShowBalloonTip(4500);
+            _trayIcon.Text = "VoiceType - Overlay disabled";
+        }
+        catch
+        {
+            // Keep recovery path best effort.
+        }
+    }
+
+    private void SafeOverlayOperation(string reason, Action operation)
+    {
+        if (!_overlayRuntimeHealthy || !_enableOverlayPopups)
+            return;
+
+        try
+        {
+            operation();
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Overlay operation failed: {reason}", ex);
+            HandleOverlayFailure(reason);
+        }
     }
 
     private string BuildListeningOverlayText()
@@ -1176,7 +1333,9 @@ public class TrayContext : ApplicationContext
         var sentColor = fromVoiceCommand ? CommandOverlayColor : SuccessOverlayColor;
         var sentMessageId = ShowOverlay(sentText, sentColor, 1000, isSubmittedAction: true);
         if (sentMessageId != 0)
-            _overlayManager.DismissSubmittedActionOverlays(sentMessageId);
+            SafeOverlayOperation(
+                "Failed to dismiss submitted action overlays.",
+                () => _overlayManager.DismissSubmittedActionOverlays(sentMessageId));
         Log.Info("Enter key sent");
     }
 
@@ -1319,14 +1478,47 @@ public class TrayContext : ApplicationContext
 
     private void OnApplicationExit(object? sender, EventArgs e) => EnsureTrayIconHidden();
 
-    private void OnThreadException(object sender, ThreadExceptionEventArgs e) => EnsureTrayIconHidden();
-
-    private void OnProcessExit(object? sender, EventArgs e) => EnsureTrayIconHidden();
-
-    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e) => EnsureTrayIconHidden();
-
-    private void EnsureTrayIconHidden()
+    private void OnThreadException(object sender, ThreadExceptionEventArgs e)
     {
+        if (e.Exception != null)
+            Log.Error("Thread exception observed in UI loop.", e.Exception);
+
+        EnsureTrayIconVisible();
+    }
+
+    private void OnProcessExit(object? sender, EventArgs e) => EnsureTrayIconHidden(force: true);
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+            Log.Error("Unhandled exception observed.", ex);
+
+        EnsureTrayIconHidden(force: true);
+    }
+
+    private void EnsureTrayIconVisible()
+    {
+        try
+        {
+            if (_trayIcon.Icon == null)
+                _trayIcon.Icon = _appIcon;
+
+            _trayIcon.Text = string.IsNullOrWhiteSpace(_trayIcon.Text)
+                ? "VoiceType"
+                : _trayIcon.Text;
+            _trayIcon.Visible = true;
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
+    }
+
+    private void EnsureTrayIconHidden(bool force = false)
+    {
+        if (!force && !_isShuttingDown && !_shutdownRequested)
+            return;
+
         try
         {
             _trayIcon.Visible = false;
@@ -1531,8 +1723,14 @@ public class TrayContext : ApplicationContext
         {
             playbackStream = new MemoryStream(playbackAudio);
             playbackReader = new WaveFileReader(playbackStream);
-            playbackOutput = new WaveOutEvent();
-            playbackOutput.Init(playbackReader);
+            playbackOutput = BuildPreviewPlaybackOutput(playbackReader);
+            if (playbackOutput is null)
+            {
+                playbackReader.Dispose();
+                playbackStream.Dispose();
+                return;
+            }
+
             playbackOutput.Play();
         }
         catch (Exception ex)
@@ -1555,6 +1753,45 @@ public class TrayContext : ApplicationContext
 
         UpdateCountdownPlaybackIconOnOverlays();
         _ = PlayRecordedPreviewAudioAsync(playbackOutput!, playbackReader!, playbackStream!, playbackCancellation);
+    }
+
+    private WaveOutEvent? BuildPreviewPlaybackOutput(WaveFileReader playbackReader)
+    {
+        if (_audioOutputDeviceIndex < 0)
+        {
+            var playbackOutput = new WaveOutEvent();
+            playbackOutput.Init(playbackReader);
+            return playbackOutput;
+        }
+
+        WaveOutEvent? selectedOutput = null;
+        try
+        {
+            selectedOutput = new WaveOutEvent
+            {
+                DeviceNumber = _audioOutputDeviceIndex
+            };
+            selectedOutput.Init(playbackReader);
+            return selectedOutput;
+        }
+        catch (Exception ex)
+        {
+            selectedOutput?.Dispose();
+            Log.Error(
+                $"Failed to initialize selected output device {DescribeOutputDeviceSelection()}. Falling back to system default.",
+                ex);
+            try
+            {
+                var fallbackOutput = new WaveOutEvent();
+                fallbackOutput.Init(playbackReader);
+                return fallbackOutput;
+            }
+            catch (Exception fallbackEx)
+            {
+                Log.Error("Failed to initialize playback output on fallback device.", fallbackEx);
+                return null;
+            }
+        }
     }
 
     private static byte[]? ApplyPreviewCleanupPass(byte[] audioDataForPlayback)
@@ -1797,7 +2034,9 @@ public class TrayContext : ApplicationContext
     {
         Log.Info($"Hello X tapped. message={e.MessageId}");
         _stackBootstrap.MarkHiddenByUser();
-        _overlayManager.HideAll(suppressStackEmptyNotification: true);
+        SafeOverlayOperation(
+            "Failed to hide overlay stack from hello icon.",
+            () => _overlayManager.HideAll(suppressStackEmptyNotification: true));
     }
 
     private void OnOverlayStartListeningIconTapped(
@@ -1846,13 +2085,17 @@ public class TrayContext : ApplicationContext
     {
         if (!_isRecording)
         {
-            _overlayManager.HideOverlay(ListeningOverlayKey);
+            SafeOverlayOperation(
+                "Failed to hide listening overlay while canceling an inactive recording.",
+                () => _overlayManager.HideOverlay(ListeningOverlayKey));
             return;
         }
 
         _isRecording = false;
         StopListeningOverlay();
-        _overlayManager.HideOverlay(ListeningOverlayKey);
+        SafeOverlayOperation(
+            "Failed to hide listening overlay after canceling recording.",
+            () => _overlayManager.HideOverlay(ListeningOverlayKey));
         _trayIcon.Icon = _appIcon;
         _trayIcon.Text = $"VoiceType - Ready ({BuildHotkeyHint()})";
 
@@ -1983,7 +2226,7 @@ public class TrayContext : ApplicationContext
         }
 
         Log.Info("ShowHelloOverlay called.");
-        var messageId = _overlayManager.ShowMessage(
+        var messageId = ShowOverlay(
             $"VoiceType ready — {BuildOverlayHotkeyHint()} to dictate (v{AppInfo.Version})",
             StartupReadyOverlayColor,
             2000,
@@ -2054,7 +2297,9 @@ public class TrayContext : ApplicationContext
             return;
         }
 
-        _overlayManager.DismissCopyActionOverlays();
+        SafeOverlayOperation(
+            "Failed to dismiss existing copy-action overlays.",
+            () => _overlayManager.DismissCopyActionOverlays());
         Log.Info($"Showing copy-to-clipboard overlay for pasted text (len={copiedText.Length}).");
 
         ShowOverlay(
@@ -2094,7 +2339,9 @@ public class TrayContext : ApplicationContext
     {
         var activePreviewOverlayKey = _activeTranscribedPreviewOverlayKey;
         if (!string.IsNullOrWhiteSpace(activePreviewOverlayKey))
-            _overlayManager.ClearCountdownBar(activePreviewOverlayKey);
+            SafeOverlayOperation(
+                "Failed to clear preview countdown bar.",
+                () => _overlayManager.ClearCountdownBar(activePreviewOverlayKey));
     }
 }
 

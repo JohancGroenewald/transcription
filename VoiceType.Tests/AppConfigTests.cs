@@ -34,6 +34,14 @@ public class AppConfigTests
         Assert.Equal(AppConfig.MaxOverlayFontSizePt, AppConfig.NormalizeOverlayFontSizePt(500));
     }
 
+    [Fact]
+    public void NormalizeAudioDeviceIndex_UsesDefaultForInvalidValues()
+    {
+        Assert.Equal(AppConfig.DefaultAudioDeviceIndex, AppConfig.NormalizeAudioDeviceIndex(-99));
+        Assert.Equal(0, AppConfig.NormalizeAudioDeviceIndex(0));
+        Assert.Equal(2, AppConfig.NormalizeAudioDeviceIndex(2));
+    }
+
     [Theory]
     [InlineData(null, AppConfig.DefaultPenHotkey)]
     [InlineData("", AppConfig.DefaultPenHotkey)]

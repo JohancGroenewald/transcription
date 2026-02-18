@@ -8,6 +8,7 @@ public class AppConfig
 {
     private const string DefaultModel = "whisper-1";
     private const string DefaultPastedTextPrefix = "";
+    public const int DefaultAudioDeviceIndex = -1;
     private const string DefaultTranscriptionPrompt =
         "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
     public const string DefaultPenHotkey = "F20";
@@ -104,6 +105,10 @@ public class AppConfig
     public bool EnableTranscriptionPrompt { get; set; } = true;
     public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
     public bool EnableSettingsDarkMode { get; set; }
+    public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
+    public string MicrophoneInputDeviceName { get; set; } = string.Empty;
+    public int AudioOutputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
+    public string AudioOutputDeviceName { get; set; } = string.Empty;
     public int OverlayStackHorizontalOffsetPx { get; set; } = DefaultOverlayStackHorizontalOffsetPx;
 
     private static readonly string ConfigDir = Path.Combine(
@@ -143,6 +148,10 @@ public class AppConfig
         public bool EnableTranscriptionPrompt { get; set; } = true;
         public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
         public bool EnableSettingsDarkMode { get; set; }
+        public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
+        public string MicrophoneInputDeviceName { get; set; } = string.Empty;
+        public int AudioOutputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
+        public string AudioOutputDeviceName { get; set; } = string.Empty;
         public int OverlayStackHorizontalOffsetPx { get; set; } = DefaultOverlayStackHorizontalOffsetPx;
     }
 
@@ -189,6 +198,10 @@ public class AppConfig
                     ? DefaultTranscriptionPrompt
                     : configFile.TranscriptionPrompt,
                 EnableSettingsDarkMode = configFile.EnableSettingsDarkMode,
+                MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(configFile.MicrophoneInputDeviceIndex),
+                MicrophoneInputDeviceName = configFile.MicrophoneInputDeviceName?.Trim() ?? string.Empty,
+                AudioOutputDeviceIndex = NormalizeAudioDeviceIndex(configFile.AudioOutputDeviceIndex),
+                AudioOutputDeviceName = configFile.AudioOutputDeviceName?.Trim() ?? string.Empty,
                 OverlayStackHorizontalOffsetPx = configFile.OverlayStackHorizontalOffsetPx
             };
         }
@@ -235,6 +248,14 @@ public class AppConfig
                     ? DefaultTranscriptionPrompt
                     : TranscriptionPrompt,
                 EnableSettingsDarkMode = EnableSettingsDarkMode,
+                MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(MicrophoneInputDeviceIndex),
+                MicrophoneInputDeviceName = string.IsNullOrWhiteSpace(MicrophoneInputDeviceName)
+                    ? string.Empty
+                    : MicrophoneInputDeviceName.Trim(),
+                AudioOutputDeviceIndex = NormalizeAudioDeviceIndex(AudioOutputDeviceIndex),
+                AudioOutputDeviceName = string.IsNullOrWhiteSpace(AudioOutputDeviceName)
+                    ? string.Empty
+                    : AudioOutputDeviceName.Trim(),
                 OverlayStackHorizontalOffsetPx = OverlayStackHorizontalOffsetPx
             };
 
@@ -336,6 +357,11 @@ public class AppConfig
         if (level > MaxRemoteActionPopupLevel)
             return MaxRemoteActionPopupLevel;
         return level;
+    }
+
+    public static int NormalizeAudioDeviceIndex(int deviceIndex)
+    {
+        return deviceIndex < DefaultAudioDeviceIndex ? DefaultAudioDeviceIndex : deviceIndex;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()

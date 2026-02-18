@@ -27,9 +27,26 @@ public class AudioRecorder : IDisposable
     private bool _disposed;
     private bool _maxRecordingLimitReached;
     private long _maxRecordingBytes;
+    private int _preferredCaptureDeviceIndex = AppConfig.DefaultAudioDeviceIndex;
+    private string _preferredCaptureDeviceName = string.Empty;
 
     public AudioCaptureMetrics LastCaptureMetrics { get; private set; }
     public event Action<int>? InputLevelChanged;
+
+    public AudioRecorder(int preferredCaptureDeviceIndex = AppConfig.DefaultAudioDeviceIndex, string? preferredCaptureDeviceName = null)
+    {
+        _preferredCaptureDeviceIndex = AppConfig.NormalizeAudioDeviceIndex(preferredCaptureDeviceIndex);
+        _preferredCaptureDeviceName = preferredCaptureDeviceName?.Trim() ?? string.Empty;
+    }
+
+    public void ConfigureCaptureDevice(int preferredCaptureDeviceIndex, string? preferredCaptureDeviceName)
+    {
+        if (_waveIn != null)
+            throw new InvalidOperationException("Cannot change capture device while recording is active.");
+
+        _preferredCaptureDeviceIndex = AppConfig.NormalizeAudioDeviceIndex(preferredCaptureDeviceIndex);
+        _preferredCaptureDeviceName = preferredCaptureDeviceName?.Trim() ?? string.Empty;
+    }
 
     public void Start()
     {
@@ -66,8 +83,9 @@ public class AudioRecorder : IDisposable
 
         var attempts = new List<string>();
         Exception? lastError = null;
+        var selectedDeviceIndexes = GetPreferredCaptureDeviceIndexes(deviceCount);
 
-        for (int deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
+        foreach (var deviceIndex in selectedDeviceIndexes)
         {
             var deviceName = TryGetCaptureDeviceName(deviceIndex);
 
@@ -116,6 +134,40 @@ public class AudioRecorder : IDisposable
         }
 
         throw BuildStartFailureException(attempts, lastError);
+    }
+
+    private IEnumerable<int> GetPreferredCaptureDeviceIndexes(int deviceCount)
+    {
+        var seen = new HashSet<int>();
+
+        if (_preferredCaptureDeviceIndex >= 0 &&
+            _preferredCaptureDeviceIndex < deviceCount &&
+            seen.Add(_preferredCaptureDeviceIndex))
+        {
+            yield return _preferredCaptureDeviceIndex;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_preferredCaptureDeviceName))
+        {
+            for (var deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
+            {
+                if (_preferredCaptureDeviceIndex == deviceIndex)
+                    continue;
+
+                var candidateName = TryGetCaptureDeviceName(deviceIndex);
+                if (string.Equals(candidateName, _preferredCaptureDeviceName, StringComparison.OrdinalIgnoreCase) &&
+                    seen.Add(deviceIndex))
+                {
+                    yield return deviceIndex;
+                }
+            }
+        }
+
+        for (var deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
+        {
+            if (seen.Add(deviceIndex))
+                yield return deviceIndex;
+        }
     }
 
     private static string TryGetCaptureDeviceName(int deviceIndex)

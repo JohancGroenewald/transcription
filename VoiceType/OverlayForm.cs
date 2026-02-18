@@ -921,6 +921,8 @@ public class OverlayForm : Form
 
     private void OnOverlayPaint(object? sender, PaintEventArgs e)
     {
+        try
+        {
         if (_showOverlayBorder || _showHelloTextFrame)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -1028,6 +1030,30 @@ public class OverlayForm : Form
 
         if (_showStartListeningIcon)
             DrawStartListeningIcon(e.Graphics, rightReservedPx);
+        }
+        catch
+        {
+            try
+            {
+                e.Graphics.Clear(TransparentOverlayBackgroundColor);
+                using var brush = new SolidBrush(Color.White);
+                using var font = new Font(OverlayFontFamily, Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
+                using var format = new StringFormat
+                {
+                    LineAlignment = StringAlignment.Center,
+                    Alignment = StringAlignment.Center
+                };
+                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                var textRect = new Rectangle(4, 4, Math.Max(1, Width - 8), Math.Max(1, Height - 8));
+                e.Graphics.DrawString("Overlay render issue. Check logs.", font, brush, textRect, format);
+            }
+            catch
+            {
+                // Keep best effort fallback rendering.
+            }
+
+            Log.Error("Overlay paint failed and switched to fallback rendering.");
+        }
     }
 
     private void DrawHideStackIcon(Graphics graphics)

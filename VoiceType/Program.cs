@@ -739,7 +739,8 @@ static class Program
 
         // 1. Test mic capture
         Console.WriteLine("[1/3] Testing microphone capture...");
-        var recorder = new AudioRecorder();
+        var config = AppConfig.Load();
+        var recorder = new AudioRecorder(config.MicrophoneInputDeviceIndex, config.MicrophoneInputDeviceName);
         try
         {
             recorder.Start();
@@ -754,11 +755,12 @@ static class Program
 
             // 2. Test API key config
             Console.WriteLine("[2/3] Checking API key configuration...");
-            var config = AppConfig.Load();
             if (string.IsNullOrWhiteSpace(config.ApiKey))
             {
                 Console.WriteLine("  WARNING - No API key configured. Run the app and go to Settings to add one.");
-                Console.WriteLine($"  Config location: {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoiceType", "config.json")}");
+                Console.WriteLine(
+                    $"  Config location: {Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoiceType", "config.json")}");
                 Console.WriteLine();
                 Console.WriteLine("[3/3] Skipping transcription test (no API key).");
             }
@@ -780,7 +782,7 @@ static class Program
                         config.Model,
                         config.EnableTranscriptionPrompt,
                         config.TranscriptionPrompt);
-                    var text = await svc.TranscribeAsync(audio);
+            var text = await svc.TranscribeAsync(audio);
                     if (string.IsNullOrWhiteSpace(text))
                         Console.WriteLine("  WARNING - Transcription returned empty text. Did you speak?");
                     else

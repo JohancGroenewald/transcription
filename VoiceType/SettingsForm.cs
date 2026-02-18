@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using NAudio.Wave;
 
 namespace VoiceType;
 
@@ -70,6 +71,15 @@ public class SettingsForm : Form
     private readonly NumericUpDown _overlayFontSizeInput;
     private readonly Label _overlayFadeProfileLabel;
     private readonly ComboBox _overlayFadeProfileCombo;
+    private record struct AudioDeviceOption(int DeviceIndex, string DeviceName, string DisplayName)
+    {
+        public override string ToString() => DisplayName;
+    }
+
+    private readonly ComboBox _microphoneDeviceCombo;
+    private readonly Label _microphoneDeviceLabel;
+    private readonly ComboBox _audioOutputDeviceCombo;
+    private readonly Label _audioOutputDeviceLabel;
     private readonly CheckBox _showOverlayBorderCheck;
     private readonly CheckBox _useSimpleMicSpinnerCheck;
     private readonly CheckBox _enablePreviewPlaybackCleanupCheck;
@@ -301,7 +311,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 22,
+            RowCount = 24,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -465,6 +475,40 @@ public class SettingsForm : Form
             Margin = new Padding(0, 8, 0, 0)
         };
 
+        _microphoneDeviceLabel = new Label
+        {
+            Text = "Microphone input",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+        _microphoneDeviceCombo = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 440,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+        PopulateAudioDeviceCombo(_microphoneDeviceCombo, GetMicrophoneDeviceOptions());
+        SetupThemedComboBox(_microphoneDeviceCombo);
+
+        _audioOutputDeviceLabel = new Label
+        {
+            Text = "Audio output",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+        _audioOutputDeviceCombo = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 440,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+        PopulateAudioDeviceCombo(_audioOutputDeviceCombo, GetOutputDeviceOptions());
+        SetupThemedComboBox(_audioOutputDeviceCombo);
+
         var lblRemoteActionPopupLevel = new Label
         {
             Text = "Remote action pop-up level",
@@ -618,6 +662,10 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_useSimpleMicSpinnerCheck, 2);
         behaviorLayout.Controls.Add(_enablePreviewPlaybackCleanupCheck, 0, 10);
         behaviorLayout.SetColumnSpan(_enablePreviewPlaybackCleanupCheck, 2);
+        behaviorLayout.Controls.Add(_microphoneDeviceLabel, 0, 22);
+        behaviorLayout.Controls.Add(_microphoneDeviceCombo, 1, 22);
+        behaviorLayout.Controls.Add(_audioOutputDeviceLabel, 0, 23);
+        behaviorLayout.Controls.Add(_audioOutputDeviceCombo, 1, 23);
         behaviorLayout.Controls.Add(lblRemoteActionPopupLevel, 0, 11);
         behaviorLayout.Controls.Add(_remoteActionPopupLevelCombo, 1, 11);
         behaviorLayout.Controls.Add(_enablePastedTextPrefixCheck, 0, 12);
@@ -1045,6 +1093,8 @@ public class SettingsForm : Form
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
         _enablePreviewPlaybackCleanupCheck.Checked = config.EnablePreviewPlaybackCleanup;
         _enablePreviewPlayback = config.EnablePreviewPlayback;
+        SetSelectedAudioDevice(_microphoneDeviceCombo, config.MicrophoneInputDeviceIndex, config.MicrophoneInputDeviceName);
+        SetSelectedAudioDevice(_audioOutputDeviceCombo, config.AudioOutputDeviceIndex, config.AudioOutputDeviceName);
         _remoteActionPopupLevelCombo.SelectedIndex = Math.Clamp(
             AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel),
             0,
@@ -1095,6 +1145,10 @@ public class SettingsForm : Form
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
             EnablePreviewPlaybackCleanup = _enablePreviewPlaybackCleanupCheck.Checked,
             EnablePreviewPlayback = _enablePreviewPlayback,
+            MicrophoneInputDeviceIndex = GetSelectedAudioDeviceIndex(_microphoneDeviceCombo),
+            MicrophoneInputDeviceName = GetSelectedAudioDeviceName(_microphoneDeviceCombo),
+            AudioOutputDeviceIndex = GetSelectedAudioDeviceIndex(_audioOutputDeviceCombo),
+            AudioOutputDeviceName = GetSelectedAudioDeviceName(_audioOutputDeviceCombo),
             RemoteActionPopupLevel = Math.Clamp(
                 _remoteActionPopupLevelCombo.SelectedIndex,
                 AppConfig.MinRemoteActionPopupLevel,
@@ -1127,6 +1181,131 @@ public class SettingsForm : Form
                 "VoiceType",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+    }
+
+    private static IReadOnlyList<AudioDeviceOption> GetMicrophoneDeviceOptions()
+    {
+        var options = new List<AudioDeviceOption>
+        {
+            new(AppConfig.DefaultAudioDeviceIndex, string.Empty, "System default (recommended)")
+        };
+
+        try
+        {
+            for (var i = 0; i < WaveIn.DeviceCount; i++)
+            {
+                var deviceName = TryGetCaptureDeviceName(i);
+                options.Add(new AudioDeviceOption(i, deviceName, $"[{i}] {deviceName}"));
+            }
+        }
+        catch
+        {
+            // Keep settings usable if device enumeration fails.
+        }
+
+        return options;
+    }
+
+    private static IReadOnlyList<AudioDeviceOption> GetOutputDeviceOptions()
+    {
+        var options = new List<AudioDeviceOption>
+        {
+            new(AppConfig.DefaultAudioDeviceIndex, string.Empty, "System default (recommended)")
+        };
+
+        try
+        {
+            for (var i = 0; i < WaveOut.DeviceCount; i++)
+            {
+                var deviceName = TryGetWaveOutDeviceName(i);
+                options.Add(new AudioDeviceOption(
+                    i,
+                    deviceName,
+                    $"[{i}] {deviceName}"));
+            }
+        }
+        catch
+        {
+            // Keep settings usable if device enumeration fails.
+        }
+
+        return options;
+    }
+
+    private static void PopulateAudioDeviceCombo(ComboBox combo, IReadOnlyList<AudioDeviceOption> deviceOptions)
+    {
+        combo.Items.Clear();
+        foreach (var option in deviceOptions)
+            combo.Items.Add(option);
+
+        combo.SelectedIndex = combo.Items.Count > 0 ? 0 : -1;
+    }
+
+    private static void SetSelectedAudioDevice(
+        ComboBox combo,
+        int selectedDeviceIndex,
+        string? selectedDeviceName)
+    {
+        foreach (AudioDeviceOption option in combo.Items)
+        {
+            if (option.DeviceIndex == selectedDeviceIndex)
+            {
+                combo.SelectedItem = option;
+                return;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedDeviceName))
+        {
+            foreach (AudioDeviceOption option in combo.Items)
+            {
+                if (string.Equals(option.DeviceName, selectedDeviceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    combo.SelectedItem = option;
+                    return;
+                }
+            }
+        }
+
+        combo.SelectedIndex = 0;
+    }
+
+    private static int GetSelectedAudioDeviceIndex(ComboBox combo)
+    {
+        return combo.SelectedItem is AudioDeviceOption option
+            ? option.DeviceIndex
+            : AppConfig.DefaultAudioDeviceIndex;
+    }
+
+    private static string GetSelectedAudioDeviceName(ComboBox combo)
+    {
+        return combo.SelectedItem is AudioDeviceOption option && option.DeviceIndex >= 0
+            ? option.DeviceName
+            : string.Empty;
+    }
+
+    private static string TryGetCaptureDeviceName(int deviceIndex)
+    {
+        try
+        {
+            return WaveIn.GetCapabilities(deviceIndex).ProductName;
+        }
+        catch
+        {
+            return $"Input {deviceIndex}";
+        }
+    }
+
+    private static string TryGetWaveOutDeviceName(int deviceIndex)
+    {
+        try
+        {
+            return WaveOut.GetCapabilities(deviceIndex).ProductName;
+        }
+        catch
+        {
+            return $"Output {deviceIndex}";
         }
     }
 
