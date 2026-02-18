@@ -12,6 +12,27 @@ try {
 
     $repoRoot = Split-Path -Parent $PSScriptRoot
     $projectPath = Join-Path $repoRoot "VoiceType/VoiceType.csproj"
+
+    function Has-AppFileChanges([string]$Root) {
+        $gitDir = Join-Path $Root ".git"
+        if (-not (Test-Path $gitDir)) {
+            return $false
+        }
+
+        try {
+            $changedFiles = & git -C $Root diff --cached --name-only --diff-filter=ACMRD -- 2>$null
+            return ($changedFiles | Where-Object { $_ -like "VoiceType/*" } | Select-Object -First 1) -ne $null
+        }
+        catch {
+            return $false
+        }
+    }
+
+    if (-not (Has-AppFileChanges $repoRoot)) {
+        Write-Info "No staged app file changes detected under VoiceType/. Skipping version bump."
+        exit 0
+    }
+
     if (-not (Test-Path $projectPath)) {
         Write-Info "Project file not found at $projectPath. Skipping."
         exit 0
