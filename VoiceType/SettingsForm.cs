@@ -78,6 +78,8 @@ public class SettingsForm : Form
 
     private readonly ComboBox _microphoneDeviceCombo;
     private readonly Label _microphoneDeviceLabel;
+    private readonly Button _testMicrophoneButton;
+    private readonly Label _microphoneTestStatusLabel;
     private readonly ComboBox _audioOutputDeviceCombo;
     private readonly Label _audioOutputDeviceLabel;
     private readonly CheckBox _showOverlayBorderCheck;
@@ -311,7 +313,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 24,
+            RowCount = 26,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -492,6 +494,25 @@ public class SettingsForm : Form
         PopulateAudioDeviceCombo(_microphoneDeviceCombo, GetMicrophoneDeviceOptions());
         SetupThemedComboBox(_microphoneDeviceCombo);
 
+        _testMicrophoneButton = new Button
+        {
+            Text = "Test selected microphone",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(180, 28),
+            Margin = new Padding(0, 8, 0, 0),
+            Anchor = AnchorStyles.Left
+        };
+        _testMicrophoneButton.Click += OnTestMicrophoneClicked;
+
+        _microphoneTestStatusLabel = new Label
+        {
+            Text = "Microphone not tested in settings.",
+            AutoSize = true,
+            ForeColor = GetMutedTextColor(),
+            Margin = new Padding(0, 6, 0, 0)
+        };
+
         _audioOutputDeviceLabel = new Label
         {
             Text = "Audio output",
@@ -666,6 +687,10 @@ public class SettingsForm : Form
         behaviorLayout.Controls.Add(_microphoneDeviceCombo, 1, 22);
         behaviorLayout.Controls.Add(_audioOutputDeviceLabel, 0, 23);
         behaviorLayout.Controls.Add(_audioOutputDeviceCombo, 1, 23);
+        behaviorLayout.Controls.Add(_testMicrophoneButton, 0, 24);
+        behaviorLayout.SetColumnSpan(_testMicrophoneButton, 2);
+        behaviorLayout.Controls.Add(_microphoneTestStatusLabel, 0, 25);
+        behaviorLayout.SetColumnSpan(_microphoneTestStatusLabel, 2);
         behaviorLayout.Controls.Add(lblRemoteActionPopupLevel, 0, 11);
         behaviorLayout.Controls.Add(_remoteActionPopupLevelCombo, 1, 11);
         behaviorLayout.Controls.Add(_enablePastedTextPrefixCheck, 0, 12);
@@ -1181,6 +1206,67 @@ public class SettingsForm : Form
                 "VoiceType",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+    }
+
+    private async void OnTestMicrophoneClicked(object? sender, EventArgs e)
+    {
+        if (IsDisposed)
+            return;
+
+        _testMicrophoneButton.Enabled = false;
+        _microphoneTestStatusLabel.Text = "Testing microphone... speak into the selected device for 3 seconds.";
+        _microphoneTestStatusLabel.ForeColor = GetMutedTextColor();
+
+        var selectedDeviceIndex = GetSelectedAudioDeviceIndex(_microphoneDeviceCombo);
+        var selectedDeviceName = GetSelectedAudioDeviceName(_microphoneDeviceCombo);
+
+        try
+        {
+            using var recorder = new AudioRecorder(selectedDeviceIndex, selectedDeviceName);
+            recorder.Start();
+            await Task.Delay(3000);
+            var audioData = recorder.Stop();
+            var metrics = recorder.LastCaptureMetrics;
+
+            if (audioData.Length == 0)
+            {
+                _microphoneTestStatusLabel.Text = "Microphone test captured no data.";
+                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+            }
+            else if (!metrics.HasAnyNonZeroSample)
+            {
+                _microphoneTestStatusLabel.Text = "Microphone test captured only zeros. Check device selection and Windows mic permissions.";
+                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+            }
+            else if (metrics.IsLikelySilence)
+            {
+                _microphoneTestStatusLabel.Text =
+                    $"Signal is very weak (rms {metrics.Rms:F4}, peak {metrics.Peak:F4}). " +
+                    "The mic is working; try raising input gain.";
+                _microphoneTestStatusLabel.ForeColor = Color.DarkOrange;
+            }
+            else
+            {
+                _microphoneTestStatusLabel.Text =
+                    $"Microphone test passed. duration={metrics.Duration.TotalSeconds:F2}s, " +
+                    $"rms {metrics.Rms:F4}, peak {metrics.Peak:F4}, active {metrics.ActiveSampleRatio:P1}.";
+                _microphoneTestStatusLabel.ForeColor = Color.DarkGreen;
+                Log.Info(
+                    $"Settings microphone test passed for '{selectedDeviceName}' (index {selectedDeviceIndex}): " +
+                    $"duration={metrics.Duration.TotalSeconds:F2}s, rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _microphoneTestStatusLabel.Text = $"Microphone test failed: {ex.Message}";
+            _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+            Log.Error("Microphone test failed.", ex);
+        }
+        finally
+        {
+            if (!IsDisposed)
+                _testMicrophoneButton.Enabled = true;
         }
     }
 

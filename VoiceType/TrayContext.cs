@@ -53,6 +53,11 @@ public class TrayContext : ApplicationContext
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
     private const string PasteCanceledOverlayKey = "paste-canceled-overlay";
     private const string RecordingCanceledOverlayKey = "recording-canceled-overlay";
+    private const double LowLevelRmsThreshold = 0.004;
+    private const double LowLevelPeakThreshold = 0.040;
+    private const double LowLevelActiveRatioThreshold = 0.01;
+    private const float LowLevelAudioBoostTargetRms = 0.08f;
+    private const float LowLevelAudioMaxGain = 18f;
 
     [DllImport("user32.dll")]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -400,12 +405,30 @@ public class TrayContext : ApplicationContext
                     {
                         Log.Info("Skipping transcription because captured audio stream was flat (all samples were zero).");
                         ShowOverlay("No audio signal detected from the selected microphone", WarningOverlayColor, 2800);
+                        return;
                     }
-                    else
+
+                    if (metrics.Duration < TimeSpan.FromMilliseconds(250))
                     {
-                        Log.Info("Skipping transcription because captured audio appears to be silence/noise.");
+                        Log.Info("Skipping transcription because capture duration was too short to analyze.");
                         ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
+                        return;
                     }
+
+                    Log.Info("Captured audio is weak but non-flat; attempting low-level normalization before transcription.");
+                }
+
+                var normalizedAudioData = NormalizeLowLevelCaptureForTranscription(audioData, metrics);
+                if (normalizedAudioData is not null && !ReferenceEquals(normalizedAudioData, audioData))
+                {
+                    Log.Info("Applied low-level normalization to recorded audio before transcription.");
+                    audioData = normalizedAudioData;
+                }
+
+                if (audioData.Length == 0)
+                {
+                    Log.Info("Skipping transcription because processed audio is empty.");
+                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
                     return;
                 }
 
@@ -1804,14 +1827,52 @@ public class TrayContext : ApplicationContext
 
     private static byte[]? ApplyPreviewCleanupPass(byte[] audioDataForPlayback)
     {
+        return ApplyAudioNormalizationPass(
+            audioDataForPlayback,
+            0.12f,
+            2.5f,
+            0.6f,
+            "preview audio cleanup");
+    }
+
+    private static byte[]? NormalizeLowLevelCaptureForTranscription(
+        byte[] audioDataForTranscription,
+        AudioCaptureMetrics metrics)
+    {
+        if (!ShouldNormalizeLowLevelCapture(metrics))
+            return audioDataForTranscription;
+
+        return ApplyAudioNormalizationPass(
+            audioDataForTranscription,
+            LowLevelAudioBoostTargetRms,
+            LowLevelAudioMaxGain,
+            1.0f,
+            "low-level transcription");
+    }
+
+    private static bool ShouldNormalizeLowLevelCapture(AudioCaptureMetrics metrics)
+    {
+        return metrics.HasAnyNonZeroSample
+               && (metrics.Rms < LowLevelRmsThreshold
+                   || metrics.Peak < LowLevelPeakThreshold
+                   || metrics.ActiveSampleRatio < LowLevelActiveRatioThreshold);
+    }
+
+    private static byte[]? ApplyAudioNormalizationPass(
+        byte[] audioData,
+        float targetRms,
+        float maxGain,
+        float minGain,
+        string context)
+    {
         try
         {
-            using var audioStream = new MemoryStream(audioDataForPlayback);
+            using var audioStream = new MemoryStream(audioData);
             using var waveReader = new WaveFileReader(audioStream);
             if (waveReader.WaveFormat.Encoding != WaveFormatEncoding.Pcm ||
                 waveReader.WaveFormat.BitsPerSample != 16)
             {
-                return audioDataForPlayback;
+                return audioData;
             }
 
             var sampleProvider = waveReader.ToSampleProvider();
@@ -1835,14 +1896,15 @@ public class TrayContext : ApplicationContext
             }
 
             if (sampleCount <= 0)
-                return audioDataForPlayback;
+                return audioData;
 
             var currentRms = Math.Sqrt(sumSquares / sampleCount);
-            if (currentRms <= 0.0001)
-                return audioDataForPlayback;
+            if (currentRms <= 0.000001)
+                return audioData;
 
-            const float targetRms = 0.12f;
-            var gain = Math.Clamp((float)(targetRms / currentRms), 0.6f, 2.5f);
+            var gain = Math.Clamp((float)(targetRms / currentRms), minGain, maxGain);
+            if (Math.Abs(gain - 1.0f) <= 0.05f)
+                return audioData;
 
             using var outputStream = new MemoryStream();
             using (var writer = new WaveFileWriter(outputStream, waveReader.WaveFormat))
@@ -1860,8 +1922,8 @@ public class TrayContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            Log.Error("Failed to apply preview audio cleanup pass.", ex);
-            return audioDataForPlayback;
+            Log.Error($"Failed to apply {context} pass.", ex);
+            return audioData;
         }
     }
 
