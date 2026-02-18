@@ -4,6 +4,12 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$REPO_ROOT/.githooks/bump-version.ps1"
 CLOSE_SCRIPT="$REPO_ROOT/.githooks/close-voicetype.ps1"
 PROJECT="$REPO_ROOT/VoiceType/VoiceType.csproj"
+
+has_app_file_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR -- | grep -qE '^VoiceType/'
+}
+
 if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
   exit 0
 fi
@@ -30,14 +36,18 @@ if [ -f "$CLOSE_SCRIPT" ]; then
   fi
 fi
 
-if command -v dotnet >/dev/null 2>&1 && [ -f "$PROJECT" ]; then
-  if ! dotnet build "$PROJECT" -c Debug; then
-    echo "[pre-commit] Build failed. Please fix compilation errors before committing."
+if has_app_file_changes; then
+  if command -v dotnet >/dev/null 2>&1 && [ -f "$PROJECT" ]; then
+    if ! dotnet build "$PROJECT" -c Debug; then
+      echo "[pre-commit] Build failed. Please fix compilation errors before committing."
+      exit 1
+    fi
+  elif [ -f "$PROJECT" ]; then
+    echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run compile gate."
     exit 1
   fi
-elif [ -f "$PROJECT" ]; then
-  echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run compile gate."
-  exit 1
+else
+  echo "[pre-commit] No staged app files changed under VoiceType/. Skipping app rebuild."
 fi
 
 exit 0
