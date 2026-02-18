@@ -1671,18 +1671,7 @@ public class OverlayForm : Form
 
         var lines = (_label.Text ?? string.Empty).Split('\n');
 
-        var meterFont = _label.Font;
-        var shouldDisposeMeterFont = false;
-        try
-        {
-            _ = meterFont.Height;
-        }
-        catch (ArgumentException ex)
-        {
-            Log.Error($"Listening level meter font is invalid. Falling back to safe font. Message={ex.Message}");
-            meterFont = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
-            shouldDisposeMeterFont = true;
-        }
+        using var meterFont = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
 
         var firstLineHeight = Math.Max(
             meterFont.Height,
@@ -1744,8 +1733,6 @@ public class OverlayForm : Form
             graphics.FillRectangle(brush, barBounds);
         }
 
-        if (shouldDisposeMeterFont)
-            meterFont.Dispose();
     }
 
     private int GetTextHeight(Graphics graphics, string text, Font font, int maxWidth)
