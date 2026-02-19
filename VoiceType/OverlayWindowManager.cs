@@ -319,7 +319,13 @@ public sealed class OverlayWindowManager : IOverlayManager
                 $"local={managedOverlay.LocalMessageId}, seq={managedOverlay.Sequence}, track={trackInStack}");
             LogOverlayStackSnapshot($"show-message-create-after:{overlayKey ?? "<none>"}");
             if (trackInStack)
-                RepositionVisibleOverlaysLocked();
+            {
+                var hasExistingTrackedOverlays = _stackSpine.GetTrackedOverlays()
+                    .Where(overlay => overlay.Form != managedOverlay.Form)
+                    .Any();
+                RepositionVisibleOverlaysLocked(
+                    preserveExistingHorizontalPosition: hasExistingTrackedOverlays);
+            }
 
             return globalMessageId;
         }
@@ -1146,7 +1152,7 @@ public sealed class OverlayWindowManager : IOverlayManager
         _activeCopyTapBorderOverlay = null;
     }
 
-    private void RepositionVisibleOverlaysLocked()
+    private void RepositionVisibleOverlaysLocked(bool preserveExistingHorizontalPosition = false)
     {
         Log.Info($"Reposition overlays requested");
         var visibleOverlays = _stackSpine
@@ -1171,6 +1177,9 @@ public sealed class OverlayWindowManager : IOverlayManager
             return;
         var maximumStackHeight = Math.Max(0, workingArea.Height - 4);
         const int interOverlaySpacing = 0;
+        var stableAnchorX = preserveExistingHorizontalPosition
+            ? ResolveStackAnchorX(visibleOverlays)
+            : null;
 
         while (visibleOverlays.Count > 0)
         {
@@ -1195,22 +1204,39 @@ public sealed class OverlayWindowManager : IOverlayManager
         Log.Info($"Reposition overlays after overflow trim count={visibleOverlays.Count}");
 
         var cursorY = workingArea.Bottom - 4;
-            foreach (var managed in visibleOverlays)
-            {
-                var overlay = managed.Form;
-                var width = Math.Clamp(overlay.Width, _baseWidthClampMin, Math.Max(_baseWidthClampMin, workingArea.Width - 24));
+        foreach (var managed in visibleOverlays)
+        {
+            var overlay = managed.Form;
+            var width = Math.Clamp(overlay.Width, _baseWidthClampMin, Math.Max(_baseWidthClampMin, workingArea.Width - 24));
             var centeredX = workingArea.Left + ((workingArea.Width - width) / 2);
+            var anchorOrCenteredX = stableAnchorX ?? (centeredX + _stackHorizontalOffsetPx);
             var x = Math.Clamp(
-                centeredX + _stackHorizontalOffsetPx,
+                anchorOrCenteredX,
                 workingArea.Left + _horizontalScreenPadding,
                 Math.Max(workingArea.Left + _horizontalScreenPadding, workingArea.Right - width - _horizontalScreenPadding));
 
-                cursorY -= overlay.Height;
-                overlay.Size = new Size(width, overlay.Height);
-                overlay.Location = new Point(x, cursorY);
-                cursorY -= interOverlaySpacing;
-            }
+            cursorY -= overlay.Height;
+            overlay.Size = new Size(width, overlay.Height);
+            overlay.Location = new Point(x, cursorY);
+            cursorY -= interOverlaySpacing;
+        }
         LogOverlayStackSnapshot("reposition-complete");
+    }
+
+    private static int? ResolveStackAnchorX(IReadOnlyList<ManagedOverlay> visibleOverlays)
+    {
+        if (visibleOverlays.Count == 0)
+            return null;
+
+        var firstOverlay = visibleOverlays[0];
+        if (firstOverlay.Form.IsDisposed)
+            return null;
+
+        var anchorX = firstOverlay.Form.Location.X;
+        if (anchorX < 0)
+            return null;
+
+        return anchorX;
     }
 
     private static bool ShouldEvictAsUnnecessaryWhenStackOverflows(ManagedOverlay managedOverlay)
