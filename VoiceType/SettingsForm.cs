@@ -113,6 +113,11 @@ public class SettingsForm : Form
     private bool _enablePreviewPlayback = true;
     private bool _settingsDarkModeEnabled;
     private IntPtr _comboListBackBrush;
+    private WaveOutEvent? _micTestPlaybackOutput;
+    private WaveFileReader? _micTestPlaybackReader;
+    private MemoryStream? _micTestPlaybackStream;
+    private CancellationTokenSource? _micTestPlaybackCancellation;
+    private readonly object _micTestPlaybackLock = new();
 
     private sealed class ThemedGroupBox : GroupBox
     {
@@ -1220,6 +1225,8 @@ public class SettingsForm : Form
 
         var selectedDeviceIndex = GetSelectedAudioDeviceIndex(_microphoneDeviceCombo);
         var selectedDeviceName = GetSelectedAudioDeviceName(_microphoneDeviceCombo);
+        var selectedOutputDeviceIndex = GetSelectedAudioDeviceIndex(_audioOutputDeviceCombo);
+        var selectedOutputDeviceName = GetSelectedAudioDeviceName(_audioOutputDeviceCombo);
         AudioCaptureSelectionState? testCaptureSelection = null;
 
         try
@@ -1256,33 +1263,66 @@ public class SettingsForm : Form
 
             if (audioData.Length == 0)
             {
-                _microphoneTestStatusLabel.Text = "Microphone test captured no data.";
-                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
-                _microphoneTestStatusLabel.Text +=
+                var statusText = "Microphone test captured no data." +
                     $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}.";
+                statusText += " Mic playback skipped because the capture was empty.";
+
+                if (IsDisposed)
+                    return;
+
+                _microphoneTestStatusLabel.Text = statusText;
+                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
             }
             else if (!metrics.HasAnyNonZeroSample)
             {
-                _microphoneTestStatusLabel.Text = "Microphone test captured only zeros. Check device selection and Windows mic permissions.";
-                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
-                _microphoneTestStatusLabel.Text +=
+                var statusText = "Microphone test captured only zeros. Check device selection and Windows mic permissions." +
                     $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}.";
+                statusText += " Mic playback may be silent.";
+
+                if (IsDisposed)
+                    return;
+
+                _microphoneTestStatusLabel.Text = statusText;
+                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
             }
             else if (metrics.IsLikelySilence)
             {
-                _microphoneTestStatusLabel.Text =
+                var statusText =
                     $"Signal is very weak (rms {metrics.Rms:F4}, peak {metrics.Peak:F4}). " +
                     "The mic is working; try raising input gain.";
+                statusText += $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}{usedSelectedDevice}.";
+
+                var playbackOutputName = string.IsNullOrWhiteSpace(selectedOutputDeviceName)
+                    ? "system default output"
+                    : $"'{selectedOutputDeviceName}'";
+                statusText += StartMicTestPlayback(audioData, selectedOutputDeviceIndex)
+                    ? $" Playback started on {playbackOutputName}."
+                    : " Playback failed or was unavailable.";
+
+                if (IsDisposed)
+                    return;
+
+                _microphoneTestStatusLabel.Text = statusText;
                 _microphoneTestStatusLabel.ForeColor = Color.DarkOrange;
-                _microphoneTestStatusLabel.Text +=
-                    $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}{usedSelectedDevice}.";
             }
             else
             {
-                _microphoneTestStatusLabel.Text =
+                var statusText =
                     $"Microphone test passed. duration={metrics.Duration.TotalSeconds:F2}s, " +
                     $"rms {metrics.Rms:F4}, peak {metrics.Peak:F4}, active {metrics.ActiveSampleRatio:P1}." +
                     $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}{usedSelectedDevice}.";
+
+                var playbackOutputName = string.IsNullOrWhiteSpace(selectedOutputDeviceName)
+                    ? "system default output"
+                    : $"'{selectedOutputDeviceName}'";
+                statusText += StartMicTestPlayback(audioData, selectedOutputDeviceIndex)
+                    ? $" Playback started on {playbackOutputName}."
+                    : " Playback failed or was unavailable.";
+
+                if (IsDisposed)
+                    return;
+
+                _microphoneTestStatusLabel.Text = statusText;
                 _microphoneTestStatusLabel.ForeColor = Color.DarkGreen;
                 Log.Info(
                     $"Settings microphone test passed for '{selectedDeviceName}' (index {selectedDeviceIndex}): " +
@@ -1307,6 +1347,157 @@ public class SettingsForm : Form
             if (!IsDisposed)
                 _testMicrophoneButton.Enabled = true;
         }
+    }
+
+    private bool StartMicTestPlayback(byte[] audioDataForPlayback, int outputDeviceIndex)
+    {
+        if (audioDataForPlayback.Length == 0)
+            return false;
+
+        StopMicTestPlayback();
+
+        MemoryStream? playbackStream = null;
+        WaveFileReader? playbackReader = null;
+        WaveOutEvent? playbackOutput = null;
+        CancellationTokenSource? playbackCancellation = null;
+
+        try
+        {
+            playbackStream = new MemoryStream(audioDataForPlayback);
+            playbackReader = new WaveFileReader(playbackStream);
+            playbackOutput = BuildMicTestPlaybackOutput(playbackReader, outputDeviceIndex);
+            if (playbackOutput is null)
+            {
+                throw new InvalidOperationException("No playback output device available.");
+            }
+
+            playbackCancellation = new CancellationTokenSource();
+            playbackOutput.Play();
+            lock (_micTestPlaybackLock)
+            {
+                _micTestPlaybackOutput = playbackOutput;
+                _micTestPlaybackReader = playbackReader;
+                _micTestPlaybackStream = playbackStream;
+                _micTestPlaybackCancellation = playbackCancellation;
+            }
+
+            _ = MonitorMicTestPlaybackAsync(playbackOutput, playbackReader, playbackStream, playbackCancellation);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            playbackOutput?.Stop();
+            playbackOutput?.Dispose();
+            playbackReader?.Dispose();
+            playbackStream?.Dispose();
+            playbackCancellation?.Dispose();
+
+            _micTestPlaybackOutput = null;
+            _micTestPlaybackReader = null;
+            _micTestPlaybackStream = null;
+            _micTestPlaybackCancellation = null;
+
+            Log.Error("Failed to start microphone test playback.", ex);
+            return false;
+        }
+    }
+
+    private WaveOutEvent? BuildMicTestPlaybackOutput(WaveFileReader playbackReader, int outputDeviceIndex)
+    {
+        if (outputDeviceIndex < 0)
+        {
+            var systemOutput = new WaveOutEvent();
+            systemOutput.Init(playbackReader);
+            return systemOutput;
+        }
+
+        try
+        {
+            var selectedOutput = new WaveOutEvent
+            {
+                DeviceNumber = outputDeviceIndex
+            };
+            selectedOutput.Init(playbackReader);
+            return selectedOutput;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(
+                $"Failed to initialize selected microphone test output device (index {outputDeviceIndex}, name '{GetSelectedAudioDeviceName(_audioOutputDeviceCombo)}'). Falling back to system default.",
+                ex);
+
+            try
+            {
+                var fallbackOutput = new WaveOutEvent();
+                fallbackOutput.Init(playbackReader);
+                return fallbackOutput;
+            }
+            catch (Exception fallbackEx)
+            {
+                Log.Error("Failed to initialize system default output for microphone test playback.", fallbackEx);
+                return null;
+            }
+        }
+    }
+
+    private static async Task MonitorMicTestPlaybackAsync(
+        WaveOutEvent playbackOutput,
+        WaveFileReader playbackReader,
+        MemoryStream playbackStream,
+        CancellationTokenSource playbackCancellation)
+    {
+        try
+        {
+            while (!playbackCancellation.Token.IsCancellationRequested &&
+                (playbackOutput.PlaybackState is PlaybackState.Playing or PlaybackState.Paused))
+            {
+                await Task.Delay(40, playbackCancellation.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when playback is stopped externally.
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Mic test playback monitor failed.", ex);
+        }
+        finally
+        {
+            playbackOutput.Dispose();
+            playbackReader.Dispose();
+            playbackStream.Dispose();
+            playbackCancellation.Dispose();
+        }
+    }
+
+    private void StopMicTestPlayback()
+    {
+        WaveOutEvent? playbackOutput;
+        WaveFileReader? playbackReader;
+        MemoryStream? playbackStream;
+        CancellationTokenSource? playbackCancellation;
+
+        lock (_micTestPlaybackLock)
+        {
+            playbackOutput = _micTestPlaybackOutput;
+            playbackReader = _micTestPlaybackReader;
+            playbackStream = _micTestPlaybackStream;
+            playbackCancellation = _micTestPlaybackCancellation;
+            _micTestPlaybackOutput = null;
+            _micTestPlaybackReader = null;
+            _micTestPlaybackStream = null;
+            _micTestPlaybackCancellation = null;
+        }
+
+        if (playbackCancellation is not null)
+            playbackCancellation.Cancel();
+
+        playbackOutput?.Stop();
+        playbackOutput?.Dispose();
+        playbackReader?.Dispose();
+        playbackStream?.Dispose();
+        playbackCancellation?.Dispose();
     }
 
     private static string GetCurrentInputDeviceList()
@@ -1895,6 +2086,8 @@ public class SettingsForm : Form
                 DeleteObject(_comboListBackBrush);
                 _comboListBackBrush = IntPtr.Zero;
             }
+
+            StopMicTestPlayback();
         }
 
         base.Dispose(disposing);
