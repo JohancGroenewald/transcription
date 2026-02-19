@@ -220,6 +220,8 @@ dotnet run --project tools/audio-debug -- --from-config --duration-ms 3000
 dotnet run --project tools/audio-debug -- --from-config --no-playback --save .\audio-capture.wav
 dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 5000
 dotnet run --project tools/audio-debug -- --ding --output-index 1 --output-volume 50
+dotnet run --project tools/audio-debug -- --input-index 0 --no-playback --save-in
+dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 1500 --save-out .\audio-output.wav
 ```
 
 A shorthand wrapper is also available:
@@ -239,7 +241,9 @@ Options:
 - `--duration-ms <n>`: capture window in milliseconds
 - `--output-volume <pct>`: playback volume percentage (0-100)
 - `--no-playback`: capture and analyze only
-- `--save <path>`: write captured WAV to disk
+- `--save-in [path]`: write captured input audio to disk (default `audio-debug-test.wav`)
+- `--save-out [path]`: write playback output audio to disk (default `audio-debug-test.wav`)
+- `--save, -s <path>`: legacy alias for `--save-in <path>`
 
 ## Hardware Button Linking
 

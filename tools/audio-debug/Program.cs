@@ -9,6 +9,7 @@ internal static class Program
 {
     private const int DefaultCaptureDurationMs = 3000;
     private const int DefaultDingDurationMs = 900;
+    private const string DefaultSaveFile = "audio-debug-test.wav";
     private const int MinCaptureDurationMs = 250;
     private const int MaxCaptureDurationMs = 300000;
 
@@ -66,7 +67,10 @@ internal static class Program
         try
         {
             Console.WriteLine("[1/1] Playing ding...");
-            await PlayDingToneAsync(options.OutputIndex, options.OutputVolume, cancellationToken: default);
+            var dingAudio = BuildDingAudio(options.OutputVolume);
+            if (options.SaveOutput)
+                SaveAudioFile("output", dingAudio, options.SaveOutputPath);
+            await StartPlaybackAsync(dingAudio, options.OutputIndex, 1f, cancellationToken: default);
             Console.WriteLine("[1/1] Ding playback succeeded.");
             return true;
         }
@@ -156,14 +160,13 @@ internal static class Program
 
         if (options.NoPlayback)
         {
-            if (options.SavePath is null)
+            if (!options.SaveInput)
             {
                 Console.WriteLine("[2/2] Capture saved only in memory (no playback requested).");
             }
             else
             {
-                File.WriteAllBytes(options.SavePath, audio);
-                Console.WriteLine($"[2/2] Audio saved to: {options.SavePath}");
+                SaveAudioFile("input", audio, options.SaveInputPath);
             }
 
             return true;
@@ -181,10 +184,12 @@ internal static class Program
             return false;
         }
 
-        if (options.SavePath is not null)
+        if (options.SaveInput)
+            SaveAudioFile("input", audio, options.SaveInputPath);
+
+        if (options.SaveOutput)
         {
-            File.WriteAllBytes(options.SavePath, audio);
-            Console.WriteLine($"[2/2] Audio saved to: {options.SavePath}");
+            SaveAudioFile("output", audio, options.SaveOutputPath);
         }
 
         Console.WriteLine("[2/2] Validation succeeded.");
@@ -215,18 +220,16 @@ internal static class Program
         }
     }
 
-    private static async Task PlayDingToneAsync(
-        int outputDeviceIndex,
-        float outputVolume,
-        CancellationToken cancellationToken)
+    private static byte[] BuildDingAudio(float outputVolume)
     {
-        using var output = BuildPlaybackOutput(outputDeviceIndex, out var outputSummary);
+        const int dingSampleRate = 44100;
+        const int channels = 1;
 
-        var tone = new SignalGenerator(44100, 1)
+        var tone = new SignalGenerator(dingSampleRate, channels)
         {
             Type = SignalGeneratorType.Sin,
             Frequency = 1000,
-            Gain = 0.4f
+            Gain = 0.4f * Math.Clamp(outputVolume, 0f, 1f)
         };
 
         var dingProvider = new OffsetSampleProvider(tone)
@@ -234,20 +237,26 @@ internal static class Program
             Take = TimeSpan.FromMilliseconds(DefaultDingDurationMs)
         };
 
-        output.Volume = Math.Clamp(outputVolume, 0f, 1f);
-        output.Init(new SampleToWaveProvider16(dingProvider));
-        Console.WriteLine($"  output device: {outputSummary}");
-        Console.WriteLine($"  output volume: {Math.Clamp(outputVolume, 0f, 1f):P0}");
-
-        output.Play();
-        while (!cancellationToken.IsCancellationRequested &&
-            (output.PlaybackState is PlaybackState.Playing or PlaybackState.Paused))
+        using var dingWaveProvider = new SampleToWaveProvider16(dingProvider);
+        using var dingOutputStream = new MemoryStream();
+        using (var dingWaveWriter = new WaveFileWriter(dingOutputStream, dingWaveProvider.WaveFormat))
         {
-            await Task.Delay(40, cancellationToken);
+            var buffer = new byte[4096];
+            int read;
+            while ((read = dingWaveProvider.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                dingWaveWriter.Write(buffer, 0, read);
+            }
         }
 
-        if (cancellationToken.IsCancellationRequested)
-            output.Stop();
+        return dingOutputStream.ToArray();
+    }
+
+    private static void SaveAudioFile(string stage, byte[] audioData, string? explicitPath)
+    {
+        var outputPath = ResolveSavePath(explicitPath);
+        File.WriteAllBytes(outputPath, audioData);
+        Console.WriteLine($"  Saved {stage} audio to: {outputPath}");
     }
 
     private static WaveOutEvent BuildPlaybackOutput(int outputDeviceIndex, out string outputSummary)
@@ -414,6 +423,16 @@ internal static class Program
             options = options with { OutputIndex = config.AudioOutputDeviceIndex };
     }
 
+    private static bool IsOptionLikeValue(string value)
+    {
+        return value.StartsWith("-");
+    }
+
+    private static string ResolveSavePath(string? explicitPath)
+    {
+        return string.IsNullOrWhiteSpace(explicitPath) ? DefaultSaveFile : explicitPath;
+    }
+
     private static DebugOptions ParseOptions(string[] args)
     {
         var options = new DebugOptions();
@@ -440,6 +459,26 @@ internal static class Program
                 case "--no-playback":
                     options = options with { NoPlayback = true };
                     break;
+                case "--save-in":
+                    if (i + 1 < args.Length && !IsOptionLikeValue(args[i + 1]))
+                    {
+                        options = options with { SaveInput = true, SaveInputPath = args[++i] };
+                    }
+                    else
+                    {
+                        options = options with { SaveInput = true };
+                    }
+                    break;
+                case "--save-out":
+                    if (i + 1 < args.Length && !IsOptionLikeValue(args[i + 1]))
+                    {
+                        options = options with { SaveOutput = true, SaveOutputPath = args[++i] };
+                    }
+                    else
+                    {
+                        options = options with { SaveOutput = true };
+                    }
+                    break;
                 case "--output-volume":
                     if (i + 1 >= args.Length)
                         throw new ArgumentException("--output-volume requires a percentage value.");
@@ -459,7 +498,11 @@ internal static class Program
                 case "-s":
                     if (i + 1 >= args.Length)
                         throw new ArgumentException("--save requires a file path.");
-                    options = options with { SavePath = args[++i] };
+                    options = options with
+                    {
+                        SaveInput = true,
+                        SaveInputPath = args[++i]
+                    };
                     break;
                 case "--duration":
                 case "--duration-ms":
@@ -530,13 +573,15 @@ internal static class Program
         Console.WriteLine("  --list, -l                    List input/output devices and exit.");
         Console.WriteLine("  --from-config                  Load VoiceType defaults (saved mic/output indexes).");
         Console.WriteLine("  --ding                         Play a short output test tone (no capture).");
+        Console.WriteLine("  --save-in [path]               Save captured audio (default: audio-debug-test.wav).");
+        Console.WriteLine("  --save-out [path]              Save playback output audio (default: audio-debug-test.wav).");
+        Console.WriteLine("  --save, -s <path>              Legacy: save captured audio to file.");
         Console.WriteLine("  --input-index, --input <n>     Preferred microphone input index (default: -1).");
         Console.WriteLine("  --input-name <name>            Preferred microphone input name.");
         Console.WriteLine("  --output-index, --output <n>   Output index for playback (default: -1/system default).");
         Console.WriteLine("  --duration-ms <ms>             Capture window in ms (250 - 300000).");
         Console.WriteLine("  --output-volume <pct>          Playback volume percentage (0 - 100).");
         Console.WriteLine("  --no-playback                  Skip playback of captured audio.");
-        Console.WriteLine("  --save <path>                  Write captured WAV to file.");
         Console.WriteLine();
     }
 
@@ -551,5 +596,8 @@ internal static class Program
         int OutputIndex = -1,
         int DurationMs = DefaultCaptureDurationMs,
         float OutputVolume = 1f,
-        string? SavePath = null);
+        bool SaveInput = false,
+        bool SaveOutput = false,
+        string? SaveInputPath = null,
+        string? SaveOutputPath = null);
 }
