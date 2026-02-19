@@ -313,20 +313,34 @@ public class OverlayForm : Form
 
     private static string ResolveBundledFontFamily(string fileName, string fallbackFontFamily, string fontGroup)
     {
+        var fontPath = Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath, fileName);
+        if (!File.Exists(fontPath))
+        {
+            Log.Error($"Bundled {fontGroup} font missing from output folder: '{fontPath}'.");
+            Log.Error(
+                $"Expected font folder exists: {Directory.Exists(Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath))} " +
+                $"(AppContext.BaseDirectory={AppContext.BaseDirectory}).");
+
+            if (IsFontFamilyAvailable(fallbackFontFamily))
+            {
+                Log.Info($"Using fallback font '{fallbackFontFamily}' for {fontGroup} overlays because bundled font is missing.");
+                return fallbackFontFamily;
+            }
+
+            Log.Error($"Bundled {fontGroup} fallback unavailable: {fallbackFontFamily}.");
+            return FontFamily.GenericSansSerif.Name;
+        }
+
         try
         {
-            var fontPath = Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath, fileName);
-            if (File.Exists(fontPath))
+            var previousFamilyCount = OverlayFontCollection.Families.Length;
+            OverlayFontCollection.AddFontFile(fontPath);
+            var families = OverlayFontCollection.Families;
+            if (families.Length > previousFamilyCount)
             {
-                var previousFamilyCount = OverlayFontCollection.Families.Length;
-                OverlayFontCollection.AddFontFile(fontPath);
-                var families = OverlayFontCollection.Families;
-                if (families.Length > previousFamilyCount)
-                {
-                    var familyName = families[families.Length - 1].Name;
-                    Log.Info($"Using bundled {fontGroup} font: {familyName} ({fontPath})");
-                    return familyName;
-                }
+                var familyName = families[families.Length - 1].Name;
+                Log.Info($"Using bundled {fontGroup} font: {familyName} ({fontPath})");
+                return familyName;
             }
         }
         catch (Exception ex)
