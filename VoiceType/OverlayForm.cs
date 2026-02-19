@@ -92,6 +92,15 @@ public class OverlayForm : Form
     private const float HelloTextFrameWidth = 1.0f;
     private const int HelloTextFramePaddingPx = 2;
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
+    private static readonly Dictionary<string, string> NerdFontIconClassToGlyph = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "nf-md-close_box", "\uf0157" },
+        { "md-close_box", "\uf0157" },
+        { "nf-md-record_rec", "\uf044b" },
+        { "md-record_rec", "\uf044b" },
+        { "nf-fa-stop", "\uf04d" },
+        { "fa-stop", "\uf04d" }
+    };
 
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -122,6 +131,7 @@ public class OverlayForm : Form
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
     private bool _showOverlayBorder = true;
+    private bool? _showOverlayBorderOverride;
     private int _overlayBackgroundMode = AppConfig.DefaultOverlayBackgroundMode;
     private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
     private int _lastDurationMs = 3000;
@@ -171,6 +181,10 @@ public class OverlayForm : Form
     private bool _showStopListeningIcon;
     private bool _showCancelListeningIcon;
     private bool _showHelloTextFrame;
+    private string? _hideStackIconGlyph;
+    private string? _startListeningIconGlyph;
+    private string? _stopListeningIconGlyph;
+    private string? _cancelListeningIconGlyph;
     private Rectangle _hideStackIconBounds = Rectangle.Empty;
     private Rectangle _startListeningIconBounds = Rectangle.Empty;
     private Rectangle _stopListeningIconBounds = Rectangle.Empty;
@@ -399,6 +413,11 @@ public class OverlayForm : Form
             _showStopListeningIcon = false;
             _showCancelListeningIcon = false;
             _showHelloTextFrame = false;
+            _showOverlayBorderOverride = null;
+            _hideStackIconGlyph = null;
+            _startListeningIconGlyph = null;
+            _stopListeningIconGlyph = null;
+            _cancelListeningIconGlyph = null;
             _overlayIconScale = 1.0f;
             _hideStackIconBounds = Rectangle.Empty;
             _startListeningIconBounds = Rectangle.Empty;
@@ -460,7 +479,12 @@ public class OverlayForm : Form
         bool showStartListeningIcon = false,
         bool showStopListeningIcon = false,
         bool showCancelListeningIcon = false,
-        bool showHelloTextFrame = false)
+        bool showHelloTextFrame = false,
+        bool? showOverlayBorder = null,
+        string? hideStackIconGlyph = null,
+        string? startListeningIconGlyph = null,
+        string? stopListeningIconGlyph = null,
+        string? cancelListeningIconGlyph = null)
     {
         if (InvokeRequired)
         {
@@ -489,7 +513,12 @@ public class OverlayForm : Form
                 showStartListeningIcon,
                 showStopListeningIcon,
                 showCancelListeningIcon,
-                showHelloTextFrame)));
+                showHelloTextFrame,
+                showOverlayBorder,
+                hideStackIconGlyph,
+                startListeningIconGlyph,
+                stopListeningIconGlyph,
+                cancelListeningIconGlyph)));
         }
 
         var messageId = unchecked(++_activeMessageId);
@@ -508,7 +537,12 @@ public class OverlayForm : Form
             _showStartListeningIcon = showStartListeningIcon;
             _showStopListeningIcon = showStopListeningIcon;
             _showCancelListeningIcon = showCancelListeningIcon;
+            _showOverlayBorderOverride = showOverlayBorder;
             _showHelloTextFrame = showHelloTextFrame;
+            _hideStackIconGlyph = ResolveNerdFontIconGlyph(hideStackIconGlyph);
+            _startListeningIconGlyph = ResolveNerdFontIconGlyph(startListeningIconGlyph);
+            _stopListeningIconGlyph = ResolveNerdFontIconGlyph(stopListeningIconGlyph);
+            _cancelListeningIconGlyph = ResolveNerdFontIconGlyph(cancelListeningIconGlyph);
             _overlayIconScale = (showListeningLevelMeter
                 || showHideStackIcon
                 || showStartListeningIcon
@@ -753,6 +787,60 @@ public class OverlayForm : Form
         return ShouldShowContrastBackground()
             ? HoverOverlayBackgroundColor
             : TransparentOverlayBackgroundColor;
+    }
+
+    private bool ShouldShowOverlayBorder()
+    {
+        return _showOverlayBorderOverride ?? _showOverlayBorder;
+    }
+
+    private static string? ResolveNerdFontIconGlyph(string? iconClass)
+    {
+        if (string.IsNullOrWhiteSpace(iconClass))
+            return null;
+
+        var normalized = iconClass.Trim();
+        if (normalized.Length == 1)
+            return normalized;
+
+        return NerdFontIconClassToGlyph.TryGetValue(normalized, out var glyph)
+            ? glyph
+            : null;
+    }
+
+    private bool DrawNerdFontIcon(
+        Graphics graphics,
+        Rectangle iconBounds,
+        Color iconColor,
+        string? iconGlyph)
+    {
+        var resolvedIcon = ResolveNerdFontIconGlyph(iconGlyph);
+        if (string.IsNullOrWhiteSpace(resolvedIcon))
+            return false;
+
+        var iconSizePx = Math.Max(12, Math.Min(iconBounds.Width, iconBounds.Height) - 3);
+        var fontSizePx = Math.Max(10.0f, Math.Min(48.0f, iconSizePx * 0.9f));
+        using var iconFont = CreateOverlayFont(fontSizePx, FontStyle.Regular);
+        var textSize = TextRenderer.MeasureText(
+            graphics,
+            resolvedIcon,
+            iconFont,
+            new Size(int.MaxValue / 4, int.MaxValue / 4),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        var glyphBounds = new Rectangle(
+            iconBounds.Left + Math.Max(0, (iconBounds.Width - textSize.Width) / 2),
+            iconBounds.Top + Math.Max(0, (iconBounds.Height - textSize.Height) / 2),
+            Math.Max(1, Math.Min(textSize.Width, iconBounds.Width)),
+            Math.Max(1, Math.Min(textSize.Height, iconBounds.Height)));
+
+        TextRenderer.DrawText(
+            graphics,
+            resolvedIcon,
+            iconFont,
+            glyphBounds,
+            iconColor,
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        return true;
     }
 
     private void ApplyMouseOverVisuals(bool isMouseOver)
@@ -1143,14 +1231,14 @@ public class OverlayForm : Form
     {
         try
         {
-        if (_showOverlayBorder || _showHelloTextFrame)
-        {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using var pen = new Pen(BorderColor, 1.2f);
-            var border = new Rectangle(0, 0, Width - 1, Height - 1);
-            using var path = CreateRoundedRectanglePath(border, CornerRadius);
-            e.Graphics.DrawPath(pen, path);
-        }
+            if (ShouldShowOverlayBorder())
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var pen = new Pen(BorderColor, 1.2f);
+                var border = new Rectangle(0, 0, Width - 1, Height - 1);
+                using var path = CreateRoundedRectanglePath(border, CornerRadius);
+                e.Graphics.DrawPath(pen, path);
+            }
 
         DrawListeningLevelMeter(e.Graphics);
         if (_lastUseFullWidthText)
@@ -1265,7 +1353,7 @@ public class OverlayForm : Form
                         $"Overlay paint failed and switched to fallback rendering. " +
                         $"Type={ex.GetType().Name}, Message={ex.Message}, OverlaySize={Width}x{Height}, " +
                         $"MessageId={_activeMessageId}, FullWidth={_lastUseFullWidthText}, Opacity={Opacity:F2}, " +
-                        $"ShowBorder={_showOverlayBorder}, ShowHelloTextFrame={_showHelloTextFrame}");
+                        $"ShowBorder={ShouldShowOverlayBorder()}, ShowHelloTextFrame={_showHelloTextFrame}");
                     if (!string.IsNullOrWhiteSpace(ex.StackTrace))
                     {
                         Log.Error($"Overlay paint stack trace: {ex.StackTrace}");
@@ -1291,7 +1379,7 @@ public class OverlayForm : Form
                     $"Overlay paint failed and switched to fallback rendering. " +
                     $"Type={ex.GetType().Name}, Message={ex.Message}, OverlaySize={Width}x{Height}, " +
                     $"MessageId={_activeMessageId}, FullWidth={_lastUseFullWidthText}, Opacity={Opacity:F2}, " +
-                    $"ShowBorder={_showOverlayBorder}, ShowHelloTextFrame={_showHelloTextFrame}");
+                    $"ShowBorder={ShouldShowOverlayBorder()}, ShowHelloTextFrame={_showHelloTextFrame}");
                 e.Graphics.Clear(TransparentOverlayBackgroundColor);
                 using var brush = new SolidBrush(Color.White);
                 using var font = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
@@ -1362,33 +1450,36 @@ public class OverlayForm : Form
             Math.Max(1, scaledIconBounds.Width),
             Math.Max(1, scaledIconBounds.Height));
 
-        var glyphInset = Math.Max(HideStackIconMinInset + 1, scaledIconHeight / 5);
-        var glyphSize = Math.Max(2, scaledIconBounds.Height - (glyphInset * 2));
-        var glyphBounds = new Rectangle(
-            scaledIconBounds.Left + ((scaledIconBounds.Width - glyphSize) / 2),
-            scaledIconBounds.Top + ((scaledIconBounds.Height - glyphSize) / 2),
-            Math.Max(1, glyphSize),
-            Math.Max(1, glyphSize));
-        var lineColor = HideStackIconGlyphColor;
-        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, scaledIconHeight / 7.0f));
-        using var iconPen = new Pen(lineColor, lineWidth)
+        if (!DrawNerdFontIcon(graphics, scaledIconBounds, HideStackIconGlyphColor, _hideStackIconGlyph))
         {
-            StartCap = System.Drawing.Drawing2D.LineCap.Round,
-            EndCap = System.Drawing.Drawing2D.LineCap.Round
-        };
-        var margin = Math.Max(2, (int)Math.Round(glyphSize * 0.18));
-        graphics.DrawLine(
-            iconPen,
-            glyphBounds.Left + margin,
-            glyphBounds.Top + margin,
-            glyphBounds.Right - margin,
-            glyphBounds.Bottom - margin);
-        graphics.DrawLine(
-            iconPen,
-            glyphBounds.Left + margin,
-            glyphBounds.Bottom - margin,
-            glyphBounds.Right - margin,
-            glyphBounds.Top + margin);
+            var glyphInset = Math.Max(HideStackIconMinInset + 1, scaledIconHeight / 5);
+            var glyphSize = Math.Max(2, scaledIconBounds.Height - (glyphInset * 2));
+            var glyphBounds = new Rectangle(
+                scaledIconBounds.Left + ((scaledIconBounds.Width - glyphSize) / 2),
+                scaledIconBounds.Top + ((scaledIconBounds.Height - glyphSize) / 2),
+                Math.Max(1, glyphSize),
+                Math.Max(1, glyphSize));
+            var lineColor = HideStackIconGlyphColor;
+            var lineWidth = Math.Max(2.0f, Math.Min(4.2f, scaledIconHeight / 7.0f));
+            using var iconPen = new Pen(lineColor, lineWidth)
+            {
+                StartCap = System.Drawing.Drawing2D.LineCap.Round,
+                EndCap = System.Drawing.Drawing2D.LineCap.Round
+            };
+            var margin = Math.Max(2, (int)Math.Round(glyphSize * 0.18));
+            graphics.DrawLine(
+                iconPen,
+                glyphBounds.Left + margin,
+                glyphBounds.Top + margin,
+                glyphBounds.Right - margin,
+                glyphBounds.Bottom - margin);
+            graphics.DrawLine(
+                iconPen,
+                glyphBounds.Left + margin,
+                glyphBounds.Bottom - margin,
+                glyphBounds.Right - margin,
+                glyphBounds.Top + margin);
+        }
 
         _hideStackIconBounds = clickableBounds;
         LogHideStackBounds();
@@ -1564,58 +1655,61 @@ public class OverlayForm : Form
             Math.Max(1, scaledIconBounds.Width),
             Math.Max(1, scaledIconBounds.Height));
 
-        var iconColor = StartListeningIconGlyphColor;
-        var lineWidth = Math.Max(2.0f, Math.Min(4.2f, scaledIconHeight / 7.0f));
-        using var iconPen = new Pen(iconColor, lineWidth)
+        if (!DrawNerdFontIcon(graphics, scaledIconBounds, StartListeningIconGlyphColor, _startListeningIconGlyph))
         {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round
-        };
+            var iconColor = StartListeningIconGlyphColor;
+            var lineWidth = Math.Max(2.0f, Math.Min(4.2f, scaledIconHeight / 7.0f));
+            using var iconPen = new Pen(iconColor, lineWidth)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round
+            };
 
-        var glyphInset = Math.Max(StartListeningIconMinInset + 1, scaledIconHeight / 5);
-        var glyphBounds = new Rectangle(
-            scaledIconBounds.Left + glyphInset,
-            scaledIconBounds.Top + glyphInset,
-            Math.Max(2, scaledIconBounds.Width - (glyphInset * 2)),
-            Math.Max(2, scaledIconBounds.Height - (glyphInset * 2)));
+            var glyphInset = Math.Max(StartListeningIconMinInset + 1, scaledIconHeight / 5);
+            var glyphBounds = new Rectangle(
+                scaledIconBounds.Left + glyphInset,
+                scaledIconBounds.Top + glyphInset,
+                Math.Max(2, scaledIconBounds.Width - (glyphInset * 2)),
+                Math.Max(2, scaledIconBounds.Height - (glyphInset * 2)));
 
-        var headSize = Math.Max(4, Math.Min(glyphBounds.Width, Math.Max(6, glyphBounds.Height / 2)));
-        var stemHeight = Math.Max(2, Math.Min(
-            glyphBounds.Height / 2 + glyphBounds.Height / 6,
-            glyphBounds.Height - (glyphBounds.Height / 4)));
-        var centerX = glyphBounds.Left + (glyphBounds.Width / 2);
-        var topY = glyphBounds.Top + ((glyphBounds.Height - stemHeight - headSize) / 2);
-        var headRect = new Rectangle(
-            centerX - (headSize / 2),
-            topY,
-            headSize,
-            headSize);
-        var stemTop = headRect.Bottom;
-        var stemBottom = stemTop + stemHeight;
+            var headSize = Math.Max(4, Math.Min(glyphBounds.Width, Math.Max(6, glyphBounds.Height / 2)));
+            var stemHeight = Math.Max(2, Math.Min(
+                glyphBounds.Height / 2 + glyphBounds.Height / 6,
+                glyphBounds.Height - (glyphBounds.Height / 4)));
+            var centerX = glyphBounds.Left + (glyphBounds.Width / 2);
+            var topY = glyphBounds.Top + ((glyphBounds.Height - stemHeight - headSize) / 2);
+            var headRect = new Rectangle(
+                centerX - (headSize / 2),
+                topY,
+                headSize,
+                headSize);
+            var stemTop = headRect.Bottom;
+            var stemBottom = stemTop + stemHeight;
 
-        var baseY = Math.Min(stemBottom, glyphBounds.Bottom - Math.Max(2, headSize / 3));
+            var baseY = Math.Min(stemBottom, glyphBounds.Bottom - Math.Max(2, headSize / 3));
 
-        graphics.DrawArc(
-            iconPen,
-            headRect.Left,
-            headRect.Top,
-            headRect.Width,
-            headRect.Height,
-            200,
-            140);
-        graphics.DrawLine(
-            iconPen,
-            centerX,
-            stemTop,
-            centerX,
-            baseY);
-        var standY = Math.Min(glyphBounds.Bottom - 1, baseY + Math.Max(2, (int)Math.Ceiling(lineWidth * 1.5f)));
-        graphics.DrawLine(
-            iconPen,
-            centerX - headSize / 2,
-            standY,
-            centerX + headSize / 2,
-            standY);
+            graphics.DrawArc(
+                iconPen,
+                headRect.Left,
+                headRect.Top,
+                headRect.Width,
+                headRect.Height,
+                200,
+                140);
+            graphics.DrawLine(
+                iconPen,
+                centerX,
+                stemTop,
+                centerX,
+                baseY);
+            var standY = Math.Min(glyphBounds.Bottom - 1, baseY + Math.Max(2, (int)Math.Ceiling(lineWidth * 1.5f)));
+            graphics.DrawLine(
+                iconPen,
+                centerX - headSize / 2,
+                standY,
+                centerX + headSize / 2,
+                standY);
+        }
 
         _startListeningIconBounds = clickableBounds;
     }

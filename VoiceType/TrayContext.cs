@@ -47,6 +47,8 @@ public class TrayContext : ApplicationContext
     private const string DefaultTranscriptionPrompt = "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
     private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
     private const string HelloOverlayKey = "hello-overlay";
+    private const string HelloOverlayCloseIconGlyph = "nf-md-close_box";
+    private const string HelloOverlayRecordIconGlyph = "nf-md-record_rec";
     private const string ListeningOverlayKey = "listening-overlay";
     private const string MicFallbackOverlayKey = "mic-fallback-overlay";
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
@@ -939,7 +941,12 @@ public class TrayContext : ApplicationContext
         bool showStartListeningIcon = false,
         bool showStopListeningIcon = false,
         bool showCancelListeningIcon = false,
-        bool showHelloTextFrame = false)
+        bool showHelloTextFrame = false,
+        bool? showOverlayBorder = null,
+        string? hideStackIconGlyph = null,
+        string? startListeningIconGlyph = null,
+        string? stopListeningIconGlyph = null,
+        string? cancelListeningIconGlyph = null)
     {
         Log.Info(
             $"ShowOverlay request: textLen={text?.Length ?? 0}, key={overlayKey ?? "<none>"}, " +
@@ -993,7 +1000,12 @@ public class TrayContext : ApplicationContext
                 showStartListeningIcon: showStartListeningIcon,
                 showStopListeningIcon: showStopListeningIcon,
                 showCancelListeningIcon: showCancelListeningIcon,
-                showHelloTextFrame: showHelloTextFrame);
+                showHelloTextFrame: showHelloTextFrame,
+                showOverlayBorder: showOverlayBorder,
+                hideStackIconGlyph: hideStackIconGlyph,
+                startListeningIconGlyph: startListeningIconGlyph,
+                stopListeningIconGlyph: stopListeningIconGlyph,
+                cancelListeningIconGlyph: cancelListeningIconGlyph);
         }
         catch (Exception ex)
         {
@@ -2361,6 +2373,9 @@ public class TrayContext : ApplicationContext
             showHideStackIcon: true,
             showStartListeningIcon: true,
             showHelloTextFrame: true,
+            showOverlayBorder: false,
+            hideStackIconGlyph: HelloOverlayCloseIconGlyph,
+            startListeningIconGlyph: HelloOverlayRecordIconGlyph,
             fullWidthText: false);
 
         if (messageId == 0)

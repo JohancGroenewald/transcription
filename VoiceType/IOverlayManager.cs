@@ -44,7 +44,12 @@ public interface IOverlayManager : IDisposable
         bool showStartListeningIcon = false,
         bool showStopListeningIcon = false,
         bool showCancelListeningIcon = false,
-        bool showHelloTextFrame = false);
+        bool showHelloTextFrame = false,
+        bool? showOverlayBorder = null,
+        string? hideStackIconGlyph = null,
+        string? startListeningIconGlyph = null,
+        string? stopListeningIconGlyph = null,
+        string? cancelListeningIconGlyph = null);
 
     void ApplyCountdownPlaybackIcon(string? countdownPlaybackIcon);
 

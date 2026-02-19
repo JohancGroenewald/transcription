@@ -177,7 +177,12 @@ public sealed class OverlayWindowManager : IOverlayManager
         bool showStartListeningIcon = false,
         bool showStopListeningIcon = false,
         bool showCancelListeningIcon = false,
-        bool showHelloTextFrame = false)
+        bool showHelloTextFrame = false,
+        bool? showOverlayBorder = null,
+        string? hideStackIconGlyph = null,
+        string? startListeningIconGlyph = null,
+        string? stopListeningIconGlyph = null,
+        string? cancelListeningIconGlyph = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             return 0;
@@ -227,7 +232,12 @@ public sealed class OverlayWindowManager : IOverlayManager
                     showStartListeningIcon,
                     showStopListeningIcon,
                     showCancelListeningIcon,
-                    showHelloTextFrame);
+                    showHelloTextFrame,
+                    showOverlayBorder,
+                    hideStackIconGlyph,
+                    startListeningIconGlyph,
+                    stopListeningIconGlyph,
+                    cancelListeningIconGlyph);
                 if (localMessageId == 0)
                     return 0;
 
@@ -289,7 +299,12 @@ public sealed class OverlayWindowManager : IOverlayManager
                 showStartListeningIcon,
                 showStopListeningIcon,
                 showCancelListeningIcon,
-                showHelloTextFrame);
+                showHelloTextFrame,
+                showOverlayBorder,
+                hideStackIconGlyph,
+                startListeningIconGlyph,
+                stopListeningIconGlyph,
+                cancelListeningIconGlyph);
 
             if (managedOverlay.LocalMessageId == 0)
             {
