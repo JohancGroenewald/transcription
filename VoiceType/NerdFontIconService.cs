@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Windows.Forms;
 using System.Drawing;
+using System.Windows.Forms;
 
 namespace VoiceType;
 
@@ -85,25 +85,26 @@ internal sealed class NerdFontIconService
 
         try
         {
-            var textSize = TextRenderer.MeasureText(
-                graphics,
-                resolvedIcon,
-                iconFont,
-                new Size(int.MaxValue / 4, int.MaxValue / 4),
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-            var glyphBounds = new Rectangle(
-                iconBounds.Left + Math.Max(0, (iconBounds.Width - textSize.Width) / 2),
-                iconBounds.Top + Math.Max(0, (iconBounds.Height - textSize.Height) / 2),
-                Math.Max(1, Math.Min(textSize.Width, iconBounds.Width)),
-                Math.Max(1, Math.Min(textSize.Height, iconBounds.Height)));
+            using var iconBrush = new SolidBrush(iconColor);
+            using var iconFormat = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+                FormatFlags = StringFormatFlags.NoWrap | StringFormatFlags.NoClip
+            };
 
-            TextRenderer.DrawText(
-                graphics,
+            var glyphBounds = RectangleF.FromLTRB(
+                iconBounds.Left,
+                iconBounds.Top,
+                iconBounds.Right,
+                iconBounds.Bottom);
+
+            graphics.DrawString(
                 resolvedIcon,
                 iconFont,
+                iconBrush,
                 glyphBounds,
-                iconColor,
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                iconFormat);
         }
         catch (Exception ex)
         {

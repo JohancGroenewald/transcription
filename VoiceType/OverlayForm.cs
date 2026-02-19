@@ -301,24 +301,65 @@ public class OverlayForm : Form
             "symbols");
     }
 
+    private static string ResolveBundledFontRoot()
+    {
+        if (!string.IsNullOrWhiteSpace(Application.StartupPath))
+            return Application.StartupPath;
+
+        return AppContext.BaseDirectory;
+    }
+
     private static string ResolveBundledFontFamily(string fileName, string fallbackFontFamily, string fontGroup)
     {
-        var fontPath = Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath, fileName);
+        var startupFontPath = Path.Combine(
+            ResolveBundledFontRoot(),
+            OverlayBundledFontRelativePath,
+            fileName);
+        if (LoadBundledFont(startupFontPath, fileName, fontGroup, out var startupFamilyName))
+            return startupFamilyName;
+
+        var appContextFontPath = Path.Combine(
+            AppContext.BaseDirectory,
+            OverlayBundledFontRelativePath,
+            fileName);
+
+        if (!string.Equals(appContextFontPath, startupFontPath, StringComparison.OrdinalIgnoreCase)
+            && LoadBundledFont(appContextFontPath, fileName, fontGroup, out var appContextFamilyName))
+            return appContextFamilyName;
+
+        Log.Error($"Bundled {fontGroup} font missing from startup context. Last checked: '{startupFontPath}'");
+        if (!string.Equals(appContextFontPath, startupFontPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Error($"Bundled {fontGroup} font missing from output context. Last checked: '{appContextFontPath}'");
+        }
+        Log.Error(
+            $"Expected font folder exists (startup): {Directory.Exists(Path.Combine(ResolveBundledFontRoot(), OverlayBundledFontRelativePath))}, " +
+            $"(Application.StartupPath={Application.StartupPath}).");
+        Log.Error(
+            $"Expected font folder exists (AppContext): {Directory.Exists(Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath))}, " +
+            $"(AppContext.BaseDirectory={AppContext.BaseDirectory}).");
+
+        if (IsFontFamilyAvailable(fallbackFontFamily))
+        {
+            Log.Info($"Using fallback font '{fallbackFontFamily}' for {fontGroup} overlays because bundled font is missing.");
+            return fallbackFontFamily;
+        }
+
+        Log.Error($"Bundled {fontGroup} fallback unavailable: {fallbackFontFamily}.");
+        return FontFamily.GenericSansSerif.Name;
+    }
+
+    private static bool LoadBundledFont(
+        string fontPath,
+        string fileName,
+        string fontGroup,
+        out string loadedFamilyName)
+    {
+        loadedFamilyName = FontFamily.GenericSansSerif.Name;
         if (!File.Exists(fontPath))
         {
             Log.Error($"Bundled {fontGroup} font missing from output folder: '{fontPath}'.");
-            Log.Error(
-                $"Expected font folder exists: {Directory.Exists(Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath))} " +
-                $"(AppContext.BaseDirectory={AppContext.BaseDirectory}).");
-
-            if (IsFontFamilyAvailable(fallbackFontFamily))
-            {
-                Log.Info($"Using fallback font '{fallbackFontFamily}' for {fontGroup} overlays because bundled font is missing.");
-                return fallbackFontFamily;
-            }
-
-            Log.Error($"Bundled {fontGroup} fallback unavailable: {fallbackFontFamily}.");
-            return FontFamily.GenericSansSerif.Name;
+            return false;
         }
 
         try
@@ -330,7 +371,8 @@ public class OverlayForm : Form
             {
                 var familyName = families[families.Length - 1].Name;
                 Log.Info($"Using bundled {fontGroup} font: {familyName} ({fontPath})");
-                return familyName;
+                loadedFamilyName = familyName;
+                return true;
             }
         }
         catch (Exception ex)
@@ -338,12 +380,7 @@ public class OverlayForm : Form
             Log.Error($"Failed to load bundled {fontGroup} font '{fileName}'. Message={ex.Message}");
         }
 
-        if (IsFontFamilyAvailable(fallbackFontFamily))
-            return fallbackFontFamily;
-
-        Log.Error($"Bundled {fontGroup} font fallback unavailable: {fallbackFontFamily}.");
-
-        return FontFamily.GenericSansSerif.Name;
+        return false;
     }
 
     private static bool IsFontFamilyAvailable(string familyName)

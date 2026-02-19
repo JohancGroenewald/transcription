@@ -99,7 +99,7 @@ public class TrayContext : ApplicationContext
     private readonly NotifyIcon _trayIcon;
     private readonly Control _uiDispatcher;
     private readonly IOverlayManager _overlayManager;
-    private readonly OverlayStackBootstrapCoordinator _stackBootstrap;
+    private readonly OverlayStackWindowManager _stackWindowManager;
     private readonly HotkeyWindow _hotkeyWindow;
     private readonly AudioRecorder _recorder;
     private readonly System.Windows.Forms.Timer _listeningOverlayTimer;
@@ -185,13 +185,13 @@ public class TrayContext : ApplicationContext
         extractedIcon?.Dispose();
         LoadTranscriptionService();
         // Refresh dependency now that transcription state is loaded.
-        _stackBootstrap = new OverlayStackBootstrapCoordinator(
+        _stackWindowManager = new OverlayStackWindowManager(
             _overlayManager,
             () => _isShuttingDown,
             () => _shutdownRequested,
             () => _transcriptionService != null,
-            Log.Info,
-            ShowHelloOverlay);
+            _uiDispatcher,
+            Log.Info);
 
         _trayIcon = new NotifyIcon
         {
@@ -222,10 +222,10 @@ public class TrayContext : ApplicationContext
         else
         {
             Log.Info(
-                $"Startup ready path: transcriptionReady=true, hiddenByUser={_stackBootstrap.IsHiddenByUser}, " +
+                $"Startup ready path: transcriptionReady=true, hiddenByUser={_stackWindowManager.IsHiddenByUser}, " +
                 $"hasTrackedOverlays={_overlayManager.HasTrackedOverlays()}, hasHello={_overlayManager.HasTrackedOverlay(HelloOverlayKey)}");
-            _stackBootstrap.OnStartup("startup");
-            _uiDispatcher.BeginInvoke(new Action(() => EnsureHelloOverlayBootstrapped("startup-post-pump")));
+            _stackWindowManager.Startup("startup", ShowHelloOverlay);
+            _uiDispatcher.BeginInvoke(new Action(() => _stackWindowManager.EnsureHelloOverlay("startup-post-pump", HelloOverlayKey, ShowHelloOverlay)));
         }
 
         Log.Info("VoiceType started successfully");
@@ -2172,10 +2172,9 @@ public class TrayContext : ApplicationContext
     private void OnOverlayHideStackIconTapped(object? sender, OverlayHideStackIconTappedEventArgs e)
     {
         Log.Info($"Hello X tapped. message={e.MessageId}");
-        _stackBootstrap.MarkHiddenByUser();
         SafeOverlayOperation(
             "Failed to hide overlay stack from hello icon.",
-            () => _overlayManager.HideAll(suppressStackEmptyNotification: true));
+            () => _stackWindowManager.HideStack("hello-overlay-hide"));
     }
 
     private void OnOverlayStartListeningIconTapped(
@@ -2260,72 +2259,15 @@ public class TrayContext : ApplicationContext
     {
         Log.Info("Overlay stack emptied event.");
         LogHelloStackState("stack-emptied-event");
-        _stackBootstrap.OnStackEmptied("stack-emptied");
-
-        if (_isShuttingDown || _transcriptionService == null)
-            return;
-
-        if (!_overlayManager.HasTrackedOverlays())
-            _stackBootstrap.OnStartup("stack-emptied-fallback");
-
-        LogHelloStackState("stack-emptied-fallback");
-        QueueDeferredHelloOverlayReseed("stack-emptied");
+        _stackWindowManager.HandleStackEmpty(
+            "stack-emptied",
+            HelloOverlayKey,
+            ShowHelloOverlay);
     }
 
     private void RestoreHiddenStackOnReactivation()
     {
-        if (_isShuttingDown || _transcriptionService == null)
-            return;
-
-        _stackBootstrap.ClearHiddenByUser();
-        _stackBootstrap.OnReactivation("reactivation");
-
-        if (!_overlayManager.HasTrackedOverlays())
-            _stackBootstrap.OnStartup("reactivation-fallback");
-
-        EnsureHelloOverlayBootstrapped("reactivation-fallback");
-        QueueDeferredHelloOverlayReseed("reactivation");
-    }
-
-    private void QueueDeferredHelloOverlayReseed(string reason)
-    {
-        if (_isShuttingDown || _transcriptionService == null)
-            return;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(80).ConfigureAwait(false);
-                if (_isShuttingDown || _transcriptionService == null)
-                    return;
-
-                Invoke(() => EnsureHelloOverlayBootstrapped($"deferred:{reason}"));
-            }
-            catch
-            {
-                // Ignore best-effort reseed retries.
-            }
-        });
-    }
-
-    private void EnsureHelloOverlayBootstrapped(string reason)
-    {
-        LogHelloStackState($"ensure-hello-start:{reason}");
-        if (_transcriptionService == null || _isShuttingDown || _shutdownRequested)
-        {
-            Log.Info($"Hello overlay reseed skipped ({reason}) because app is unavailable.");
-            return;
-        }
-
-        if (_overlayManager.HasTrackedOverlay(HelloOverlayKey))
-        {
-            Log.Info($"Hello overlay already present; no reseed needed ({reason}).");
-            return;
-        }
-
-        Log.Info($"Hello overlay reseed fallback ({reason})");
-        _stackBootstrap.OnStartup("self-heal");
+        _stackWindowManager.ShowStack("reactivation", HelloOverlayKey, ShowHelloOverlay);
     }
 
     private void OnTrayIconMouseClick(object? sender, MouseEventArgs e)
@@ -2388,7 +2330,7 @@ public class TrayContext : ApplicationContext
     {
         Log.Info(
             $"Hello stack state ({reason}): " +
-            $"hiddenByUser={_stackBootstrap.IsHiddenByUser}, " +
+            $"hiddenByUser={_stackWindowManager.IsHiddenByUser}, " +
             $"hasTrackedOverlays={_overlayManager.HasTrackedOverlays()}, " +
             $"hasHello={_overlayManager.HasTrackedOverlay(HelloOverlayKey)}, " +
             $"transcriptionReady={_transcriptionService != null}, " +
