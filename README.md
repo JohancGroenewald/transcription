@@ -214,6 +214,9 @@ Build automation:
 
 Use this to validate microphone capture/output playback independently from the tray app:
 
+If mic capture is weak or flat, first verify Windows input level for the selected device is set to 100% in **Settings → System → Sound → Input → device properties → test your microphone level**.  
+The app does not expose an internal mic gain control.
+
 ```powershell
 dotnet run --project tools/audio-debug -- --list
 dotnet run --project tools/audio-debug -- --from-config --duration-ms 3000
@@ -306,6 +309,8 @@ Note: `--submit` targets a running VoiceType instance. If VoiceType is not runni
 - Hotkey does not work: another app may already own `Ctrl+Shift+Space`.
 - Text preview finished but nothing pasted: no valid target had focus. Use `Ctrl+V` manually.
 - Tray icon appears stuck after crash/force kill: this is a Windows tray refresh artifact.
+- Microphone test/recording is weak or silent: check Windows microphone input level (selected device) in system sound settings and ensure it is at 100%.  
+  The app does not currently provide a built-in mic volume/gain control.
 
 ## Project Layout
 
