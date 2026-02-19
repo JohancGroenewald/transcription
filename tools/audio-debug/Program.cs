@@ -240,7 +240,7 @@ internal static class Program
             Take = TimeSpan.FromMilliseconds(DefaultDingDurationMs)
         };
 
-        using var dingWaveProvider = new SampleToWaveProvider16(dingProvider);
+        var dingWaveProvider = new SampleToWaveProvider16(dingProvider);
         using var dingOutputStream = new MemoryStream();
         using (var dingWaveWriter = new WaveFileWriter(dingOutputStream, dingWaveProvider.WaveFormat))
         {
