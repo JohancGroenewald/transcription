@@ -40,6 +40,7 @@ public class OverlayForm : Form
     private static readonly Color ListeningMeterActiveColor = Color.FromArgb(200, 170, 255, 170);
     private static readonly Color ListeningMeterInactiveColor = Color.FromArgb(ListeningMeterInactiveBarAlpha, 180, 180, 180);
     private static readonly Color TransparentOverlayBackgroundColor = Color.FromArgb(255, 240, 240, 240);
+    private static readonly Color HoverOverlayBackgroundColor = Color.FromArgb(255, 34, 40, 55);
     private const float CopyTapBorderWidth = 3.0f;
     private const int CopyTapBorderAlpha = 255;
     private const int CountdownPlaybackIconGapPx = 10;
@@ -174,6 +175,8 @@ public class OverlayForm : Form
     private Rectangle _stopListeningIconBounds = Rectangle.Empty;
     private Rectangle _cancelListeningIconBounds = Rectangle.Empty;
     private float _overlayIconScale = 1.0f;
+    private bool _isMouseOverOverlay;
+    private int _mouseOverlayDepth;
     private static int _profiledOverlayControlIconHeightPx = HideStackIconMinHeight;
     private int _lastLoggedHideStackMessageId;
     private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
@@ -257,6 +260,7 @@ public class OverlayForm : Form
         _countdownTimer = new System.Windows.Forms.Timer { Interval = CountdownTickIntervalMs };
         _countdownTimer.Tick += (s, e) => OnCountdownTick();
         RegisterDragHandlers(this);
+        RegisterHoverHandlers(this);
         MouseCaptureChanged += OnMouseCaptureChanged;
 
         Paint += OnOverlayPaint;
@@ -358,7 +362,7 @@ public class OverlayForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        e.Graphics.Clear(TransparentOverlayBackgroundColor);
+        e.Graphics.Clear(_isMouseOverOverlay ? HoverOverlayBackgroundColor : TransparentOverlayBackgroundColor);
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -370,6 +374,7 @@ public class OverlayForm : Form
             _fadeTimer.Stop();
             _countdownTimer.Stop();
             Opacity = 1.0;
+            ClearMouseOverState();
             _hideTimerMessageId = 0;
             _fadeMessageId = 0;
             ResetCountdown();
@@ -2408,6 +2413,66 @@ public class OverlayForm : Form
 
         foreach (Control child in control.Controls)
             RegisterDragHandlers(child);
+    }
+
+    private void RegisterHoverHandlers(Control control)
+    {
+        control.MouseEnter += OnOverlayMouseEnter;
+        control.MouseLeave += OnOverlayMouseLeave;
+
+        foreach (Control child in control.Controls)
+            RegisterHoverHandlers(child);
+    }
+
+    private void OnOverlayMouseEnter(object? sender, EventArgs e)
+    {
+        if (!Visible)
+            return;
+
+        if (_mouseOverlayDepth == 0)
+            ApplyMouseOverVisuals(true);
+
+        _mouseOverlayDepth++;
+    }
+
+    private void OnOverlayMouseLeave(object? sender, EventArgs e)
+    {
+        if (!Visible)
+        {
+            ClearMouseOverState();
+            return;
+        }
+
+        _mouseOverlayDepth = Math.Max(0, _mouseOverlayDepth - 1);
+        if (_mouseOverlayDepth == 0)
+            ApplyMouseOverVisuals(false);
+    }
+
+    private void ClearMouseOverState()
+    {
+        _mouseOverlayDepth = 0;
+        ApplyMouseOverVisuals(false);
+    }
+
+    private void ApplyMouseOverVisuals(bool isMouseOver)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => ApplyMouseOverVisuals(isMouseOver)));
+            return;
+        }
+
+        _isMouseOverOverlay = isMouseOver;
+        TransparencyKey = isMouseOver
+            ? Color.Empty
+            : TransparentOverlayBackgroundColor;
+        BackColor = isMouseOver
+            ? HoverOverlayBackgroundColor
+            : TransparentOverlayBackgroundColor;
+        Opacity = isMouseOver
+            ? 1.0
+            : _baseOpacity;
+        Invalidate();
     }
 
     private static Color EnsureOpaque(Color color)
