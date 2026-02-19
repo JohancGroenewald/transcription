@@ -352,7 +352,7 @@ public class TrayContext : ApplicationContext
         _uptimeMenuItem.Text = $"Uptime: {AppInfo.FormatUptime(AppInfo.Uptime)}";
     }
 
-    private async void OnHotkeyPressed(object? sender, HotkeyPressedEventArgs e)
+    private void OnHotkeyPressed(object? sender, HotkeyPressedEventArgs e)
     {
         if (e.HotkeyId is not PRIMARY_HOTKEY_ID and not PEN_HOTKEY_ID)
             return;
