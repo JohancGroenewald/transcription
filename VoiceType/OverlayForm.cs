@@ -199,6 +199,8 @@ public class OverlayForm : Form
     private static int _profiledOverlayControlIconHeightPx = HideStackIconMinHeight;
     private int _lastLoggedHideStackMessageId;
     private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
+    private static readonly HashSet<string> LoggedNerdFontIconResolution = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> LoggedNerdFontIconRenderFailure = new(StringComparer.Ordinal);
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
@@ -895,38 +897,73 @@ public class OverlayForm : Form
                (c >= 'a' && c <= 'f');
     }
 
+    private static string DescribeNerdGlyph(string? iconGlyph)
+    {
+        if (string.IsNullOrEmpty(iconGlyph))
+            return "<empty>";
+
+        try
+        {
+            var codePoint = char.ConvertToUtf32(iconGlyph, 0);
+            return $"U+{codePoint:X4}";
+        }
+        catch
+        {
+            return $"<invalid:{iconGlyph}>";
+        }
+    }
+
     private bool DrawNerdFontIcon(
         Graphics graphics,
         Rectangle iconBounds,
         Color iconColor,
         string? iconGlyph)
     {
+        var originalIconValue = string.IsNullOrWhiteSpace(iconGlyph) ? "<null>" : iconGlyph.Trim();
         var resolvedIcon = ResolveNerdFontIconGlyph(iconGlyph);
         if (string.IsNullOrWhiteSpace(resolvedIcon))
+        {
+            if (LoggedNerdFontIconResolution.Add($"missing:{originalIconValue}"))
+                Log.Info($"Nerd icon not resolved, overlay fallback applied. icon={originalIconValue}.");
             return false;
+        }
+
+        if (LoggedNerdFontIconResolution.Add($"resolved:{originalIconValue}:{DescribeNerdGlyph(resolvedIcon)}"))
+            Log.Info($"Nerd icon resolved. icon={originalIconValue}, glyph={DescribeNerdGlyph(resolvedIcon)}.");
 
         var iconSizePx = Math.Max(12, Math.Min(iconBounds.Width, iconBounds.Height) - 3);
         var fontSizePx = Math.Max(10.0f, Math.Min(48.0f, iconSizePx * 0.9f));
         using var iconFont = CreateNerdFont(fontSizePx, FontStyle.Regular);
-        var textSize = TextRenderer.MeasureText(
-            graphics,
-            resolvedIcon,
-            iconFont,
-            new Size(int.MaxValue / 4, int.MaxValue / 4),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        var glyphBounds = new Rectangle(
-            iconBounds.Left + Math.Max(0, (iconBounds.Width - textSize.Width) / 2),
-            iconBounds.Top + Math.Max(0, (iconBounds.Height - textSize.Height) / 2),
-            Math.Max(1, Math.Min(textSize.Width, iconBounds.Width)),
-            Math.Max(1, Math.Min(textSize.Height, iconBounds.Height)));
+        try
+        {
+            var textSize = TextRenderer.MeasureText(
+                graphics,
+                resolvedIcon,
+                iconFont,
+                new Size(int.MaxValue / 4, int.MaxValue / 4),
+                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            var glyphBounds = new Rectangle(
+                iconBounds.Left + Math.Max(0, (iconBounds.Width - textSize.Width) / 2),
+                iconBounds.Top + Math.Max(0, (iconBounds.Height - textSize.Height) / 2),
+                Math.Max(1, Math.Min(textSize.Width, iconBounds.Width)),
+                Math.Max(1, Math.Min(textSize.Height, iconBounds.Height)));
 
-        TextRenderer.DrawText(
-            graphics,
-            resolvedIcon,
-            iconFont,
-            glyphBounds,
-            iconColor,
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(
+                graphics,
+                resolvedIcon,
+                iconFont,
+                glyphBounds,
+                iconColor,
+                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
+        catch (Exception ex)
+        {
+            if (LoggedNerdFontIconRenderFailure.Add($"{originalIconValue}:{DescribeNerdGlyph(resolvedIcon)}"))
+                Log.Error($"Failed Nerd icon render path. icon={originalIconValue}, glyph={DescribeNerdGlyph(resolvedIcon)}, bounds={iconBounds}, color={iconColor}, font={iconFont.Name}, Message={ex.Message}");
+
+            return false;
+        }
+
         return true;
     }
 
