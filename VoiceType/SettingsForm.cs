@@ -1222,8 +1222,9 @@ public class SettingsForm : Form
 
         const int MicTestDurationMs = 3000;
         _testMicrophoneButton.Enabled = false;
-        _microphoneTestStatusLabel.Text = $"Testing microphone... recording up to {MicTestDurationMs / 1000}s. Speak into the selected device.";
-        _microphoneTestStatusLabel.ForeColor = GetMutedTextColor();
+        SetMicrophoneTestStatus(
+            $"Testing microphone... recording up to {MicTestDurationMs / 1000}s. Speak into the selected device.",
+            GetMutedTextColor());
 
         var selectedDeviceIndex = GetSelectedAudioDeviceIndex(_microphoneDeviceCombo);
         var selectedDeviceName = GetSelectedAudioDeviceName(_microphoneDeviceCombo);
@@ -1264,29 +1265,23 @@ public class SettingsForm : Form
                 $"nonZero={(metrics.HasAnyNonZeroSample ? "yes" : "no")}, silence={metrics.IsLikelySilence}, " +
                 $"selection={captureSelection.SelectionSummary}, deviceSnapshot={deviceSnapshotText}");
 
+            SetMicrophoneTestStatus(
+                "Capture complete. Analyzing mic audio...",
+                GetMutedTextColor());
+
             if (audioData.Length == 0)
             {
                 var statusText = "Microphone test captured no data." +
                     $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}.";
                 statusText += " Mic playback skipped because the capture was empty.";
-
-                if (IsDisposed)
-                    return;
-
-                _microphoneTestStatusLabel.Text = statusText;
-                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+                SetMicrophoneTestStatus(statusText, Color.Firebrick);
             }
             else if (!metrics.HasAnyNonZeroSample)
             {
                 var statusText = "Microphone test captured only zeros. Check device selection and Windows mic permissions." +
                     $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}.";
                 statusText += " Mic playback may be silent.";
-
-                if (IsDisposed)
-                    return;
-
-                _microphoneTestStatusLabel.Text = statusText;
-                _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+                SetMicrophoneTestStatus(statusText, Color.Firebrick);
             }
             else if (metrics.IsLikelySilence)
             {
@@ -1298,6 +1293,7 @@ public class SettingsForm : Form
                 var playbackOutputName = string.IsNullOrWhiteSpace(selectedOutputDeviceName)
                     ? "system default output"
                     : $"'{selectedOutputDeviceName}'";
+                SetMicrophoneTestStatus($"Captured audio. Starting playback on {playbackOutputName}...", GetMutedTextColor());
                 var playbackStarted = StartMicTestPlayback(
                     audioData,
                     selectedOutputDeviceIndex,
@@ -1315,11 +1311,7 @@ public class SettingsForm : Form
                     statusText += " Playback failed or was unavailable.";
                 }
 
-                if (IsDisposed)
-                    return;
-
-                _microphoneTestStatusLabel.Text = statusText;
-                _microphoneTestStatusLabel.ForeColor = Color.DarkOrange;
+                SetMicrophoneTestStatus(statusText, Color.DarkOrange);
             }
             else
             {
@@ -1331,6 +1323,7 @@ public class SettingsForm : Form
                 var playbackOutputName = string.IsNullOrWhiteSpace(selectedOutputDeviceName)
                     ? "system default output"
                     : $"'{selectedOutputDeviceName}'";
+                SetMicrophoneTestStatus($"Captured audio. Starting playback on {playbackOutputName}...", GetMutedTextColor());
                 var playbackStarted = StartMicTestPlayback(
                     audioData,
                     selectedOutputDeviceIndex,
@@ -1348,11 +1341,7 @@ public class SettingsForm : Form
                     statusText += " Playback failed or was unavailable.";
                 }
 
-                if (IsDisposed)
-                    return;
-
-                _microphoneTestStatusLabel.Text = statusText;
-                _microphoneTestStatusLabel.ForeColor = Color.DarkGreen;
+                SetMicrophoneTestStatus(statusText, Color.DarkGreen);
                 Log.Info(
                     $"Settings microphone test passed for '{selectedDeviceName}' (index {selectedDeviceIndex}): " +
                     $"duration={metrics.Duration.TotalSeconds:F2}s, rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}, " +
@@ -1367,8 +1356,7 @@ public class SettingsForm : Form
                   $"reason={testCaptureSelection.SelectionReason}, fallback={testCaptureSelection.UsedFallback}, " +
                   $"attempts={FormatAttemptListForLog(testCaptureSelection.Attempts)}";
 
-            _microphoneTestStatusLabel.Text = $"Microphone test failed: {ex.Message}";
-            _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+            SetMicrophoneTestStatus($"Microphone test failed: {ex.Message}", Color.Firebrick);
             Log.Error($"Microphone test failed. {selectionSummary}", ex);
         }
         finally
@@ -1437,6 +1425,21 @@ public class SettingsForm : Form
             Log.Error("Failed to start microphone test playback.", ex);
             return false;
         }
+    }
+
+    private void SetMicrophoneTestStatus(string message, Color color)
+    {
+        if (IsDisposed)
+            return;
+
+        if (InvokeRequired)
+        {
+            _ = BeginInvoke(new Action(() => SetMicrophoneTestStatus(message, color)));
+            return;
+        }
+
+        _microphoneTestStatusLabel.Text = message;
+        _microphoneTestStatusLabel.ForeColor = color;
     }
 
     private WaveOutEvent? BuildMicTestPlaybackOutput(WaveFileReader playbackReader, int outputDeviceIndex)
