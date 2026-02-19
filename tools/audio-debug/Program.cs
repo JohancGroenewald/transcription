@@ -68,8 +68,11 @@ internal static class Program
         {
             Console.WriteLine("[1/1] Playing ding...");
             var dingAudio = BuildDingAudio(options.OutputVolume);
-            if (options.SaveOutput)
-                SaveAudioFile("output", dingAudio, options.SaveOutputPath);
+            var shouldSaveOutput = options.SaveOutput || options.SaveInput;
+            if (shouldSaveOutput)
+            {
+                SaveAudioFile("output", dingAudio, options.SaveOutputPath ?? options.SaveInputPath);
+            }
             await StartPlaybackAsync(dingAudio, options.OutputIndex, 1f, cancellationToken: default);
             Console.WriteLine("[1/1] Ding playback succeeded.");
             return true;
@@ -575,7 +578,7 @@ internal static class Program
         Console.WriteLine("  --ding                         Play a short output test tone (no capture).");
         Console.WriteLine("  --save-in [path]               Save captured audio (default: audio-debug-test.wav).");
         Console.WriteLine("  --save-out [path]              Save playback output audio (default: audio-debug-test.wav).");
-        Console.WriteLine("  --save, -s <path>              Legacy: save captured audio to file.");
+        Console.WriteLine("  --save, -s <path>              Legacy: save captured input audio (and ding output when --ding is used).");
         Console.WriteLine("  --input-index, --input <n>     Preferred microphone input index (default: -1).");
         Console.WriteLine("  --input-name <name>            Preferred microphone input name.");
         Console.WriteLine("  --output-index, --output <n>   Output index for playback (default: -1/system default).");
@@ -601,3 +604,4 @@ internal static class Program
         string? SaveInputPath = null,
         string? SaveOutputPath = null);
 }
+

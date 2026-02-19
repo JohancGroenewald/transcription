@@ -220,6 +220,7 @@ dotnet run --project tools/audio-debug -- --from-config --duration-ms 3000
 dotnet run --project tools/audio-debug -- --from-config --no-playback --save .\audio-capture.wav
 dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 5000
 dotnet run --project tools/audio-debug -- --ding --output-index 1 --output-volume 50
+dotnet run --project tools/audio-debug -- --ding --output-index 1 --save
 dotnet run --project tools/audio-debug -- --input-index 0 --no-playback --save-in
 dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 1500 --save-out .\audio-output.wav
 ```
