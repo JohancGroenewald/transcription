@@ -1138,14 +1138,15 @@ public class OverlayForm : Form
                 e.Graphics.Clear(TransparentOverlayBackgroundColor);
                 using var brush = new SolidBrush(Color.White);
                 using var font = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 1), FontStyle.Bold);
-                using var format = new StringFormat
-                {
-                    LineAlignment = StringAlignment.Center,
-                    Alignment = StringAlignment.Center
-                };
                 e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
                 var textRect = new Rectangle(4, 4, Math.Max(1, Width - 8), Math.Max(1, Height - 8));
-                e.Graphics.DrawString("Overlay render issue. Check logs.", font, brush, textRect, format);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    "Overlay render issue. Check logs.",
+                    font,
+                    textRect,
+                    brush.Color,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
                 if (!string.IsNullOrWhiteSpace(ex.StackTrace))
                 {
@@ -1570,13 +1571,14 @@ public class OverlayForm : Form
         }
         catch
         {
-            using var brush = new SolidBrush(color);
-            using var format = new StringFormat(StringFormatFlags.NoWrap)
+            try
             {
-                LineAlignment = StringAlignment.Center,
-                Alignment = StringAlignment.Near
-            };
-            graphics.DrawString(text, font, brush, safeBounds, format);
+                TextRenderer.DrawText(graphics, text, font, safeBounds, color, TextFormatFlags.Default | TextFormatFlags.NoPadding);
+            }
+            catch (Exception fallbackEx)
+            {
+                Log.Error($"TextRenderer fallback failed for label line. Message={fallbackEx.Message}, Flags={flags}");
+            }
         }
     }
 
@@ -1667,13 +1669,17 @@ public class OverlayForm : Form
             return;
 
         using var brush = new SolidBrush(color);
-        var layout = new RectangleF(bounds.Left, y, bounds.Width, lineHeight);
-        using var format = new StringFormat(StringFormatFlags.NoWrap)
-        {
-            LineAlignment = StringAlignment.Near,
-            Alignment = StringAlignment.Near
-        };
-        graphics.DrawString(text, font, brush, layout, format);
+        DrawStringWithTextRendererFallback(
+            graphics,
+            text,
+            font,
+            brush,
+            new RectangleF(
+                Math.Max(0, bounds.Left),
+                Math.Max(0, y),
+                Math.Max(1, bounds.Width),
+                Math.Max(1, lineHeight)),
+            TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
     }
 
     private void DrawJustifiedLine(
@@ -1717,7 +1723,13 @@ public class OverlayForm : Form
         var cursorX = bounds.Left;
         for (var i = 0; i < words.Length; i++)
         {
-            graphics.DrawString(words[i], font, brush, cursorX, y);
+            DrawStringWithTextRendererFallback(
+                graphics,
+                words[i],
+                font,
+                brush,
+                new RectangleF(Math.Max(0, cursorX), Math.Max(0, y), Math.Max(1, bounds.Width), Math.Max(1, lineHeight)),
+                TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
             cursorX += wordSizes[i];
             if (i + 1 >= words.Length)
                 continue;
@@ -1726,15 +1738,71 @@ public class OverlayForm : Form
         }
     }
 
+    private void DrawStringWithTextRendererFallback(
+        Graphics graphics,
+        string text,
+        Font font,
+        Brush brush,
+        RectangleF layout,
+        TextFormatFlags textFlags = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        var safeLayout = Rectangle.FromLTRB(
+            (int)Math.Round(layout.Left),
+            (int)Math.Round(layout.Top),
+            (int)Math.Round(layout.Left + Math.Max(1, layout.Width)),
+            (int)Math.Round(layout.Top + Math.Max(1, layout.Height)));
+
+        var drawColor = (brush as SolidBrush)?.Color ?? Color.White;
+        try
+        {
+            TextRenderer.DrawText(
+                graphics,
+                text,
+                font,
+                safeLayout,
+                drawColor,
+                textFlags);
+        }
+        catch
+        {
+            Log.Error($"Text rendering fallback failed. Text='{text}', Bounds={safeLayout}, Font={font?.Name ?? "null"}, Height={font?.Height.ToString() ?? "null"}");
+            // Final fallback keeps behavior predictable even if flags/options are unsupported.
+            try
+            {
+                TextRenderer.DrawText(
+                    graphics,
+                    text,
+                    font,
+                    safeLayout,
+                    drawColor,
+                    TextFormatFlags.Default | TextFormatFlags.NoPadding);
+            }
+            catch (Exception hardFallbackEx)
+            {
+                Log.Error($"Text rendering hard fallback failed. Text='{text}', Bounds={safeLayout}, Message={hardFallbackEx.Message}");
+            }
+        }
+    }
+
     private static int MeasureTextWidth(Graphics graphics, string text, Font font)
     {
-        var size = TextRenderer.MeasureText(
-            graphics,
-            text,
-            font,
-            new Size(int.MaxValue / 4, int.MaxValue / 4),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        return size.Width;
+        try
+        {
+            var size = TextRenderer.MeasureText(
+                graphics,
+                text,
+                font,
+                new Size(int.MaxValue / 4, int.MaxValue / 4),
+                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            return size.Width;
+        }
+        catch
+        {
+            return Math.Max(0, Math.Min(int.MaxValue / 4, text.Length * 10));
+        }
     }
 
     private static List<(string Text, bool ShouldJustify)> BuildFullWidthLines(
