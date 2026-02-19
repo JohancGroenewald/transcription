@@ -131,6 +131,90 @@ public static class TextInjector
                confidence != TextInputConfidence.None;
     }
 
+    private static bool HasLikelyTextInputTargetForPaste(IntPtr targetWindow)
+    {
+        if (targetWindow == IntPtr.Zero)
+            return false;
+
+        var focusedWindow = GetFocusedWindowInForegroundThread(targetWindow);
+        if (focusedWindow != IntPtr.Zero)
+        {
+            if (IsLikelyTextInputWindow(focusedWindow, out var focusedConfidence) &&
+                focusedConfidence != TextInputConfidence.None)
+            {
+                return true;
+            }
+
+            if (HasEditableFocusedUiElement(foregroundWindow: focusedWindow))
+                return true;
+        }
+
+        var fallbackWindow = FindLikelyTextInputWindowOrFallback(targetWindow);
+        if (fallbackWindow != IntPtr.Zero &&
+            IsLikelyTextInputWindow(fallbackWindow, out var fallbackConfidence) &&
+            fallbackConfidence != TextInputConfidence.None)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasEditableFocusedUiElement(IntPtr foregroundWindow)
+    {
+        if (foregroundWindow == IntPtr.Zero)
+            return false;
+
+        var debugEnabled = Log.IsEnabled;
+        try
+        {
+            var focused = SafeGet(() => AutomationElement.FocusedElement, null);
+            if (focused == null)
+                return false;
+
+            if (IsEditableAutomationElement(focused, out var skipReason))
+                return true;
+
+            if (debugEnabled && !string.IsNullOrWhiteSpace(skipReason))
+                Log.Info($"[TextInjector] Focused automation element not editable for paste: reason={skipReason}, foreground={FormatHandle(foregroundWindow)}");
+
+            var current = focused;
+            for (var depth = 1; depth <= 8; depth++)
+            {
+                current = SafeGet(() => TreeWalker.RawViewWalker.GetParent(current), null);
+                if (current == null)
+                    break;
+
+                if (IsEditableAutomationElement(current, out _))
+                    return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (debugEnabled)
+                Log.Info($"[TextInjector] HasEditableFocusedUiElement failed: ex={ex.GetType().Name}, foreground={FormatHandle(foregroundWindow)}");
+        }
+
+        return false;
+    }
+
+    private static bool IsEditableAutomationElement(AutomationElement element, out string skipReason)
+    {
+        skipReason = string.Empty;
+
+        if (TryGetEditableTextFromFocusedAutomationElement(
+                element,
+                out _,
+                out _,
+                out var isReadOnly,
+                out skipReason))
+        {
+            return !isReadOnly;
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Returns true when the active suitable target appears to already contain text.
     /// </summary>
@@ -190,6 +274,15 @@ public static class TextInjector
         if (target == IntPtr.Zero)
         {
             Log.Info("No paste target detected, text copied to clipboard only");
+            return false;
+        }
+
+        if (!HasLikelyTextInputTargetForPaste(target))
+        {
+            var foregroundWindow = GetForegroundWindow();
+            var fgClass = foregroundWindow == IntPtr.Zero ? string.Empty : GetWindowClassName(foregroundWindow);
+            var targetClass = target == IntPtr.Zero ? string.Empty : GetWindowClassName(target);
+            Log.Info($"[TextInjector] No likely text-input target for paste, text copied to clipboard only. foreground={FormatHandle(foregroundWindow)} class={fgClass}, target={FormatHandle(target)} class={targetClass}");
             return false;
         }
 
