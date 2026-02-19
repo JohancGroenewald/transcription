@@ -151,6 +151,7 @@ public class OverlayForm : Form
     private bool _animateOnAutoHide;
     private ContentAlignment _lastTextAlign = ContentAlignment.MiddleCenter;
     private bool _lastUseFullWidthText;
+    private int _fullWidthRenderFailureMessageId;
     private bool _lastCenterTextBlock;
     private bool _isHorizontalDragging;
     private bool _dragStarted;
@@ -523,6 +524,7 @@ public class OverlayForm : Form
             _showListeningLevelMeter = showListeningLevelMeter;
             _listeningLevelPercent = Math.Clamp(listeningLevelPercent, 0, 100);
             _allowCopyTap = allowCopyTap;
+            _fullWidthRenderFailureMessageId = -1;
             _hideStackIconBounds = Rectangle.Empty;
             _startListeningIconBounds = Rectangle.Empty;
             _stopListeningIconBounds = Rectangle.Empty;
@@ -995,7 +997,16 @@ public class OverlayForm : Form
 
         DrawListeningLevelMeter(e.Graphics);
         if (_lastUseFullWidthText)
-            DrawFullWidthText(e.Graphics);
+        {
+            if (_fullWidthRenderFailureMessageId == _activeMessageId)
+            {
+                DrawFallbackFullWidthText(e.Graphics);
+            }
+            else
+            {
+                DrawFullWidthText(e.Graphics);
+            }
+        }
 
 
         var hasCountdown = TryGetCountdownProgress(out var remainingFraction);
@@ -1088,6 +1099,35 @@ public class OverlayForm : Form
         }
         catch (Exception ex)
         {
+            if (_lastUseFullWidthText)
+            {
+                if (_fullWidthRenderFailureMessageId != _activeMessageId)
+                {
+                    _fullWidthRenderFailureMessageId = _activeMessageId;
+                    Log.Error(
+                        $"Overlay paint failed and switched to fallback rendering. " +
+                        $"Type={ex.GetType().Name}, Message={ex.Message}, OverlaySize={Width}x{Height}, " +
+                        $"MessageId={_activeMessageId}, FullWidth={_lastUseFullWidthText}, Opacity={Opacity:F2}, " +
+                        $"ShowBorder={_showOverlayBorder}, ShowHelloTextFrame={_showHelloTextFrame}");
+                    if (!string.IsNullOrWhiteSpace(ex.StackTrace))
+                    {
+                        Log.Error($"Overlay paint stack trace: {ex.StackTrace}");
+                    }
+                }
+
+                try
+                {
+                    e.Graphics.Clear(TransparentOverlayBackgroundColor);
+                    DrawFallbackFullWidthText(e.Graphics);
+                    DrawOverlayWarningIcons(e.Graphics);
+                }
+                catch (Exception fallbackEx)
+                {
+                    Log.Error($"Full-width overlay fallback rendering failed: {fallbackEx}");
+                }
+                return;
+            }
+
             try
             {
                 Log.Error(
@@ -1495,6 +1535,96 @@ public class OverlayForm : Form
             DrawFullWidthTextBlock(_prefixLabel.Text, _prefixLabel.Font, _prefixLabel.Bounds, _prefixLabel.ForeColor, graphics);
     }
 
+    private void DrawFallbackFullWidthText(Graphics graphics)
+    {
+        var alignmentFlags = GetTextAlignmentFlags(_lastTextAlign);
+        var textFlags = TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | alignmentFlags;
+
+        DrawTextRendererLine(graphics, _label.Text, _label.Font, _label.ForeColor, _label.Bounds, textFlags);
+        if (_lastShowActionLine)
+            DrawTextRendererLine(graphics, _actionLabel.Text, _actionLabel.Font, _actionLabel.ForeColor, _actionLabel.Bounds, textFlags);
+
+        if (_lastShowPrefixLine)
+            DrawTextRendererLine(graphics, _prefixLabel.Text, _prefixLabel.Font, _prefixLabel.ForeColor, _prefixLabel.Bounds, textFlags);
+    }
+
+    private void DrawTextRendererLine(
+        Graphics graphics,
+        string? text,
+        Font font,
+        Color color,
+        Rectangle bounds,
+        TextFormatFlags flags)
+    {
+        if (string.IsNullOrWhiteSpace(text) || bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+
+        var safeBounds = new Rectangle(
+            bounds.Left,
+            bounds.Top,
+            Math.Max(1, bounds.Width),
+            Math.Max(1, bounds.Height));
+        try
+        {
+            TextRenderer.DrawText(graphics, text, font, safeBounds, color, flags);
+        }
+        catch
+        {
+            using var brush = new SolidBrush(color);
+            using var format = new StringFormat(StringFormatFlags.NoWrap)
+            {
+                LineAlignment = StringAlignment.Center,
+                Alignment = StringAlignment.Near
+            };
+            graphics.DrawString(text, font, brush, safeBounds, format);
+        }
+    }
+
+    private static TextFormatFlags GetTextAlignmentFlags(ContentAlignment textAlign)
+    {
+        var flags = textAlign switch
+        {
+            ContentAlignment.TopLeft or ContentAlignment.MiddleLeft or ContentAlignment.BottomLeft
+                => TextFormatFlags.Left,
+            ContentAlignment.TopRight or ContentAlignment.MiddleRight or ContentAlignment.BottomRight
+                => TextFormatFlags.Right,
+            _ => TextFormatFlags.HorizontalCenter
+        };
+
+        flags |= textAlign switch
+        {
+            ContentAlignment.TopLeft or ContentAlignment.TopCenter or ContentAlignment.TopRight
+                => TextFormatFlags.Top,
+            ContentAlignment.BottomLeft or ContentAlignment.BottomCenter or ContentAlignment.BottomRight
+                => TextFormatFlags.Bottom,
+            _ => TextFormatFlags.VerticalCenter
+        };
+
+        return flags;
+    }
+
+    private void DrawOverlayWarningIcons(Graphics graphics)
+    {
+        if (_showHideStackIcon)
+            DrawHideStackIcon(graphics);
+
+        var rightReservedPx = 0;
+        if (_showStopListeningIcon)
+        {
+            DrawStopListeningIcon(graphics, rightReservedPx);
+            rightReservedPx += GetStopListeningIconReservePx();
+        }
+
+        if (_showCancelListeningIcon)
+        {
+            DrawCancelListeningIcon(graphics, rightReservedPx);
+            rightReservedPx += GetCancelListeningIconReservePx();
+        }
+
+        if (_showStartListeningIcon)
+            DrawStartListeningIcon(graphics, rightReservedPx);
+    }
+
     private void DrawFullWidthTextBlock(string? text, Font font, Rectangle bounds, Color color, Graphics graphics)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -1504,7 +1634,7 @@ public class OverlayForm : Form
         if (lines.Count == 0)
             return;
 
-        var lineHeight = Math.Max(1, (int)Math.Ceiling(graphics.MeasureString("M", font).Height));
+        var lineHeight = Math.Max(1, GetTextHeight(graphics, "M", font, Math.Max(1, bounds.Width)));
         var totalHeight = lineHeight * lines.Count;
         var startY = bounds.Top + Math.Max(0, (bounds.Height - totalHeight) / 2);
         var y = startY;
