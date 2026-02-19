@@ -1220,8 +1220,9 @@ public class SettingsForm : Form
         if (IsDisposed)
             return;
 
+        const int MicTestDurationMs = 3000;
         _testMicrophoneButton.Enabled = false;
-        _microphoneTestStatusLabel.Text = "Testing microphone... speak into the selected device for 3 seconds.";
+        _microphoneTestStatusLabel.Text = $"Testing microphone... recording up to {MicTestDurationMs / 1000}s. Speak into the selected device.";
         _microphoneTestStatusLabel.ForeColor = GetMutedTextColor();
 
         var selectedDeviceIndex = GetSelectedAudioDeviceIndex(_microphoneDeviceCombo);
@@ -1246,7 +1247,7 @@ public class SettingsForm : Form
                 $"active={captureSelection.ActiveSummary}, reason={captureSelection.SelectionReason}, " +
                 $"fallback={captureSelection.UsedFallback}, attempts={FormatAttemptListForLog(captureSelection.Attempts)}");
 
-            await Task.Delay(3000);
+            await Task.Delay(MicTestDurationMs);
             var audioData = recorder.Stop();
             var metrics = recorder.LastCaptureMetrics;
             captureSelection = recorder.LastCaptureSelection;
