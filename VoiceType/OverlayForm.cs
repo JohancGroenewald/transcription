@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
-using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -96,16 +95,6 @@ public class OverlayForm : Form
     private const float HelloTextFrameWidth = 1.0f;
     private const int HelloTextFramePaddingPx = 2;
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
-    private static readonly Dictionary<string, string> NerdFontIconClassToGlyph = new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "nf-md-close_box", "\U000F0157" },
-        { "md-close_box", "\U000F0157" },
-        { "nf-md-record_rec", "\U000F044B" },
-        { "md-record_rec", "\U000F044B" },
-        { "nf-fa-stop", "\U0000F04D" },
-        { "fa-stop", "\U0000F04D" }
-    };
-
     private const int WS_EX_TOPMOST = 0x00000008;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -189,6 +178,7 @@ public class OverlayForm : Form
     private string? _startListeningIconGlyph;
     private string? _stopListeningIconGlyph;
     private string? _cancelListeningIconGlyph;
+    private readonly NerdFontIconService _nerdFontIconService = new();
     private Rectangle _hideStackIconBounds = Rectangle.Empty;
     private Rectangle _startListeningIconBounds = Rectangle.Empty;
     private Rectangle _stopListeningIconBounds = Rectangle.Empty;
@@ -199,8 +189,6 @@ public class OverlayForm : Form
     private static int _profiledOverlayControlIconHeightPx = HideStackIconMinHeight;
     private int _lastLoggedHideStackMessageId;
     private DateTime _nextHideStackPositionLogAt = DateTime.MinValue;
-    private static readonly HashSet<string> LoggedNerdFontIconResolution = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly HashSet<string> LoggedNerdFontIconRenderFailure = new(StringComparer.Ordinal);
 
     public event EventHandler<OverlayTappedEventArgs>? OverlayTapped;
     public event EventHandler<OverlayCopyTappedEventArgs>? OverlayCopyTapped;
@@ -593,10 +581,10 @@ public class OverlayForm : Form
             _showCancelListeningIcon = showCancelListeningIcon;
             _showOverlayBorderOverride = showOverlayBorder;
             _showHelloTextFrame = showHelloTextFrame;
-            _hideStackIconGlyph = ResolveNerdFontIconGlyph(hideStackIconGlyph);
-            _startListeningIconGlyph = ResolveNerdFontIconGlyph(startListeningIconGlyph);
-            _stopListeningIconGlyph = ResolveNerdFontIconGlyph(stopListeningIconGlyph);
-            _cancelListeningIconGlyph = ResolveNerdFontIconGlyph(cancelListeningIconGlyph);
+            _hideStackIconGlyph = _nerdFontIconService.ResolveIconGlyph(hideStackIconGlyph);
+            _startListeningIconGlyph = _nerdFontIconService.ResolveIconGlyph(startListeningIconGlyph);
+            _stopListeningIconGlyph = _nerdFontIconService.ResolveIconGlyph(stopListeningIconGlyph);
+            _cancelListeningIconGlyph = _nerdFontIconService.ResolveIconGlyph(cancelListeningIconGlyph);
             _overlayIconScale = (showListeningLevelMeter
                 || showHideStackIcon
                 || showStartListeningIcon
@@ -848,125 +836,16 @@ public class OverlayForm : Form
         return _showOverlayBorderOverride ?? _showOverlayBorder;
     }
 
-    private static string? ResolveNerdFontIconGlyph(string? iconClass)
-    {
-        if (string.IsNullOrWhiteSpace(iconClass))
-            return null;
-
-        var normalized = iconClass.Trim();
-        if (normalized.Length == 2 && char.IsSurrogatePair(normalized, 0))
-            return normalized;
-        if (normalized.Length == 1)
-            return normalized;
-
-        if (normalized.StartsWith(@"\u", StringComparison.OrdinalIgnoreCase) && normalized.Length == 6)
-        {
-            normalized = normalized.AsSpan(2).ToString();
-        }
-        else if (normalized.StartsWith(@"\U", StringComparison.OrdinalIgnoreCase) && normalized.Length == 10)
-        {
-            normalized = normalized.AsSpan(2).ToString();
-        }
-
-        if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            normalized = normalized.AsSpan(2).ToString();
-
-        if (normalized.Length is >= 4 and <= 6)
-        {
-            var looksHex = true;
-            for (var i = 0; i < normalized.Length; i++)
-            {
-                if (!IsHexDigit(normalized[i]))
-                {
-                    looksHex = false;
-                    break;
-                }
-            }
-
-            if (looksHex && int.TryParse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint))
-                return char.ConvertFromUtf32(codePoint);
-        }
-
-        return NerdFontIconClassToGlyph.TryGetValue(normalized, out var glyph)
-            ? glyph
-            : null;
-    }
-
-    private static bool IsHexDigit(char c)
-    {
-        return (c >= '0' && c <= '9') ||
-               (c >= 'A' && c <= 'F') ||
-               (c >= 'a' && c <= 'f');
-    }
-
-    private static string DescribeNerdGlyph(string? iconGlyph)
-    {
-        if (string.IsNullOrEmpty(iconGlyph))
-            return "<empty>";
-
-        try
-        {
-            var codePoint = char.ConvertToUtf32(iconGlyph, 0);
-            return $"U+{codePoint:X4}";
-        }
-        catch
-        {
-            return $"<invalid:{iconGlyph}>";
-        }
-    }
-
     private bool DrawNerdFontIcon(
         Graphics graphics,
         Rectangle iconBounds,
         Color iconColor,
         string? iconGlyph)
     {
-        var originalIconValue = string.IsNullOrWhiteSpace(iconGlyph) ? "<null>" : iconGlyph.Trim();
-        var resolvedIcon = ResolveNerdFontIconGlyph(iconGlyph);
-        if (string.IsNullOrWhiteSpace(resolvedIcon))
-        {
-            if (LoggedNerdFontIconResolution.Add($"missing:{originalIconValue}"))
-                Log.Info($"Nerd icon not resolved, overlay fallback applied. icon={originalIconValue}.");
-            return false;
-        }
-
-        if (LoggedNerdFontIconResolution.Add($"resolved:{originalIconValue}:{DescribeNerdGlyph(resolvedIcon)}"))
-            Log.Info($"Nerd icon resolved. icon={originalIconValue}, glyph={DescribeNerdGlyph(resolvedIcon)}.");
-
         var iconSizePx = Math.Max(12, Math.Min(iconBounds.Width, iconBounds.Height) - 3);
         var fontSizePx = Math.Max(10.0f, Math.Min(48.0f, iconSizePx * 0.9f));
         using var iconFont = CreateNerdFont(fontSizePx, FontStyle.Regular);
-        try
-        {
-            var textSize = TextRenderer.MeasureText(
-                graphics,
-                resolvedIcon,
-                iconFont,
-                new Size(int.MaxValue / 4, int.MaxValue / 4),
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-            var glyphBounds = new Rectangle(
-                iconBounds.Left + Math.Max(0, (iconBounds.Width - textSize.Width) / 2),
-                iconBounds.Top + Math.Max(0, (iconBounds.Height - textSize.Height) / 2),
-                Math.Max(1, Math.Min(textSize.Width, iconBounds.Width)),
-                Math.Max(1, Math.Min(textSize.Height, iconBounds.Height)));
-
-            TextRenderer.DrawText(
-                graphics,
-                resolvedIcon,
-                iconFont,
-                glyphBounds,
-                iconColor,
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        }
-        catch (Exception ex)
-        {
-            if (LoggedNerdFontIconRenderFailure.Add($"{originalIconValue}:{DescribeNerdGlyph(resolvedIcon)}"))
-                Log.Error($"Failed Nerd icon render path. icon={originalIconValue}, glyph={DescribeNerdGlyph(resolvedIcon)}, bounds={iconBounds}, color={iconColor}, font={iconFont.Name}, Message={ex.Message}");
-
-            return false;
-        }
-
-        return true;
+        return _nerdFontIconService.DrawIcon(graphics, iconBounds, iconFont, iconColor, iconGlyph);
     }
 
     private void ApplyMouseOverVisuals(bool isMouseOver)
