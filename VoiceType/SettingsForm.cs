@@ -1220,21 +1220,39 @@ public class SettingsForm : Form
 
         var selectedDeviceIndex = GetSelectedAudioDeviceIndex(_microphoneDeviceCombo);
         var selectedDeviceName = GetSelectedAudioDeviceName(_microphoneDeviceCombo);
+        AudioCaptureSelectionState? testCaptureSelection = null;
 
         try
         {
+            var deviceSnapshot = GetCurrentInputDeviceList();
+            Log.Info(
+                $"Mic test requested: index={selectedDeviceIndex}, name='{selectedDeviceName}'. " +
+                $"Available input devices: {FormatDeviceListForLog(deviceSnapshot)}");
             using var recorder = new AudioRecorder(selectedDeviceIndex, selectedDeviceName);
             recorder.Start();
+            var captureSelection = recorder.LastCaptureSelection;
+            testCaptureSelection = captureSelection;
+            Log.Info(
+                $"Mic test selection resolved: requested={captureSelection.RequestedSummary}, " +
+                $"active={captureSelection.ActiveSummary}, reason={captureSelection.SelectionReason}, " +
+                $"fallback={captureSelection.UsedFallback}, attempts={FormatAttemptListForLog(captureSelection.Attempts)}");
+
             await Task.Delay(3000);
             var audioData = recorder.Stop();
             var metrics = recorder.LastCaptureMetrics;
-            var captureSelection = recorder.LastCaptureSelection;
+            captureSelection = recorder.LastCaptureSelection;
+            var deviceSnapshotText = FormatCaptureDeviceSnapshotForLog(captureSelection.DeviceSnapshot);
             var usedSelectedDevice = captureSelection.UsedFallback
                 ? string.Empty
                 : string.Equals(captureSelection.ActiveCaptureDeviceName, selectedDeviceName, StringComparison.OrdinalIgnoreCase) &&
                     captureSelection.ActiveCaptureDeviceIndex == selectedDeviceIndex
                     ? " (uses selected device)"
                     : " (selected by name/default fallback)";
+            Log.Info(
+                $"Mic test completed in {metrics.Duration.TotalSeconds:F2}s. bytes={audioData.Length}, " +
+                $"rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}, " +
+                $"nonZero={(metrics.HasAnyNonZeroSample ? "yes" : "no")}, silence={metrics.IsLikelySilence}, " +
+                $"selection={captureSelection.SelectionSummary}, deviceSnapshot={deviceSnapshotText}");
 
             if (audioData.Length == 0)
             {
@@ -1268,20 +1286,64 @@ public class SettingsForm : Form
                 _microphoneTestStatusLabel.ForeColor = Color.DarkGreen;
                 Log.Info(
                     $"Settings microphone test passed for '{selectedDeviceName}' (index {selectedDeviceIndex}): " +
-                    $"duration={metrics.Duration.TotalSeconds:F2}s, rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}");
+                    $"duration={metrics.Duration.TotalSeconds:F2}s, rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}, " +
+                    $"selection={captureSelection.SelectionSummary}, attempts={FormatAttemptListForLog(captureSelection.Attempts)}");
             }
         }
         catch (Exception ex)
         {
+            var selectionSummary = testCaptureSelection is null
+                ? $"requestedIndex={selectedDeviceIndex}, requestedName='{selectedDeviceName}'"
+                : $"requested={testCaptureSelection.RequestedSummary}, active={testCaptureSelection.ActiveSummary}, " +
+                  $"reason={testCaptureSelection.SelectionReason}, fallback={testCaptureSelection.UsedFallback}, " +
+                  $"attempts={FormatAttemptListForLog(testCaptureSelection.Attempts)}";
+
             _microphoneTestStatusLabel.Text = $"Microphone test failed: {ex.Message}";
             _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
-            Log.Error("Microphone test failed.", ex);
+            Log.Error($"Microphone test failed. {selectionSummary}", ex);
         }
         finally
         {
             if (!IsDisposed)
                 _testMicrophoneButton.Enabled = true;
         }
+    }
+
+    private static string GetCurrentInputDeviceList()
+    {
+        try
+        {
+            var deviceCount = WaveIn.DeviceCount;
+            if (deviceCount <= 0)
+                return "No input devices detected";
+
+            var names = new List<string>(deviceCount);
+            for (var deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
+            {
+                names.Add($"{deviceIndex}:{TryGetCaptureDeviceName(deviceIndex)}");
+            }
+
+            return string.Join(" | ", names);
+        }
+        catch (Exception ex)
+        {
+            return $"Failed to read input device list: {ex.Message}";
+        }
+    }
+
+    private static string FormatAttemptListForLog(IReadOnlyList<string> attempts)
+    {
+        return attempts.Count == 0 ? "none" : string.Join(" | ", attempts);
+    }
+
+    private static string FormatCaptureDeviceSnapshotForLog(IReadOnlyList<string> snapshot)
+    {
+        return snapshot.Count == 0 ? "none" : string.Join(" | ", snapshot);
+    }
+
+    private static string FormatDeviceListForLog(string deviceListText)
+    {
+        return string.IsNullOrWhiteSpace(deviceListText) ? "none" : deviceListText;
     }
 
     private static IReadOnlyList<AudioDeviceOption> GetMicrophoneDeviceOptions()
