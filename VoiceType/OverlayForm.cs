@@ -938,25 +938,28 @@ public class OverlayForm : Form
         using var iconFont = CreateNerdFont(fontSizePx, FontStyle.Regular);
         try
         {
-            var textSize = TextRenderer.MeasureText(
-                graphics,
-                resolvedIcon,
-                iconFont,
-                new Size(int.MaxValue / 4, int.MaxValue / 4),
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-            var glyphBounds = new Rectangle(
-                iconBounds.Left + Math.Max(0, (iconBounds.Width - textSize.Width) / 2),
-                iconBounds.Top + Math.Max(0, (iconBounds.Height - textSize.Height) / 2),
-                Math.Max(1, Math.Min(textSize.Width, iconBounds.Width)),
-                Math.Max(1, Math.Min(textSize.Height, iconBounds.Height)));
-
-            TextRenderer.DrawText(
-                graphics,
-                resolvedIcon,
-                iconFont,
-                glyphBounds,
-                iconColor,
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            using var iconBrush = new SolidBrush(iconColor);
+            var previousHint = graphics.TextRenderingHint;
+            graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            try
+            {
+                using var iconFormat = new StringFormat(StringFormatFlags.NoClip)
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center,
+                    FormatFlags = StringFormatFlags.NoClip | StringFormatFlags.NoWrap
+                };
+                graphics.DrawString(
+                    resolvedIcon,
+                    iconFont,
+                    iconBrush,
+                    iconBounds,
+                    iconFormat);
+            }
+            finally
+            {
+                graphics.TextRenderingHint = previousHint;
+            }
         }
         catch (Exception ex)
         {
