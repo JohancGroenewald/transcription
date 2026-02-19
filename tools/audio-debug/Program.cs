@@ -12,7 +12,7 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
-        var options = ParseOptions(args);
+            var options = ParseOptions(args);
         if (options.Help)
         {
             PrintHelp();
@@ -26,8 +26,8 @@ internal static class Program
                 ApplyConfigDefaults(ref options);
             }
 
-        PrintDeviceTable();
-        PrintDeviceSelectionWarnings(options);
+            PrintDeviceTable();
+            PrintDeviceSelectionWarnings(options);
 
             if (options.ListOnly)
                 return 0;
@@ -54,6 +54,7 @@ internal static class Program
         var inputName = options.InputName;
         var outputIndex = options.OutputIndex;
         var durationMs = options.DurationMs;
+        var outputVolume = options.OutputVolume;
         var requestedInputSummary = string.IsNullOrWhiteSpace(inputName)
             ? $"index {inputIndex}"
             : $"'{inputName}' (index {inputIndex})";
@@ -141,7 +142,7 @@ internal static class Program
         try
         {
             Console.WriteLine("[2/2] Playing captured audio...");
-            await StartPlaybackAsync(audio, outputIndex, cancellationToken: default);
+            await StartPlaybackAsync(audio, outputIndex, outputVolume, cancellationToken: default);
         }
         catch (Exception ex)
         {
@@ -160,15 +161,21 @@ internal static class Program
         return true;
     }
 
-    private static async Task StartPlaybackAsync(byte[] audioData, int outputDeviceIndex, CancellationToken cancellationToken)
+    private static async Task StartPlaybackAsync(
+        byte[] audioData,
+        int outputDeviceIndex,
+        float outputVolume,
+        CancellationToken cancellationToken)
     {
         await using var playbackStream = new MemoryStream(audioData);
         using var playbackReader = new WaveFileReader(playbackStream);
         var output = BuildPlaybackOutput(outputDeviceIndex, out var outputSummary);
         using (output)
         {
+            output.Volume = Math.Clamp(outputVolume, 0f, 1f);
             output.Init(playbackReader);
             Console.WriteLine($"  output device: {outputSummary}");
+            Console.WriteLine($"  output volume: {Math.Clamp(outputVolume, 0f, 1f):P0}");
             output.Play();
             while (!cancellationToken.IsCancellationRequested &&
                 (output.PlaybackState is PlaybackState.Playing or PlaybackState.Paused))
@@ -365,6 +372,21 @@ internal static class Program
                 case "--no-playback":
                     options = options with { NoPlayback = true };
                     break;
+                case "--output-volume":
+                    if (i + 1 >= args.Length)
+                        throw new ArgumentException("--output-volume requires a percentage value.");
+                    if (!float.TryParse(
+                        args[++i],
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out var outputVolume))
+                    {
+                        throw new ArgumentException("Invalid output-volume value.");
+                    }
+                    if (outputVolume < 0f || outputVolume > 100f)
+                        throw new ArgumentException("output-volume must be between 0 and 100.");
+                    options = options with { OutputVolume = outputVolume / 100f };
+                    break;
                 case "--save":
                 case "-s":
                     if (i + 1 >= args.Length)
@@ -443,6 +465,7 @@ internal static class Program
         Console.WriteLine("  --input-name <name>            Preferred microphone input name.");
         Console.WriteLine("  --output-index, --output <n>   Output index for playback (default: -1/system default).");
         Console.WriteLine("  --duration-ms <ms>             Capture window in ms (250 - 300000).");
+        Console.WriteLine("  --output-volume <pct>          Playback volume percentage (0 - 100).");
         Console.WriteLine("  --no-playback                  Skip playback of captured audio.");
         Console.WriteLine("  --save <path>                  Write captured WAV to file.");
         Console.WriteLine();
@@ -457,5 +480,6 @@ internal static class Program
         string? InputName = null,
         int OutputIndex = -1,
         int DurationMs = DefaultCaptureDurationMs,
+        float OutputVolume = 1f,
         string? SavePath = null);
 }

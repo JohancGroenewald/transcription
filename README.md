@@ -235,6 +235,7 @@ Options:
 - `--input-name <name>`: force an input by name
 - `--output-index <n>`: force playback output
 - `--duration-ms <n>`: capture window in milliseconds
+- `--output-volume <pct>`: playback volume percentage (0-100)
 - `--no-playback`: capture and analyze only
 - `--save <path>`: write captured WAV to disk
 
