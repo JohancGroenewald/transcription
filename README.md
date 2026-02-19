@@ -242,7 +242,7 @@ Options:
 - `--input-name <name>`: force an input by name
 - `--output-index <n>`: force playback output
 - `--duration-ms <n>`: capture window in milliseconds
-- `--output-volume <pct>`: playback volume percentage (0-100)
+- `--output-volume <pct>`: playback volume percentage (0-100, default 50)
 - `--no-playback`: capture and analyze only
 - `--save-in [path]`: write captured input audio to disk (default `audio-debug-test.wav`)
 - `--save-out [path]`: write playback output audio to disk (default `audio-debug-test.wav`)

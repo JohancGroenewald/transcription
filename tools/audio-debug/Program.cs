@@ -10,6 +10,7 @@ internal static class Program
     private const int DefaultCaptureDurationMs = 3000;
     private const int DefaultDingDurationMs = 900;
     private const string DefaultSaveFile = "audio-debug-test.wav";
+    private const float DefaultOutputVolume = 0.5f;
     private const int MinCaptureDurationMs = 250;
     private const int MaxCaptureDurationMs = 300000;
 
@@ -75,7 +76,7 @@ internal static class Program
             {
                 SaveAudioFile("output", dingAudio, options.SaveOutputPath ?? options.SaveInputPath);
             }
-            await StartPlaybackAsync(dingAudio, options.OutputIndex, 1f, cancellationToken: default);
+            await StartPlaybackAsync(dingAudio, options.OutputIndex, options.OutputVolume, cancellationToken: default);
             Console.WriteLine("[1/1] Ding playback succeeded.");
             return true;
         }
@@ -631,7 +632,7 @@ internal static class Program
         Console.WriteLine("  --input-name <name>            Preferred microphone input name.");
         Console.WriteLine("  --output-index, --output <n>   Output index for playback (default: -1/system default).");
         Console.WriteLine("  --duration-ms <ms>             Capture window in ms (250 - 300000).");
-        Console.WriteLine("  --output-volume <pct>          Playback volume percentage (0 - 100).");
+        Console.WriteLine("  --output-volume <pct>          Playback volume percentage (0 - 100, default 50).");
         Console.WriteLine("  --no-playback                  Skip playback of captured audio.");
         Console.WriteLine();
     }
@@ -647,7 +648,7 @@ internal static class Program
         string? InputName = null,
         int OutputIndex = -1,
         int DurationMs = DefaultCaptureDurationMs,
-        float OutputVolume = 1f,
+        float OutputVolume = DefaultOutputVolume,
         bool SaveInput = false,
         bool SaveOutput = false,
         string? SaveInputPath = null,
