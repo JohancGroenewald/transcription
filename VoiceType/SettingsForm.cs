@@ -1491,13 +1491,46 @@ public class SettingsForm : Form
         }
 
         if (playbackCancellation is not null)
-            playbackCancellation.Cancel();
+        {
+            try
+            {
+                if (!playbackCancellation.IsCancellationRequested)
+                    playbackCancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Best effort: playback was already stopped and cleaned up elsewhere.
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Failed to cancel microphone test playback token.", ex);
+            }
+        }
 
-        playbackOutput?.Stop();
-        playbackOutput?.Dispose();
-        playbackReader?.Dispose();
-        playbackStream?.Dispose();
-        playbackCancellation?.Dispose();
+        try
+        {
+            playbackOutput?.Stop();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to stop microphone test playback output.", ex);
+        }
+
+        try
+        {
+            playbackOutput?.Dispose();
+            playbackReader?.Dispose();
+            playbackStream?.Dispose();
+            playbackCancellation?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Best effort cleanup.
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to dispose microphone test playback objects.", ex);
+        }
     }
 
     private static string GetCurrentInputDeviceList()
