@@ -52,7 +52,8 @@ public interface IOverlayManager : IDisposable
         int opacityPercent,
         int widthPercent,
         int fontSizePt,
-        bool showBorder);
+        bool showBorder,
+        int overlayBackgroundMode);
 
     void ApplyFadeProfile(int overlayFadeProfile);
 

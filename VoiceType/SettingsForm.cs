@@ -71,6 +71,8 @@ public class SettingsForm : Form
     private readonly NumericUpDown _overlayFontSizeInput;
     private readonly Label _overlayFadeProfileLabel;
     private readonly ComboBox _overlayFadeProfileCombo;
+    private readonly Label _overlayBackgroundModeLabel;
+    private readonly ComboBox _overlayBackgroundModeCombo;
     private record struct AudioDeviceOption(int DeviceIndex, string DeviceName, string DisplayName)
     {
         public override string ToString() => DisplayName;
@@ -319,7 +321,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 26,
+            RowCount = 27,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -461,6 +463,24 @@ public class SettingsForm : Form
         };
         _overlayFadeProfileCombo.Items.AddRange([.. AppConfig.OverlayFadeProfiles]);
         SetupThemedComboBox(_overlayFadeProfileCombo);
+
+        _overlayBackgroundModeLabel = new Label
+        {
+            Text = "HUD background mode",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 10, 3)
+        };
+
+        _overlayBackgroundModeCombo = new ComboBox
+        {
+            Dock = DockStyle.Left,
+            Width = 240,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 6, 0, 0)
+        };
+        _overlayBackgroundModeCombo.Items.AddRange([.. AppConfig.OverlayBackgroundModes]);
+        SetupThemedComboBox(_overlayBackgroundModeCombo);
 
         _showOverlayBorderCheck = new CheckBox
         {
@@ -719,6 +739,8 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(_settingsDarkModeCheck, 2);
         behaviorLayout.Controls.Add(_overlayFadeProfileLabel, 0, 21);
         behaviorLayout.Controls.Add(_overlayFadeProfileCombo, 1, 21);
+        behaviorLayout.Controls.Add(_overlayBackgroundModeLabel, 0, 26);
+        behaviorLayout.Controls.Add(_overlayBackgroundModeCombo, 1, 26);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new ThemedGroupBox
@@ -1120,6 +1142,10 @@ public class SettingsForm : Form
             AppConfig.NormalizeOverlayFadeProfile(config.OverlayFadeProfile),
             0,
             _overlayFadeProfileCombo.Items.Count - 1);
+        _overlayBackgroundModeCombo.SelectedIndex = Math.Clamp(
+            AppConfig.NormalizeOverlayBackgroundMode(config.OverlayBackgroundMode),
+            0,
+            _overlayBackgroundModeCombo.Items.Count - 1);
         _showOverlayBorderCheck.Checked = config.ShowOverlayBorder;
         _useSimpleMicSpinnerCheck.Checked = config.UseSimpleMicSpinner;
         _enablePreviewPlaybackCleanupCheck.Checked = config.EnablePreviewPlaybackCleanup;
@@ -1172,6 +1198,10 @@ public class SettingsForm : Form
                 _overlayFadeProfileCombo.SelectedIndex,
                 AppConfig.MinOverlayFadeProfile,
                 AppConfig.MaxOverlayFadeProfile),
+            OverlayBackgroundMode = Math.Clamp(
+                _overlayBackgroundModeCombo.SelectedIndex,
+                AppConfig.MinOverlayBackgroundMode,
+                AppConfig.MaxOverlayBackgroundMode),
             ShowOverlayBorder = _showOverlayBorderCheck.Checked,
             UseSimpleMicSpinner = _useSimpleMicSpinnerCheck.Checked,
             EnablePreviewPlaybackCleanup = _enablePreviewPlaybackCleanupCheck.Checked,
@@ -1877,6 +1907,7 @@ public class SettingsForm : Form
         _overlayFontSizeInput.Enabled = enabled;
         _overlayFadeProfileCombo.Enabled = enabled;
         _showOverlayBorderCheck.Enabled = enabled;
+        _overlayBackgroundModeCombo.Enabled = enabled;
         _useSimpleMicSpinnerCheck.Enabled = enabled;
         _enablePreviewPlaybackCleanupCheck.Enabled = enabled;
 
@@ -1891,6 +1922,8 @@ public class SettingsForm : Form
         _overlayFontSizeLabel.ForeColor = labelColor;
         _overlayFadeProfileLabel.Enabled = true;
         _overlayFadeProfileLabel.ForeColor = labelColor;
+        _overlayBackgroundModeLabel.Enabled = true;
+        _overlayBackgroundModeLabel.ForeColor = labelColor;
     }
 
     private void UpdatePastedTextPrefixState()

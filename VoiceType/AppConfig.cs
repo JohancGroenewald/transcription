@@ -31,6 +31,12 @@ public class AppConfig
     public const int FastOverlayFadeProfile = 1;
     public const int BalancedOverlayFadeProfile = 2;
     public const int GentleOverlayFadeProfile = 3;
+    public const int DefaultOverlayBackgroundMode = 1;
+    public const int MinOverlayBackgroundMode = 0;
+    public const int MaxOverlayBackgroundMode = 2;
+    public const int OverlayBackgroundModeAlways = 0;
+    public const int OverlayBackgroundModeHoverOnly = 1;
+    public const int OverlayBackgroundModeNever = 2;
     public const int DefaultOverlayStackHorizontalOffsetPx = 0;
     public const int MinRemoteActionPopupLevel = 0;
     public const int DefaultRemoteActionPopupLevel = 1;
@@ -41,6 +47,12 @@ public class AppConfig
         "Fast",
         "Balanced",
         "Gentle"
+    ];
+    public static readonly string[] OverlayBackgroundModes =
+    [
+        "Always",
+        "On hover",
+        "Never"
     ];
     private static readonly string[] SupportedPenHotkeys =
     [
@@ -88,6 +100,7 @@ public class AppConfig
     public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
     public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
     public int OverlayFadeProfile { get; set; } = DefaultOverlayFadeProfile;
+    public int OverlayBackgroundMode { get; set; } = DefaultOverlayBackgroundMode;
     public bool ShowOverlayBorder { get; set; } = true;
     public bool UseSimpleMicSpinner { get; set; }
     public bool EnablePreviewPlaybackCleanup { get; set; }
@@ -131,6 +144,7 @@ public class AppConfig
         public int OverlayWidthPercent { get; set; } = DefaultOverlayWidthPercent;
         public int OverlayFontSizePt { get; set; } = DefaultOverlayFontSizePt;
         public int OverlayFadeProfile { get; set; } = DefaultOverlayFadeProfile;
+        public int OverlayBackgroundMode { get; set; } = DefaultOverlayBackgroundMode;
         public bool ShowOverlayBorder { get; set; } = true;
         public bool UseSimpleMicSpinner { get; set; }
         public bool EnablePreviewPlaybackCleanup { get; set; }
@@ -179,6 +193,7 @@ public class AppConfig
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
                 OverlayFadeProfile = NormalizeOverlayFadeProfile(configFile.OverlayFadeProfile),
+                OverlayBackgroundMode = NormalizeOverlayBackgroundMode(configFile.OverlayBackgroundMode),
                 ShowOverlayBorder = configFile.ShowOverlayBorder,
                 UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
                 EnablePreviewPlaybackCleanup = configFile.EnablePreviewPlaybackCleanup,
@@ -229,6 +244,7 @@ public class AppConfig
                 OverlayWidthPercent = NormalizeOverlayWidthPercent(OverlayWidthPercent),
                 OverlayFontSizePt = NormalizeOverlayFontSizePt(OverlayFontSizePt),
                 OverlayFadeProfile = NormalizeOverlayFadeProfile(OverlayFadeProfile),
+                OverlayBackgroundMode = NormalizeOverlayBackgroundMode(OverlayBackgroundMode),
                 ShowOverlayBorder = ShowOverlayBorder,
                 UseSimpleMicSpinner = UseSimpleMicSpinner,
                 EnablePreviewPlaybackCleanup = EnablePreviewPlaybackCleanup,
@@ -348,6 +364,15 @@ public class AppConfig
         if (overlayFadeProfile > MaxOverlayFadeProfile)
             return MaxOverlayFadeProfile;
         return overlayFadeProfile;
+    }
+
+    public static int NormalizeOverlayBackgroundMode(int overlayBackgroundMode)
+    {
+        if (overlayBackgroundMode < MinOverlayBackgroundMode)
+            return MinOverlayBackgroundMode;
+        if (overlayBackgroundMode > MaxOverlayBackgroundMode)
+            return MaxOverlayBackgroundMode;
+        return overlayBackgroundMode;
     }
 
     public static int NormalizeRemoteActionPopupLevel(int level)

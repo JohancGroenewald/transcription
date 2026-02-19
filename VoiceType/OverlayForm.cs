@@ -122,6 +122,7 @@ public class OverlayForm : Form
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
     private bool _showOverlayBorder = true;
+    private int _overlayBackgroundMode = AppConfig.DefaultOverlayBackgroundMode;
     private double _baseOpacity = AppConfig.DefaultOverlayOpacityPercent / 100.0;
     private int _lastDurationMs = 3000;
     private bool _lastShowCountdownBar;
@@ -268,7 +269,8 @@ public class OverlayForm : Form
             AppConfig.DefaultOverlayOpacityPercent,
             AppConfig.DefaultOverlayWidthPercent,
             AppConfig.DefaultOverlayFontSizePt,
-            showBorder: true);
+            showBorder: true,
+            AppConfig.DefaultOverlayBackgroundMode);
         UpdateRoundedRegion();
 
         // Position: bottom-center, above taskbar
@@ -362,7 +364,7 @@ public class OverlayForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        e.Graphics.Clear(_isMouseOverOverlay ? HoverOverlayBackgroundColor : TransparentOverlayBackgroundColor);
+        e.Graphics.Clear(GetOverlayBackgroundColor());
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -683,17 +685,28 @@ public class OverlayForm : Form
         Invalidate();
     }
 
-    public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
+    public void ApplyHudSettings(
+        int opacityPercent,
+        int widthPercent,
+        int fontSizePt,
+        bool showBorder,
+        int overlayBackgroundMode)
     {
         if (InvokeRequired)
         {
-            Invoke(() => ApplyHudSettings(opacityPercent, widthPercent, fontSizePt, showBorder));
+            Invoke(() => ApplyHudSettings(
+                opacityPercent,
+                widthPercent,
+                fontSizePt,
+                showBorder,
+                overlayBackgroundMode));
             return;
         }
 
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
         _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(Math.Min(AppConfig.MaxOverlayFontSizePt, fontSizePt + 3));
         _showOverlayBorder = showBorder;
+        _overlayBackgroundMode = AppConfig.NormalizeOverlayBackgroundMode(overlayBackgroundMode);
         _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
         Opacity = 1.0;
 
@@ -707,26 +720,51 @@ public class OverlayForm : Form
         _prefixLabel.Font = CreateOverlayFont(Math.Max(10, _overlayFontSizePt - 2), FontStyle.Bold);
         oldPrefixFont.Dispose();
 
-        if (Visible)
-            ShowMessage(
-                _label.Text,
-                _label.ForeColor,
-                _lastDurationMs,
-                _lastTextAlign,
-                _lastCenterTextBlock,
-                _lastShowCountdownBar,
-                _lastTapToCancel,
-                _lastActionText,
-                _lastActionColor,
-                _lastPrefixText,
-                _lastPrefixColor,
-                countdownPlaybackIcon: _lastCountdownPlaybackIcon,
-                fullWidthText: _lastUseFullWidthText,
-                showHideStackIcon: _showHideStackIcon,
-                showStartListeningIcon: _showStartListeningIcon,
-                showStopListeningIcon: _showStopListeningIcon,
-                showCancelListeningIcon: _showCancelListeningIcon,
-                showHelloTextFrame: _showHelloTextFrame);
+        ApplyBackgroundVisuals();
+    }
+
+    private bool ShouldShowContrastBackground()
+    {
+        return _overlayBackgroundMode switch
+        {
+            AppConfig.OverlayBackgroundModeAlways => true,
+            AppConfig.OverlayBackgroundModeHoverOnly => _isMouseOverOverlay,
+            _ => false
+        };
+    }
+
+    private void ApplyBackgroundVisuals()
+    {
+        var shouldShowContrastBackground = ShouldShowContrastBackground();
+        BackColor = shouldShowContrastBackground
+            ? HoverOverlayBackgroundColor
+            : TransparentOverlayBackgroundColor;
+        TransparencyKey = shouldShowContrastBackground
+            ? Color.Empty
+            : TransparentOverlayBackgroundColor;
+        Opacity = shouldShowContrastBackground
+            ? 1.0
+            : _baseOpacity;
+        Invalidate();
+    }
+
+    private Color GetOverlayBackgroundColor()
+    {
+        return ShouldShowContrastBackground()
+            ? HoverOverlayBackgroundColor
+            : TransparentOverlayBackgroundColor;
+    }
+
+    private void ApplyMouseOverVisuals(bool isMouseOver)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => ApplyMouseOverVisuals(isMouseOver)));
+            return;
+        }
+
+        _isMouseOverOverlay = isMouseOver;
+        ApplyBackgroundVisuals();
     }
 
     public void PromoteToTopmost()
@@ -760,38 +798,152 @@ public class OverlayForm : Form
 
     public void FadeOut(int delayMilliseconds = 0, int? fadeDurationMs = null, int? fadeTickIntervalMs = null)
     {
-        var delayMs = Math.Max(0, delayMilliseconds);
-        ConfigureFadeTiming(fadeDurationMs, fadeTickIntervalMs);
-        var messageId = _activeMessageId;
-        if (delayMs <= 0)
+        if (InvokeRequired)
         {
-            if (InvokeRequired)
-            {
-                Invoke((Action)(() => FadeOut(0)));
-                return;
-            }
-
-            BeginFadeOut(messageId, force: true);
+            Invoke((Action)(() => FadeOut(delayMilliseconds, fadeDurationMs, fadeTickIntervalMs)));
             return;
         }
 
-        _ = Task.Run(async () =>
+        if (delayMilliseconds > 0 && Visible)
         {
-            await Task.Delay(delayMs).ConfigureAwait(false);
-            if (IsDisposed || IsHandleCreated == false || !Visible)
-                return;
-
-            if (_activeMessageId != messageId)
-                return;
-
-            if (InvokeRequired)
+            System.Windows.Forms.Timer? timer = null;
+            timer = new System.Windows.Forms.Timer { Interval = delayMilliseconds };
+            timer.Tick += (_, _) =>
             {
-                Invoke((Action)(() => BeginFadeOut(messageId, force: true)));
-                return;
-            }
+                timer?.Stop();
+                timer?.Dispose();
+                FadeOutInternal(fadeDurationMs, fadeTickIntervalMs);
+            };
+            timer.Start();
+            return;
+        }
 
-            BeginFadeOut(messageId, force: true);
-        });
+        FadeOutInternal(fadeDurationMs, fadeTickIntervalMs);
+    }
+
+    private void FadeOutInternal(int? fadeDurationMs, int? fadeTickIntervalMs)
+    {
+        _fadeDurationMs = fadeDurationMs is null or <= 0
+            ? DefaultFadeDurationMs
+            : Math.Max(60, fadeDurationMs.Value);
+        _fadeTickIntervalMs = fadeTickIntervalMs is null or <= 0
+            ? DefaultFadeTickIntervalMs
+            : Math.Clamp(fadeTickIntervalMs.Value, 16, 500);
+        _fadeTimer.Interval = _fadeTickIntervalMs;
+        _fadeMessageId = unchecked(_activeMessageId);
+        _fadeMessageId = Math.Max(_fadeMessageId, 1);
+        _fadeTimer.Start();
+    }
+
+    private bool IsMouseOverOverlay()
+    {
+        return _isMouseOverOverlay;
+    }
+
+    private void OnMouseCaptureChanged(object? sender, EventArgs e)
+    {
+        if (!Capture)
+            EndHorizontalDrag();
+    }
+
+    private bool EndHorizontalDrag()
+    {
+        var wasDragging = _isHorizontalDragging;
+        if (!_dragStarted && !_isHorizontalDragging)
+        {
+            Capture = false;
+            Cursor = Cursors.Default;
+            return false;
+        }
+
+        _ignoreNextClickAfterDrag = _isHorizontalDragging;
+        _dragStarted = false;
+        _isHorizontalDragging = false;
+        Cursor = Cursors.Default;
+        Capture = false;
+        return wasDragging;
+    }
+
+    private void RegisterDragHandlers(Control control)
+    {
+        control.MouseDown += OnOverlayMouseDown;
+        control.MouseMove += OnOverlayMouseMove;
+        control.MouseUp += OnOverlayMouseUp;
+
+        foreach (Control child in control.Controls)
+            RegisterDragHandlers(child);
+    }
+
+    private void RegisterHoverHandlers(Control control)
+    {
+        control.MouseEnter += OnOverlayMouseEnter;
+        control.MouseLeave += OnOverlayMouseLeave;
+
+        foreach (Control child in control.Controls)
+            RegisterHoverHandlers(child);
+    }
+
+    private void OnOverlayMouseEnter(object? sender, EventArgs e)
+    {
+        if (!Visible)
+            return;
+
+        if (_mouseOverlayDepth == 0)
+            ApplyMouseOverVisuals(true);
+
+        _mouseOverlayDepth++;
+    }
+
+    private void OnOverlayMouseLeave(object? sender, EventArgs e)
+    {
+        if (!Visible)
+        {
+            ClearMouseOverState();
+            return;
+        }
+
+        _mouseOverlayDepth = Math.Max(0, _mouseOverlayDepth - 1);
+        if (_mouseOverlayDepth == 0)
+            ApplyMouseOverVisuals(false);
+    }
+
+    private void ClearMouseOverState()
+    {
+        _mouseOverlayDepth = 0;
+        ApplyMouseOverVisuals(false);
+    }
+
+    private static Color EnsureOpaque(Color color)
+    {
+        return Color.FromArgb(255, color.R, color.G, color.B);
+    }
+
+    private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
+    {
+        var path = new GraphicsPath();
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+
+        var diameter = Math.Max(2, Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height)));
+        if (diameter <= 2)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+
+        var arc = new Rectangle(bounds.X, bounds.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     private void ConfigureLabelLayout(
@@ -2381,132 +2533,6 @@ public class OverlayForm : Form
             return;
     }
 
-    private void OnMouseCaptureChanged(object? sender, EventArgs e)
-    {
-        if (!Capture)
-            EndHorizontalDrag();
-    }
-
-    private bool EndHorizontalDrag()
-    {
-        var wasDragging = _isHorizontalDragging;
-        if (!_dragStarted && !_isHorizontalDragging)
-        {
-            Capture = false;
-            Cursor = Cursors.Default;
-            return false;
-        }
-
-        _ignoreNextClickAfterDrag = _isHorizontalDragging;
-        _dragStarted = false;
-        _isHorizontalDragging = false;
-        Cursor = Cursors.Default;
-        Capture = false;
-        return wasDragging;
-    }
-
-    private void RegisterDragHandlers(Control control)
-    {
-        control.MouseDown += OnOverlayMouseDown;
-        control.MouseMove += OnOverlayMouseMove;
-        control.MouseUp += OnOverlayMouseUp;
-
-        foreach (Control child in control.Controls)
-            RegisterDragHandlers(child);
-    }
-
-    private void RegisterHoverHandlers(Control control)
-    {
-        control.MouseEnter += OnOverlayMouseEnter;
-        control.MouseLeave += OnOverlayMouseLeave;
-
-        foreach (Control child in control.Controls)
-            RegisterHoverHandlers(child);
-    }
-
-    private void OnOverlayMouseEnter(object? sender, EventArgs e)
-    {
-        if (!Visible)
-            return;
-
-        if (_mouseOverlayDepth == 0)
-            ApplyMouseOverVisuals(true);
-
-        _mouseOverlayDepth++;
-    }
-
-    private void OnOverlayMouseLeave(object? sender, EventArgs e)
-    {
-        if (!Visible)
-        {
-            ClearMouseOverState();
-            return;
-        }
-
-        _mouseOverlayDepth = Math.Max(0, _mouseOverlayDepth - 1);
-        if (_mouseOverlayDepth == 0)
-            ApplyMouseOverVisuals(false);
-    }
-
-    private void ClearMouseOverState()
-    {
-        _mouseOverlayDepth = 0;
-        ApplyMouseOverVisuals(false);
-    }
-
-    private void ApplyMouseOverVisuals(bool isMouseOver)
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(() => ApplyMouseOverVisuals(isMouseOver)));
-            return;
-        }
-
-        _isMouseOverOverlay = isMouseOver;
-        TransparencyKey = isMouseOver
-            ? Color.Empty
-            : TransparentOverlayBackgroundColor;
-        BackColor = isMouseOver
-            ? HoverOverlayBackgroundColor
-            : TransparentOverlayBackgroundColor;
-        Opacity = isMouseOver
-            ? 1.0
-            : _baseOpacity;
-        Invalidate();
-    }
-
-    private static Color EnsureOpaque(Color color)
-    {
-        return Color.FromArgb(255, color.R, color.G, color.B);
-    }
-
-    private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            path.AddRectangle(bounds);
-            return path;
-        }
-
-        var diameter = Math.Max(2, Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height)));
-        if (diameter <= 2)
-        {
-            path.AddRectangle(bounds);
-            return path;
-        }
-
-        var arc = new Rectangle(bounds.X, bounds.Y, diameter, diameter);
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
 }
 
 public sealed class OverlayTappedEventArgs : EventArgs

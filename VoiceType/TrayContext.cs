@@ -111,6 +111,7 @@ public class TrayContext : ApplicationContext
     private bool _autoEnter;
     private bool _enableOverlayPopups = true;
     private int _overlayDurationMs = AppConfig.DefaultOverlayDurationMs;
+    private int _overlayBackgroundMode = AppConfig.DefaultOverlayBackgroundMode;
     private bool _enablePenHotkey;
     private string _penHotkey = AppConfig.DefaultPenHotkey;
     private bool _penHotkeyRegistered;
@@ -234,11 +235,13 @@ public class TrayContext : ApplicationContext
         _autoEnter = config.AutoEnter;
         _enableOverlayPopups = config.EnableOverlayPopups;
         _overlayDurationMs = AppConfig.NormalizeOverlayDuration(config.OverlayDurationMs);
+        _overlayBackgroundMode = AppConfig.NormalizeOverlayBackgroundMode(config.OverlayBackgroundMode);
         _overlayManager.ApplyHudSettings(
             config.OverlayOpacityPercent,
             config.OverlayWidthPercent,
             config.OverlayFontSizePt,
-            config.ShowOverlayBorder);
+            config.ShowOverlayBorder,
+            _overlayBackgroundMode);
         _overlayManager.ApplyFadeProfile(config.OverlayFadeProfile);
         _overlayManager.SetStackHorizontalOffset(config.OverlayStackHorizontalOffsetPx);
         _enablePenHotkey = config.EnablePenHotkey;

@@ -82,6 +82,7 @@ public sealed class OverlayWindowManager : IOverlayManager
     private int _overlayWidthPercent = AppConfig.DefaultOverlayWidthPercent;
     private int _overlayFontSizePt = AppConfig.DefaultOverlayFontSizePt;
     private bool _overlayShowBorder = true;
+    private int _overlayBackgroundMode = AppConfig.DefaultOverlayBackgroundMode;
     private int _overlayFadeProfile = AppConfig.DefaultOverlayFadeProfile;
     private int _fadeDelayBetweenOverlaysMs;
     private int _overlayFadeDurationMs;
@@ -306,12 +307,13 @@ public sealed class OverlayWindowManager : IOverlayManager
         }
     }
 
-    public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder)
+    public void ApplyHudSettings(int opacityPercent, int widthPercent, int fontSizePt, bool showBorder, int overlayBackgroundMode)
     {
         _overlayOpacityPercent = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent);
         _overlayWidthPercent = AppConfig.NormalizeOverlayWidthPercent(widthPercent);
         _overlayFontSizePt = AppConfig.NormalizeOverlayFontSizePt(fontSizePt);
         _overlayShowBorder = showBorder;
+        _overlayBackgroundMode = AppConfig.NormalizeOverlayBackgroundMode(overlayBackgroundMode);
 
         lock (_sync)
         {
@@ -324,7 +326,8 @@ public sealed class OverlayWindowManager : IOverlayManager
                     _overlayOpacityPercent,
                     _overlayWidthPercent,
                     _overlayFontSizePt,
-                    _overlayShowBorder);
+                    _overlayShowBorder,
+                    _overlayBackgroundMode);
             }
         }
     }
@@ -737,7 +740,8 @@ public sealed class OverlayWindowManager : IOverlayManager
             _overlayOpacityPercent,
             _overlayWidthPercent,
             _overlayFontSizePt,
-            _overlayShowBorder);
+            _overlayShowBorder,
+            _overlayBackgroundMode);
 
         var managed = new ManagedOverlay(overlay, ++_stackSequence, globalMessageId: 0, overlayKey: overlayKey)
         {
