@@ -1,5 +1,6 @@
 using System.Globalization;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using VoiceType;
 
 namespace VoiceTypeAudioDebug;
@@ -7,6 +8,7 @@ namespace VoiceTypeAudioDebug;
 internal static class Program
 {
     private const int DefaultCaptureDurationMs = 3000;
+    private const int DefaultDingDurationMs = 900;
     private const int MinCaptureDurationMs = 250;
     private const int MaxCaptureDurationMs = 300000;
 
@@ -32,7 +34,9 @@ internal static class Program
             if (options.ListOnly)
                 return 0;
 
-            var result = await RunMicValidationAsync(options);
+            var result = options.Ding
+                ? await RunDingTestAsync(options)
+                : await RunMicValidationAsync(options);
             return result ? 0 : 1;
         }
         catch (ArgumentException ex)
@@ -45,6 +49,32 @@ internal static class Program
         {
             Console.WriteLine($"[ERROR] {ex.Message}");
             return 1;
+        }
+    }
+
+    private static async Task<bool> RunDingTestAsync(DebugOptions options)
+    {
+        var requestedOutputSummary = options.OutputIndex < 0
+            ? "system default output"
+            : $"index {options.OutputIndex}";
+
+        Console.WriteLine("=== VoiceType output test ===");
+        Console.WriteLine($"Output device request: {requestedOutputSummary}");
+        Console.WriteLine($"Ding duration: {DefaultDingDurationMs} ms");
+        Console.WriteLine();
+
+        try
+        {
+            Console.WriteLine("[1/1] Playing ding...");
+            await PlayDingToneAsync(options.OutputIndex, options.OutputVolume, cancellationToken: default);
+            Console.WriteLine("[1/1] Ding playback succeeded.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[1/1] Ding playback failed.");
+            Console.WriteLine($"  {ex.Message}");
+            return false;
         }
     }
 
@@ -183,6 +213,41 @@ internal static class Program
                 await Task.Delay(40, cancellationToken);
             }
         }
+    }
+
+    private static async Task PlayDingToneAsync(
+        int outputDeviceIndex,
+        float outputVolume,
+        CancellationToken cancellationToken)
+    {
+        using var output = BuildPlaybackOutput(outputDeviceIndex, out var outputSummary);
+
+        var tone = new SignalGenerator(44100, 1)
+        {
+            Type = SignalGeneratorType.Sin,
+            Frequency = 1000,
+            Gain = 0.4f
+        };
+
+        var dingProvider = new OffsetSampleProvider(tone)
+        {
+            Take = TimeSpan.FromMilliseconds(DefaultDingDurationMs)
+        };
+
+        output.Volume = Math.Clamp(outputVolume, 0f, 1f);
+        output.Init(new SampleToWaveProvider16(dingProvider));
+        Console.WriteLine($"  output device: {outputSummary}");
+        Console.WriteLine($"  output volume: {Math.Clamp(outputVolume, 0f, 1f):P0}");
+
+        output.Play();
+        while (!cancellationToken.IsCancellationRequested &&
+            (output.PlaybackState is PlaybackState.Playing or PlaybackState.Paused))
+        {
+            await Task.Delay(40, cancellationToken);
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+            output.Stop();
     }
 
     private static WaveOutEvent BuildPlaybackOutput(int outputDeviceIndex, out string outputSummary)
@@ -369,6 +434,9 @@ internal static class Program
                 case "--from-config":
                     options = options with { FromConfig = true };
                     break;
+                case "--ding":
+                    options = options with { Ding = true };
+                    break;
                 case "--no-playback":
                     options = options with { NoPlayback = true };
                     break;
@@ -461,6 +529,7 @@ internal static class Program
         Console.WriteLine("  --help, -h                    Show help.");
         Console.WriteLine("  --list, -l                    List input/output devices and exit.");
         Console.WriteLine("  --from-config                  Load VoiceType defaults (saved mic/output indexes).");
+        Console.WriteLine("  --ding                         Play a short output test tone (no capture).");
         Console.WriteLine("  --input-index, --input <n>     Preferred microphone input index (default: -1).");
         Console.WriteLine("  --input-name <name>            Preferred microphone input name.");
         Console.WriteLine("  --output-index, --output <n>   Output index for playback (default: -1/system default).");
@@ -476,6 +545,7 @@ internal static class Program
         bool ListOnly = false,
         bool FromConfig = false,
         bool NoPlayback = false,
+        bool Ding = false,
         int InputIndex = -1,
         string? InputName = null,
         int OutputIndex = -1,

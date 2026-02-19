@@ -219,6 +219,7 @@ dotnet run --project tools/audio-debug -- --list
 dotnet run --project tools/audio-debug -- --from-config --duration-ms 3000
 dotnet run --project tools/audio-debug -- --from-config --no-playback --save .\audio-capture.wav
 dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 5000
+dotnet run --project tools/audio-debug -- --ding --output-index 1 --output-volume 50
 ```
 
 A shorthand wrapper is also available:
@@ -230,6 +231,7 @@ A shorthand wrapper is also available:
 Options:
 
 - `--list, -l`: list input/output devices and exit
+- `--ding`: play a short test tone on the selected output
 - `--from-config`: load defaults from VoiceType config (`MicrophoneInputDeviceIndex`, `AudioOutputDeviceIndex`)
 - `--input-index <n>`: force a specific input
 - `--input-name <name>`: force an input by name
