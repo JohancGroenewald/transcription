@@ -113,6 +113,7 @@ public class SettingsForm : Form
     private bool _enablePreviewPlayback = true;
     private bool _settingsDarkModeEnabled;
     private IntPtr _comboListBackBrush;
+    private int _micTestPlaybackSession;
     private WaveOutEvent? _micTestPlaybackOutput;
     private WaveFileReader? _micTestPlaybackReader;
     private MemoryStream? _micTestPlaybackStream;
@@ -1227,6 +1228,7 @@ public class SettingsForm : Form
         var selectedDeviceName = GetSelectedAudioDeviceName(_microphoneDeviceCombo);
         var selectedOutputDeviceIndex = GetSelectedAudioDeviceIndex(_audioOutputDeviceCombo);
         var selectedOutputDeviceName = GetSelectedAudioDeviceName(_audioOutputDeviceCombo);
+        var playbackSession = ++_micTestPlaybackSession;
         AudioCaptureSelectionState? testCaptureSelection = null;
 
         try
@@ -1295,9 +1297,22 @@ public class SettingsForm : Form
                 var playbackOutputName = string.IsNullOrWhiteSpace(selectedOutputDeviceName)
                     ? "system default output"
                     : $"'{selectedOutputDeviceName}'";
-                statusText += StartMicTestPlayback(audioData, selectedOutputDeviceIndex)
-                    ? $" Playback started on {playbackOutputName}."
-                    : " Playback failed or was unavailable.";
+                var playbackStarted = StartMicTestPlayback(
+                    audioData,
+                    selectedOutputDeviceIndex,
+                    () => SetMicTestPlaybackCompleteStatus(
+                        playbackSession,
+                        statusText,
+                        Color.DarkOrange,
+                        playbackOutputName));
+                if (playbackStarted)
+                {
+                    statusText += $" Playback in progress on {playbackOutputName}.";
+                }
+                else
+                {
+                    statusText += " Playback failed or was unavailable.";
+                }
 
                 if (IsDisposed)
                     return;
@@ -1315,9 +1330,22 @@ public class SettingsForm : Form
                 var playbackOutputName = string.IsNullOrWhiteSpace(selectedOutputDeviceName)
                     ? "system default output"
                     : $"'{selectedOutputDeviceName}'";
-                statusText += StartMicTestPlayback(audioData, selectedOutputDeviceIndex)
-                    ? $" Playback started on {playbackOutputName}."
-                    : " Playback failed or was unavailable.";
+                var playbackStarted = StartMicTestPlayback(
+                    audioData,
+                    selectedOutputDeviceIndex,
+                    () => SetMicTestPlaybackCompleteStatus(
+                        playbackSession,
+                        statusText,
+                        Color.DarkGreen,
+                        playbackOutputName));
+                if (playbackStarted)
+                {
+                    statusText += $" Playback in progress on {playbackOutputName}.";
+                }
+                else
+                {
+                    statusText += " Playback failed or was unavailable.";
+                }
 
                 if (IsDisposed)
                     return;
@@ -1349,7 +1377,10 @@ public class SettingsForm : Form
         }
     }
 
-    private bool StartMicTestPlayback(byte[] audioDataForPlayback, int outputDeviceIndex)
+    private bool StartMicTestPlayback(
+        byte[] audioDataForPlayback,
+        int outputDeviceIndex,
+        Action? onPlaybackCompleted)
     {
         if (audioDataForPlayback.Length == 0)
             return false;
@@ -1381,7 +1412,12 @@ public class SettingsForm : Form
                 _micTestPlaybackCancellation = playbackCancellation;
             }
 
-            _ = MonitorMicTestPlaybackAsync(playbackOutput, playbackReader, playbackStream, playbackCancellation);
+            _ = MonitorMicTestPlaybackAsync(
+                playbackOutput,
+                playbackReader,
+                playbackStream,
+                playbackCancellation,
+                onPlaybackCompleted);
             return true;
         }
         catch (Exception ex)
@@ -1444,7 +1480,8 @@ public class SettingsForm : Form
         WaveOutEvent playbackOutput,
         WaveFileReader playbackReader,
         MemoryStream playbackStream,
-        CancellationTokenSource playbackCancellation)
+        CancellationTokenSource playbackCancellation,
+        Action? onPlaybackCompleted)
     {
         try
         {
@@ -1468,7 +1505,43 @@ public class SettingsForm : Form
             playbackReader.Dispose();
             playbackStream.Dispose();
             playbackCancellation.Dispose();
+
+            if (onPlaybackCompleted is not null)
+            {
+                try
+                {
+                    onPlaybackCompleted();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Microphone test playback completion callback failed.", ex);
+                }
+            }
         }
+    }
+
+    private void SetMicTestPlaybackCompleteStatus(
+        int playbackSession,
+        string statusText,
+        Color statusColor,
+        string playbackOutputName)
+    {
+        if (IsDisposed || playbackSession != _micTestPlaybackSession)
+            return;
+
+        var completedStatusText = $"{statusText} Playback complete on {playbackOutputName}.";
+        if (InvokeRequired)
+        {
+            _ = BeginInvoke(new Action(() => SetMicTestPlaybackCompleteStatus(
+                playbackSession,
+                statusText,
+                statusColor,
+                playbackOutputName)));
+            return;
+        }
+
+        _microphoneTestStatusLabel.Text = completedStatusText;
+        _microphoneTestStatusLabel.ForeColor = statusColor;
     }
 
     private void StopMicTestPlayback()
