@@ -625,8 +625,8 @@ internal static class Program
         Console.WriteLine("  --from-config                  Load VoiceType defaults (saved mic/output indexes).");
         Console.WriteLine("  --ding                         Play a short output test tone (no capture).");
         Console.WriteLine("  --play [path]                  Play default audio file (audio-debug-test.wav) or a custom path.");
-        Console.WriteLine("  --save-in [path]               Save captured audio (default: audio-debug-test.wav).");
-        Console.WriteLine("  --save-out [path]              Save playback output audio (default: audio-debug-test.wav).");
+        Console.WriteLine("  --save-in [path]               Save captured audio (default: audio-debug-test.wav in current directory).");
+        Console.WriteLine("  --save-out [path]              Save playback output audio (default: audio-debug-test.wav in current directory).");
         Console.WriteLine("  --save, -s <path>              Legacy: save captured input audio (and ding output when --ding is used).");
         Console.WriteLine("  --input-index, --input <n>     Preferred microphone input index (default: -1).");
         Console.WriteLine("  --input-name <name>            Preferred microphone input name.");

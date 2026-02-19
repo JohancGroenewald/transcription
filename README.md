@@ -244,8 +244,8 @@ Options:
 - `--duration-ms <n>`: capture window in milliseconds
 - `--output-volume <pct>`: playback volume percentage (0-100, default 50)
 - `--no-playback`: capture and analyze only
-- `--save-in [path]`: write captured input audio to disk (default `audio-debug-test.wav`)
-- `--save-out [path]`: write playback output audio to disk (default `audio-debug-test.wav`)
+- `--save-in [path]`: write captured input audio to disk (defaults to `audio-debug-test.wav` in current working directory if no path is provided)
+- `--save-out [path]`: write playback output audio to disk (defaults to `audio-debug-test.wav` in current working directory if no path is provided)
 - `--save, -s <path>`: legacy alias for `--save-in <path>`
 - `--play [path]`: play `audio-debug-test.wav` (or custom path if provided)
 
