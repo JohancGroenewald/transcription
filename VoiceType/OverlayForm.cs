@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -12,9 +13,12 @@ public class OverlayForm : Form
     private static readonly Color DefaultTextColor = Color.FromArgb(255, 255, 188);
     private const string OverlayFontFamilyFallback = "Segoe UI";
     private const string OverlayBundledFontFileName = "VoiceTypeOverlay-Regular.ttf";
+    private const string SymbolsNerdFontFileName = "SymbolsNerdFontMono-Regular.ttf";
+    private const string SymbolsNerdFontFamilyFallback = "Symbols Nerd Font Mono";
     private const string OverlayBundledFontRelativePath = "Assets\\Fonts";
     private static readonly PrivateFontCollection OverlayFontCollection = new();
     private static readonly string OverlayFontFamily = ResolveOverlayFontFamily();
+    private static readonly string SymbolsNerdFontFamily = ResolveSymbolsNerdFontFamily();
     private static readonly Color BorderColor = Color.FromArgb(120, 126, 255, 191);
     private static readonly Color ActionTextColor = Color.FromArgb(255, 229, 159);
     private const int BottomOffset = 18;
@@ -94,12 +98,12 @@ public class OverlayForm : Form
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
     private static readonly Dictionary<string, string> NerdFontIconClassToGlyph = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "nf-md-close_box", "\uf0157" },
-        { "md-close_box", "\uf0157" },
-        { "nf-md-record_rec", "\uf044b" },
-        { "md-record_rec", "\uf044b" },
-        { "nf-fa-stop", "\uf04d" },
-        { "fa-stop", "\uf04d" }
+        { "nf-md-close_box", "\U0000F0157" },
+        { "md-close_box", "\U0000F0157" },
+        { "nf-md-record_rec", "\U0000F044B" },
+        { "md-record_rec", "\U0000F044B" },
+        { "nf-fa-stop", "\U0000F04D" },
+        { "fa-stop", "\U0000F04D" }
     };
 
     private const int WS_EX_TOPMOST = 0x00000008;
@@ -293,27 +297,47 @@ public class OverlayForm : Form
 
     private static string ResolveOverlayFontFamily()
     {
+        return ResolveBundledFontFamily(
+            OverlayBundledFontFileName,
+            OverlayFontFamilyFallback,
+            "overlay");
+    }
+
+    private static string ResolveSymbolsNerdFontFamily()
+    {
+        return ResolveBundledFontFamily(
+            SymbolsNerdFontFileName,
+            SymbolsNerdFontFamilyFallback,
+            "symbols");
+    }
+
+    private static string ResolveBundledFontFamily(string fileName, string fallbackFontFamily, string fontGroup)
+    {
         try
         {
-            var fontPath = Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath, OverlayBundledFontFileName);
+            var fontPath = Path.Combine(AppContext.BaseDirectory, OverlayBundledFontRelativePath, fileName);
             if (File.Exists(fontPath))
             {
+                var previousFamilyCount = OverlayFontCollection.Families.Length;
                 OverlayFontCollection.AddFontFile(fontPath);
-                if (OverlayFontCollection.Families.Length > 0)
+                var families = OverlayFontCollection.Families;
+                if (families.Length > previousFamilyCount)
                 {
-                    var familyName = OverlayFontCollection.Families[0].Name;
-                    Log.Info($"Using bundled overlay font: {familyName} ({fontPath})");
+                    var familyName = families[families.Length - 1].Name;
+                    Log.Info($"Using bundled {fontGroup} font: {familyName} ({fontPath})");
                     return familyName;
                 }
             }
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to load bundled overlay font. Message={ex.Message}");
+            Log.Error($"Failed to load bundled {fontGroup} font '{fileName}'. Message={ex.Message}");
         }
 
-        if (IsFontFamilyAvailable(OverlayFontFamilyFallback))
-            return OverlayFontFamilyFallback;
+        if (IsFontFamilyAvailable(fallbackFontFamily))
+            return fallbackFontFamily;
+
+        Log.Error($"Bundled {fontGroup} font fallback unavailable: {fallbackFontFamily}.");
 
         return FontFamily.GenericSansSerif.Name;
     }
@@ -343,6 +367,20 @@ public class OverlayForm : Form
         {
             Log.Error($"Failed to create overlay font '{OverlayFontFamily}' size {fontSize} style {style}. Message={ex.Message}");
             return new Font(FontFamily.GenericSansSerif, fontSize, style);
+        }
+    }
+
+    private static Font CreateNerdFont(float sizePt, FontStyle style = FontStyle.Regular)
+    {
+        var fontSize = Math.Max(10, sizePt);
+        try
+        {
+            return new Font(SymbolsNerdFontFamily, fontSize, style);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to create Nerd icon font '{SymbolsNerdFontFamily}' size {fontSize} style {style}. Message={ex.Message}");
+            return CreateOverlayFont(fontSize, style);
         }
     }
 
@@ -803,9 +841,44 @@ public class OverlayForm : Form
         if (normalized.Length == 1)
             return normalized;
 
+        if (normalized.StartsWith(@"\u", StringComparison.OrdinalIgnoreCase) && normalized.Length == 6)
+        {
+            normalized = normalized.AsSpan(2).ToString();
+        }
+        else if (normalized.StartsWith(@"\U", StringComparison.OrdinalIgnoreCase) && normalized.Length == 10)
+        {
+            normalized = normalized.AsSpan(2).ToString();
+        }
+
+        if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized.AsSpan(2).ToString();
+
+        if (normalized.Length is >= 4 and <= 6)
+        {
+            var looksHex = true;
+            for (var i = 0; i < normalized.Length; i++)
+            {
+                if (!IsHexDigit(normalized[i]))
+                {
+                    looksHex = false;
+                    break;
+                }
+            }
+
+            if (looksHex && int.TryParse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint))
+                return char.ConvertFromUtf32(codePoint);
+        }
+
         return NerdFontIconClassToGlyph.TryGetValue(normalized, out var glyph)
             ? glyph
             : null;
+    }
+
+    private static bool IsHexDigit(char c)
+    {
+        return (c >= '0' && c <= '9') ||
+               (c >= 'A' && c <= 'F') ||
+               (c >= 'a' && c <= 'f');
     }
 
     private bool DrawNerdFontIcon(
@@ -820,7 +893,7 @@ public class OverlayForm : Form
 
         var iconSizePx = Math.Max(12, Math.Min(iconBounds.Width, iconBounds.Height) - 3);
         var fontSizePx = Math.Max(10.0f, Math.Min(48.0f, iconSizePx * 0.9f));
-        using var iconFont = CreateOverlayFont(fontSizePx, FontStyle.Regular);
+        using var iconFont = CreateNerdFont(fontSizePx, FontStyle.Regular);
         var textSize = TextRenderer.MeasureText(
             graphics,
             resolvedIcon,
@@ -1530,18 +1603,21 @@ public class OverlayForm : Form
             Math.Max(1, scaledIconBounds.Width),
             Math.Max(1, scaledIconBounds.Height));
 
-        var iconColor = StopListeningIconGlyphColor;
-        var iconSize = Math.Max(
-            2,
-            Math.Min(scaledIconBounds.Width, scaledIconBounds.Height)
-                - (Math.Max(StopListeningIconMinInset + 1, scaledIconHeight / 5) * 2));
-        var iconSquare = new Rectangle(
-            scaledIconBounds.Left + ((scaledIconBounds.Width - iconSize) / 2),
-            scaledIconBounds.Top + ((scaledIconBounds.Height - iconSize) / 2),
-            Math.Max(2, iconSize),
-            Math.Max(2, iconSize));
-        using var iconBrush = new SolidBrush(iconColor);
-        graphics.FillRectangle(iconBrush, iconSquare);
+        if (!DrawNerdFontIcon(graphics, scaledIconBounds, StopListeningIconGlyphColor, _stopListeningIconGlyph))
+        {
+            var iconColor = StopListeningIconGlyphColor;
+            var iconSize = Math.Max(
+                2,
+                Math.Min(scaledIconBounds.Width, scaledIconBounds.Height)
+                    - (Math.Max(StopListeningIconMinInset + 1, scaledIconHeight / 5) * 2));
+            var iconSquare = new Rectangle(
+                scaledIconBounds.Left + ((scaledIconBounds.Width - iconSize) / 2),
+                scaledIconBounds.Top + ((scaledIconBounds.Height - iconSize) / 2),
+                Math.Max(2, iconSize),
+                Math.Max(2, iconSize));
+            using var iconBrush = new SolidBrush(iconColor);
+            graphics.FillRectangle(iconBrush, iconSquare);
+        }
 
         _stopListeningIconBounds = clickableBounds;
     }
@@ -1591,21 +1667,24 @@ public class OverlayForm : Form
             Math.Max(1, scaledIconBounds.Width),
             Math.Max(1, scaledIconBounds.Height));
 
-        var iconColor = CancelListeningIconGlyphColor;
-        var glyphInset = Math.Max(CancelListeningIconMinInset + 1, scaledIconHeight / 5);
-        using var iconPen = new Pen(iconColor, Math.Max(2.0f, Math.Min(4.0f, scaledIconHeight / 7.0f)))
+        if (!DrawNerdFontIcon(graphics, scaledIconBounds, CancelListeningIconGlyphColor, _cancelListeningIconGlyph))
         {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round
-        };
-        var glyphBounds = new Rectangle(
-            scaledIconBounds.Left + glyphInset,
-            scaledIconBounds.Top + glyphInset,
-            Math.Max(2, scaledIconBounds.Width - (glyphInset * 2)),
-            Math.Max(2, scaledIconBounds.Height - (glyphInset * 2)));
+            var iconColor = CancelListeningIconGlyphColor;
+            var glyphInset = Math.Max(CancelListeningIconMinInset + 1, scaledIconHeight / 5);
+            using var iconPen = new Pen(iconColor, Math.Max(2.0f, Math.Min(4.0f, scaledIconHeight / 7.0f)))
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round
+            };
+            var glyphBounds = new Rectangle(
+                scaledIconBounds.Left + glyphInset,
+                scaledIconBounds.Top + glyphInset,
+                Math.Max(2, scaledIconBounds.Width - (glyphInset * 2)),
+                Math.Max(2, scaledIconBounds.Height - (glyphInset * 2)));
 
-        graphics.DrawLine(iconPen, glyphBounds.Left, glyphBounds.Top, glyphBounds.Right, glyphBounds.Bottom);
-        graphics.DrawLine(iconPen, glyphBounds.Left, glyphBounds.Bottom, glyphBounds.Right, glyphBounds.Top);
+            graphics.DrawLine(iconPen, glyphBounds.Left, glyphBounds.Top, glyphBounds.Right, glyphBounds.Bottom);
+            graphics.DrawLine(iconPen, glyphBounds.Left, glyphBounds.Bottom, glyphBounds.Right, glyphBounds.Top);
+        }
 
         _cancelListeningIconBounds = clickableBounds;
     }

@@ -49,6 +49,7 @@ public class TrayContext : ApplicationContext
     private const string HelloOverlayKey = "hello-overlay";
     private const string HelloOverlayCloseIconGlyph = "nf-md-close_box";
     private const string HelloOverlayRecordIconGlyph = "nf-md-record_rec";
+    private const string ListeningOverlayStopIconGlyph = "nf-fa-stop";
     private const string ListeningOverlayKey = "listening-overlay";
     private const string MicFallbackOverlayKey = "mic-fallback-overlay";
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
@@ -1244,6 +1245,7 @@ public class TrayContext : ApplicationContext
                 allowCopyTap: false,
                 showHideStackIcon: true,
                 showStopListeningIcon: true,
+                stopListeningIconGlyph: ListeningOverlayStopIconGlyph,
                 showCancelListeningIcon: false,
                 listeningLevelPercent: Interlocked.CompareExchange(ref _micLevelPercent, 0, 0));
         }
