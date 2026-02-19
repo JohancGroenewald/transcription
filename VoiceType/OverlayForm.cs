@@ -281,8 +281,6 @@ public class OverlayForm : Form
             AppConfig.DefaultOverlayBackgroundMode);
         UpdateRoundedRegion();
 
-        // Position: bottom-center, above taskbar
-        PositionOnScreen();
     }
 
     private static string ResolveOverlayFontFamily()

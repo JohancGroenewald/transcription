@@ -246,11 +246,14 @@ public sealed class OverlayWindowManager : IOverlayManager
                 managed.TrackInStack = trackInStack;
                 managed.IsClipboardCopyAction = isClipboardCopyAction;
                 managed.IsSubmittedAction = isSubmittedAction;
+                var needsReposition = !wasTrackedInStack;
+                if (!needsReposition && wasTrackedInStack != trackInStack)
+                    needsReposition = true;
                 Log.Info(
                     $"ShowMessage updated overlay key={overlayKey}, global={globalMessageId}, local={managed.LocalMessageId}, " +
                     $"seq={managed.Sequence}, wasTracked={wasTrackedInStack}, nowTracked={managed.TrackInStack}");
                 LogOverlayStackSnapshot($"show-message-update-after:{overlayKey ?? "<none>"}");
-                if (wasTrackedInStack || trackInStack)
+                if (needsReposition)
                     RepositionVisibleOverlaysLocked();
 
                 return globalMessageId;
