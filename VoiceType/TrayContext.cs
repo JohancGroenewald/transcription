@@ -375,6 +375,14 @@ public class TrayContext : ApplicationContext
             return;
         }
 
+        if (_previewCoordinator.IsActive &&
+            TryResolvePendingPastePreview(
+                TranscribedPreviewDecision.PasteWithoutSend,
+                e.HotkeyId == PEN_HOTKEY_ID ? "pen hotkey" : "recording shortcut"))
+        {
+            return;
+        }
+
         if (_transcriptionService == null)
         {
             ShowOverlay("No API key configured — check Settings", WarningOverlayColor);
