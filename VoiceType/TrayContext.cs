@@ -48,6 +48,7 @@ public class TrayContext : ApplicationContext
     private const string ClipboardFallbackActionText = "Copied to clipboard — Ctrl+V to paste";
     private const string HelloOverlayKey = "hello-overlay";
     private const string ListeningOverlayKey = "listening-overlay";
+    private const string MicFallbackOverlayKey = "mic-fallback-overlay";
     private const string TranscribedPreviewOverlayKey = "transcribed-preview-overlay";
     private const string ProcessingVoiceOverlayKey = "processing-voice-overlay";
     private const string PastedAutoSendSkippedOverlayKey = "pasted-autosend-skipped-overlay";
@@ -541,6 +542,20 @@ public class TrayContext : ApplicationContext
             {
                 _recorder.Start();
                 _isRecording = true;
+                var captureSelection = _recorder.LastCaptureSelection;
+                Log.Info(
+                    $"Microphone selection resolved: requested={captureSelection.RequestedSummary}, " +
+                    $"active={captureSelection.ActiveSummary}, reason={captureSelection.SelectionReason}, " +
+                    $"fallback={captureSelection.UsedFallback}");
+                if (captureSelection.UsedFallback)
+                {
+                    ShowOverlay(
+                        $"Microphone fallback: using {captureSelection.ActiveSummary} ({captureSelection.SelectionReason}).",
+                        WarningOverlayColor,
+                        5000,
+                        overlayKey: MicFallbackOverlayKey,
+                        trackInStack: true);
+                }
                 try
                 {
                     StartListeningOverlay();
@@ -558,8 +573,12 @@ public class TrayContext : ApplicationContext
             {
                 _isRecording = false;
                 StopListeningOverlay();
-                Log.Error("Failed to start recording", ex);
-                ShowOverlay(BuildMicrophoneErrorMessage(ex), ErrorOverlayColor, 6000);
+                var captureSelection = _recorder.LastCaptureSelection;
+                Log.Error(
+                    $"Failed to start recording (requested={captureSelection.RequestedSummary}, " +
+                    $"active={captureSelection.ActiveSummary}, strategy={captureSelection.SelectionReason}, fallback={captureSelection.UsedFallback})",
+                    ex);
+                ShowOverlay(BuildMicrophoneErrorMessage(ex, captureSelection), ErrorOverlayColor, 6000);
                 CompleteShutdownIfRequested();
             }
         }
@@ -1437,7 +1456,7 @@ public class TrayContext : ApplicationContext
         return false;
     }
 
-    private static string BuildMicrophoneErrorMessage(Exception ex)
+    private static string BuildMicrophoneErrorMessage(Exception ex, AudioCaptureSelectionState? captureSelection = null)
     {
         var root = ex;
         while (root.InnerException != null)
@@ -1472,7 +1491,24 @@ public class TrayContext : ApplicationContext
         if (string.IsNullOrWhiteSpace(userTip))
             userTip = "Failed to start microphone capture.";
 
-        return $"Microphone error: {userTip}\nTip: check Windows mic settings and permissions, then try again.";
+        var captureSummary = captureSelection is null
+            ? string.Empty
+            : BuildCaptureSelectionSummaryText(captureSelection);
+        var suffix = !string.IsNullOrWhiteSpace(captureSummary)
+            ? $"\nSelection: {captureSummary}\nTip: check Windows mic settings and permissions, then try again."
+            : "\nTip: check Windows mic settings and permissions, then try again.";
+
+        return $"Microphone error: {userTip}{suffix}";
+    }
+
+    private static string BuildCaptureSelectionSummaryText(AudioCaptureSelectionState selection)
+    {
+        var summary = selection.SelectionSummary;
+        if (selection.Attempts.Count == 0)
+            return summary;
+
+        var latestAttempt = selection.Attempts[^1];
+        return $"{summary}; last attempt: {latestAttempt}";
     }
 
     private void Invoke(Action action)

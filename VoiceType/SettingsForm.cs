@@ -1228,16 +1228,27 @@ public class SettingsForm : Form
             await Task.Delay(3000);
             var audioData = recorder.Stop();
             var metrics = recorder.LastCaptureMetrics;
+            var captureSelection = recorder.LastCaptureSelection;
+            var usedSelectedDevice = captureSelection.UsedFallback
+                ? string.Empty
+                : string.Equals(captureSelection.ActiveCaptureDeviceName, selectedDeviceName, StringComparison.OrdinalIgnoreCase) &&
+                    captureSelection.ActiveCaptureDeviceIndex == selectedDeviceIndex
+                    ? " (uses selected device)"
+                    : " (selected by name/default fallback)";
 
             if (audioData.Length == 0)
             {
                 _microphoneTestStatusLabel.Text = "Microphone test captured no data.";
                 _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+                _microphoneTestStatusLabel.Text +=
+                    $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}.";
             }
             else if (!metrics.HasAnyNonZeroSample)
             {
                 _microphoneTestStatusLabel.Text = "Microphone test captured only zeros. Check device selection and Windows mic permissions.";
                 _microphoneTestStatusLabel.ForeColor = Color.Firebrick;
+                _microphoneTestStatusLabel.Text +=
+                    $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}.";
             }
             else if (metrics.IsLikelySilence)
             {
@@ -1245,12 +1256,15 @@ public class SettingsForm : Form
                     $"Signal is very weak (rms {metrics.Rms:F4}, peak {metrics.Peak:F4}). " +
                     "The mic is working; try raising input gain.";
                 _microphoneTestStatusLabel.ForeColor = Color.DarkOrange;
+                _microphoneTestStatusLabel.Text +=
+                    $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}{usedSelectedDevice}.";
             }
             else
             {
                 _microphoneTestStatusLabel.Text =
                     $"Microphone test passed. duration={metrics.Duration.TotalSeconds:F2}s, " +
-                    $"rms {metrics.Rms:F4}, peak {metrics.Peak:F4}, active {metrics.ActiveSampleRatio:P1}.";
+                    $"rms {metrics.Rms:F4}, peak {metrics.Peak:F4}, active {metrics.ActiveSampleRatio:P1}." +
+                    $" Requested: {captureSelection.RequestedSummary}, used: {captureSelection.ActiveSummary}{usedSelectedDevice}.";
                 _microphoneTestStatusLabel.ForeColor = Color.DarkGreen;
                 Log.Info(
                     $"Settings microphone test passed for '{selectedDeviceName}' (index {selectedDeviceIndex}): " +

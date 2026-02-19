@@ -2,6 +2,36 @@ using NAudio.Wave;
 
 namespace VoiceType;
 
+public sealed class AudioCaptureSelectionState
+{
+    public static AudioCaptureSelectionState Empty { get; } = new();
+
+    public int RequestedCaptureDeviceIndex { get; init; } = AppConfig.DefaultAudioDeviceIndex;
+    public string RequestedCaptureDeviceName { get; init; } = string.Empty;
+    public int ActiveCaptureDeviceIndex { get; set; } = AppConfig.DefaultAudioDeviceIndex;
+    public string ActiveCaptureDeviceName { get; set; } = string.Empty;
+    public string SelectionReason { get; set; } = "not started";
+    public bool UsedFallback { get; set; }
+    public string LastError { get; set; } = string.Empty;
+    public IReadOnlyList<string> Attempts { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> DeviceSnapshot { get; set; } = Array.Empty<string>();
+
+    public string RequestedSummary => DescribeCaptureDevice(RequestedCaptureDeviceIndex, RequestedCaptureDeviceName);
+    public string ActiveSummary => DescribeCaptureDevice(ActiveCaptureDeviceIndex, ActiveCaptureDeviceName);
+    public string SelectionSummary => $"{RequestedSummary} -> {ActiveSummary} ({SelectionReason}){(UsedFallback ? " [fallback]" : string.Empty)}";
+
+    public static string DescribeCaptureDevice(int deviceIndex, string? deviceName)
+    {
+        if (deviceIndex == AppConfig.DefaultAudioDeviceIndex)
+            return "system default";
+
+        if (string.IsNullOrWhiteSpace(deviceName))
+            return $"index {deviceIndex}";
+
+        return $"{deviceName} (index {deviceIndex})";
+    }
+}
+
 public readonly record struct AudioCaptureMetrics(
     TimeSpan Duration,
     double Rms,
@@ -31,8 +61,10 @@ public class AudioRecorder : IDisposable
     private long _maxRecordingBytes;
     private int _preferredCaptureDeviceIndex = AppConfig.DefaultAudioDeviceIndex;
     private string _preferredCaptureDeviceName = string.Empty;
+    private AudioCaptureSelectionState _lastCaptureSelection = AudioCaptureSelectionState.Empty;
 
     public AudioCaptureMetrics LastCaptureMetrics { get; private set; }
+    public AudioCaptureSelectionState LastCaptureSelection => _lastCaptureSelection;
     public event Action<int>? InputLevelChanged;
 
     public AudioRecorder(int preferredCaptureDeviceIndex = AppConfig.DefaultAudioDeviceIndex, string? preferredCaptureDeviceName = null)
@@ -56,6 +88,12 @@ public class AudioRecorder : IDisposable
         if (_waveIn != null)
             throw new InvalidOperationException("Already recording.");
 
+        _lastCaptureSelection = new AudioCaptureSelectionState
+        {
+            RequestedCaptureDeviceIndex = _preferredCaptureDeviceIndex,
+            RequestedCaptureDeviceName = _preferredCaptureDeviceName,
+            DeviceSnapshot = GetCaptureDeviceSnapshot()
+        };
         LastCaptureMetrics = default;
         _audioBuffer = new MemoryStream();
         _recordingStopped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -75,6 +113,9 @@ public class AudioRecorder : IDisposable
 
     private void StartRecordingWithFallback()
     {
+        const string RequestedIndexStrategy = "requested index";
+        const string RequestedNameStrategy = "requested name";
+
         var deviceCount = WaveIn.DeviceCount;
         if (deviceCount <= 0)
         {
@@ -85,11 +126,14 @@ public class AudioRecorder : IDisposable
 
         var attempts = new List<string>();
         Exception? lastError = null;
-        var selectedDeviceIndexes = GetPreferredCaptureDeviceIndexes(deviceCount);
+        var selectedDeviceIndexes = GetPreferredCaptureDeviceCandidates(deviceCount);
 
-        foreach (var deviceIndex in selectedDeviceIndexes)
+        foreach (var candidate in selectedDeviceIndexes)
         {
+            var deviceIndex = candidate.DeviceIndex;
             var deviceName = TryGetCaptureDeviceName(deviceIndex);
+            var isRequested = string.Equals(candidate.Strategy, RequestedIndexStrategy, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(candidate.Strategy, RequestedNameStrategy, StringComparison.OrdinalIgnoreCase);
 
             foreach (var sampleRate in PreferredSampleRates)
             {
@@ -110,14 +154,22 @@ public class AudioRecorder : IDisposable
                     _waveFormat = waveIn.WaveFormat;
                     _maxRecordingBytes = (long)_waveFormat.AverageBytesPerSecond * (long)MaxRecordingDuration.TotalSeconds;
 
+                    _lastCaptureSelection.ActiveCaptureDeviceIndex = deviceIndex;
+                    _lastCaptureSelection.ActiveCaptureDeviceName = deviceName;
+                    _lastCaptureSelection.SelectionReason = candidate.Strategy;
+                    _lastCaptureSelection.UsedFallback = !isRequested;
+                    _lastCaptureSelection.Attempts = attempts.ToArray();
+                    _lastCaptureSelection.LastError = string.Empty;
                     Log.Info(
-                        $"Recording started on device {deviceIndex} ({deviceName}) at {_waveFormat.SampleRate} Hz");
+                        $"Recording started on device {deviceIndex} ({deviceName}) at {_waveFormat.SampleRate} Hz" +
+                        $" [requested: {_lastCaptureSelection.RequestedSummary}, active: {_lastCaptureSelection.ActiveSummary}, strategy: {_lastCaptureSelection.SelectionReason}]");
                     return;
                 }
                 catch (Exception ex)
                 {
                     lastError = ex;
                     attempts.Add($"device {deviceIndex} ({deviceName}) @ {sampleRate}Hz: {ex.Message}");
+                    _lastCaptureSelection.LastError = ex.Message;
                     // Release failed capture attempt before moving to the next format/device combo.
                     // Event handlers are attached only to this local instance, so disposal is safe here.
                     if (waveIn != null)
@@ -135,10 +187,16 @@ public class AudioRecorder : IDisposable
             }
         }
 
-        throw BuildStartFailureException(attempts, lastError);
+        _lastCaptureSelection.UsedFallback = true;
+        _lastCaptureSelection.SelectionReason = "failed to start";
+        _lastCaptureSelection.Attempts = attempts.ToArray();
+        _lastCaptureSelection.ActiveCaptureDeviceIndex = AppConfig.DefaultAudioDeviceIndex;
+        _lastCaptureSelection.ActiveCaptureDeviceName = string.Empty;
+        _lastCaptureSelection.Attempts = attempts.ToArray();
+        throw BuildStartFailureException(_lastCaptureSelection, lastError);
     }
 
-    private IEnumerable<int> GetPreferredCaptureDeviceIndexes(int deviceCount)
+    private IEnumerable<(int DeviceIndex, string DeviceName, string Strategy)> GetPreferredCaptureDeviceCandidates(int deviceCount)
     {
         var seen = new HashSet<int>();
 
@@ -146,7 +204,10 @@ public class AudioRecorder : IDisposable
             _preferredCaptureDeviceIndex < deviceCount &&
             seen.Add(_preferredCaptureDeviceIndex))
         {
-            yield return _preferredCaptureDeviceIndex;
+            yield return (
+                _preferredCaptureDeviceIndex,
+                TryGetCaptureDeviceName(_preferredCaptureDeviceIndex),
+                "requested index");
         }
 
         if (!string.IsNullOrWhiteSpace(_preferredCaptureDeviceName))
@@ -160,7 +221,7 @@ public class AudioRecorder : IDisposable
                 if (string.Equals(candidateName, _preferredCaptureDeviceName, StringComparison.OrdinalIgnoreCase) &&
                     seen.Add(deviceIndex))
                 {
-                    yield return deviceIndex;
+                    yield return (deviceIndex, candidateName, "requested name");
                 }
             }
         }
@@ -168,8 +229,23 @@ public class AudioRecorder : IDisposable
         for (var deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
         {
             if (seen.Add(deviceIndex))
-                yield return deviceIndex;
+                yield return (deviceIndex, TryGetCaptureDeviceName(deviceIndex), "fallback");
         }
+    }
+
+    private static IReadOnlyList<string> GetCaptureDeviceSnapshot()
+    {
+        var deviceCount = WaveIn.DeviceCount;
+        if (deviceCount <= 0)
+            return Array.Empty<string>();
+
+        var snapshot = new List<string>(deviceCount);
+        for (var deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++)
+        {
+            snapshot.Add($"{deviceIndex}: {TryGetCaptureDeviceName(deviceIndex)}");
+        }
+
+        return snapshot;
     }
 
     private static string TryGetCaptureDeviceName(int deviceIndex)
@@ -185,9 +261,9 @@ public class AudioRecorder : IDisposable
         }
     }
 
-    private static Exception BuildStartFailureException(List<string> attempts, Exception? lastError)
+    private static Exception BuildStartFailureException(AudioCaptureSelectionState captureSelection, Exception? lastError)
     {
-        var attemptText = string.Join(" | ", attempts);
+        var attemptText = string.Join(" | ", captureSelection.Attempts);
         var detailText = !string.IsNullOrWhiteSpace(attemptText)
             ? $"Tried: {attemptText}"
             : "No capture format/device combinations succeeded.";
@@ -391,12 +467,14 @@ public class AudioRecorder : IDisposable
         if (bytesRecorded < 2)
             return 0;
 
-        var sampleCount = bytesRecorded / 2;
+        var chunkBytes = Math.Min(bytesRecorded, pcm16Buffer.Length) & ~1;
+        var sampleCount = chunkBytes / 2;
         if (sampleCount == 0)
             return 0;
 
         long sumSquares = 0;
         var peak = 0;
+        var hasAnyNonZeroSample = false;
 
         for (var i = 0; i < sampleCount; i++)
         {
@@ -405,19 +483,31 @@ public class AudioRecorder : IDisposable
             var sampleValue = (int)sample;
             var abs = Math.Abs(sampleValue);
 
+            if (abs > 0)
+                hasAnyNonZeroSample = true;
             if (abs > peak)
                 peak = abs;
 
             sumSquares += (long)sampleValue * sampleValue;
         }
 
+        if (!hasAnyNonZeroSample)
+            return 0;
+
         var rms = Math.Sqrt(sumSquares / (double)sampleCount) / short.MaxValue;
         var peakNormalized = peak / (double)short.MaxValue;
 
-        // Blend peak and RMS to get a responsive but stable meter.
+        // Blend peak and RMS for a responsive but stable signal envelope.
         var blended = Math.Max(peakNormalized, rms * 2.8);
-        var curved = Math.Pow(Math.Clamp(blended, 0, 1), 0.55);
-        return (int)Math.Round(curved * 100);
+
+        // Make the listening meter responsive on low-level inputs found on some PCs.
+        var db = 20 * Math.Log10(Math.Max(blended, 1e-8));
+        var minDb = -78.0;
+        var maxDb = -20.0;
+        var normalizedDb = Math.Clamp((db - minDb) / (maxDb - minDb), 0, 1);
+        var percent = (int)Math.Round(normalizedDb * 100);
+
+        return Math.Max(12, percent);
     }
 
     private void ThrowIfDisposed()
