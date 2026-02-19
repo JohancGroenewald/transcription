@@ -854,6 +854,8 @@ public class OverlayForm : Form
             return null;
 
         var normalized = iconClass.Trim();
+        if (normalized.Length == 2 && char.IsSurrogatePair(normalized, 0))
+            return normalized;
         if (normalized.Length == 1)
             return normalized;
 
