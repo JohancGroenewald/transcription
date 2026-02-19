@@ -383,157 +383,9 @@ public class TrayContext : ApplicationContext
 
         if (_isRecording)
         {
-            // Stop recording and transcribe
-            _isRecording = false;
-            StopListeningOverlay();
-            _trayIcon.Icon = _appIcon;
-            _trayIcon.Text = "VoiceType - Transcribing...";
-            ShowOverlay("Processing voice...", ProcessingOverlayColor, 0, overlayKey: ProcessingVoiceOverlayKey);
-            Log.Info("Recording stopped, starting transcription...");
-            _isTranscribing = true;
-
-            try
-            {
-                var audioData = _recorder.Stop();
-                var metrics = _recorder.LastCaptureMetrics;
-                Log.Info(
-                    $"Audio captured: {audioData.Length:N0} bytes, duration={metrics.Duration.TotalSeconds:F2}s, " +
-                    $"rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}, signal={(metrics.HasAnyNonZeroSample ? "yes" : "no")}");
-
-                if (metrics.IsLikelySilence)
-                {
-                    if (!metrics.HasAnyNonZeroSample)
-                    {
-                        Log.Info("Skipping transcription because captured audio stream was flat (all samples were zero).");
-                        ShowOverlay("No audio signal detected from the selected microphone", WarningOverlayColor, 2800);
-                        return;
-                    }
-
-                    if (metrics.Duration < TimeSpan.FromMilliseconds(250))
-                    {
-                        Log.Info("Skipping transcription because capture duration was too short to analyze.");
-                        ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
-                        return;
-                    }
-
-                    Log.Info("Captured audio is weak but non-flat; attempting low-level normalization before transcription.");
-                }
-
-                var normalizedAudioData = NormalizeLowLevelCaptureForTranscription(audioData, metrics);
-                if (normalizedAudioData is not null && !ReferenceEquals(normalizedAudioData, audioData))
-                {
-                    Log.Info("Applied low-level normalization to recorded audio before transcription.");
-                    audioData = normalizedAudioData;
-                }
-
-                if (audioData.Length == 0)
-                {
-                    Log.Info("Skipping transcription because processed audio is empty.");
-                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
-                    return;
-                }
-
-                using var transcriptionCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
-                transcriptionCts.CancelAfter(TranscriptionTimeout);
-                var rawText = await _transcriptionService.TranscribeAsync(audioData, transcriptionCts.Token);
-                var sanitizedText = PretextDetector.RemoveModelLeadingPreamble(rawText);
-                var textAfterPromptStrip = PretextDetector.StripPromptEcho(sanitizedText, _transcriptionPrompt);
-                var text = PretextDetector.StripFlowDirectives(textAfterPromptStrip);
-                if (!string.Equals(rawText, text, StringComparison.Ordinal))
-                    Log.Info($"Transcription sanitized ({rawText.Length} -> {text.Length} chars): preamble/prompt/flow cleaned.");
-
-                Log.Info($"Transcription completed ({text.Length} chars)");
-
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    // Check for voice commands before pasting
-                    var command = ParseVoiceCommand(text);
-                    if (command != null)
-                    {
-                        Log.Info($"Voice command detected: {command}");
-                        HandleVoiceCommand(command);
-                        return;
-                    }
-
-                    var targetHasExistingText = TextInjector.TargetHasExistingText();
-                    var hasPasteTarget = TextInjector.HasPasteTarget();
-                    var hasLikelyPasteTextTarget = TextInjector.HasLikelyTextInputTarget();
-                    ReloadPastedTextPrefixSettings();
-                    var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
-                    var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
-                    var previewText = prefixTextForPreview is null ? textToInject : text;
-                    var previewDecision = await ShowCancelableTranscribedPreviewAsync(
-                        previewText,
-                        adaptiveDurationMs,
-                        prefixTextForPreview,
-                        targetHasExistingText,
-                        audioData);
-                    if (previewDecision == TranscribedPreviewDecision.Cancel)
-                    {
-                        Log.Info("Paste canceled during transcribed preview.");
-                        ShowOverlay(
-                            "Paste canceled",
-                            NeutralOverlayColor,
-                            1000,
-                            overlayKey: PasteCanceledOverlayKey);
-                        return;
-                    }
-
-                    var autoSend = previewDecision == TranscribedPreviewDecision.PasteWithoutSend
-                        ? false
-                        : _autoEnter;
-                    var pasted = TextInjector.InjectText(textToInject, autoSend);
-                    if (pasted)
-                    {
-                        Log.Info("Copy-to-clipboard fallback overlay not triggered: paste target was available or paste succeeded.");
-                        if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
-                            ShowOverlay(
-                                "Pasted (auto-send skipped)",
-                                PastedAutoSendSkippedOverlayColor,
-                                1000,
-                                overlayKey: PastedAutoSendSkippedOverlayKey);
-
-                        Log.Info("Text injected via clipboard");
-                    }
-                    else
-                    {
-                        Log.Info("No paste target, text on clipboard");
-                        Log.Info(
-                            $"Copy-to-clipboard overlay triggered via transcription: " +
-                            $"hasPasteTarget={hasPasteTarget}, hasLikelyPasteTextTarget={hasLikelyPasteTextTarget}, " +
-                            $"targetHasExistingText={targetHasExistingText}, previewDecision={previewDecision}");
-                        ShowCopyToClipboardOverlay(textToInject);
-                    }
-                }
-                else
-                {
-                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Log.Info("Transcription canceled (shutdown requested or timeout reached).");
-                ShowOverlay("Transcription canceled or timed out", ErrorOverlayColor, 4000);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("Transcription failed", ex);
-                ShowOverlay("Error: " + ex.Message, ErrorOverlayColor, 4000);
-                if (IsLikelyApiKeyError(ex))
-                {
-                    Log.Info("Transcription failed with an authentication-like error. Opening settings for API key update.");
-                    ShowOverlay("API key issue detected — opening settings...", ErrorOverlayColor, 1800);
-                    _transcriptionService = null;
-                    OpenSettings(focusApiKey: true, restorePreviousFocus: false);
-                }
-            }
-            finally
-            {
-                HideProcessingVoiceOverlay();
-                _isTranscribing = false;
-                _ignorePastedTextPrefixForNextTranscription = false;
-                CompleteShutdownIfRequested();
-            }
+            Log.Info("Recording shortcut pressed while recording; canceling active capture.");
+            CancelActiveListening();
+            return;
         }
         else
         {
@@ -628,7 +480,7 @@ public class TrayContext : ApplicationContext
             };
             Log.Info("Opening settings dialog.");
             dlg.ShowDialog();
-            ClearActivePreviewCountdownBar();
+            CancelPendingTranscribedPreviewFromSettings();
             LoadTranscriptionService();
             RefreshHotkeyRegistration();
             SetReadyState();
@@ -645,6 +497,162 @@ public class TrayContext : ApplicationContext
         {
             _isOpeningSettings = false;
             LogHelloStackState("settings-closed");
+        }
+    }
+
+    private async Task StopActiveListeningForTranscriptionAsync()
+    {
+        if (!_isRecording || _transcriptionService is null)
+            return;
+
+        _isRecording = false;
+        StopListeningOverlay();
+        _trayIcon.Icon = _appIcon;
+        _trayIcon.Text = "VoiceType - Transcribing...";
+        ShowOverlay("Processing voice...", ProcessingOverlayColor, 0, overlayKey: ProcessingVoiceOverlayKey);
+        Log.Info("Recording stopped, starting transcription...");
+        _isTranscribing = true;
+
+        try
+        {
+            var audioData = _recorder.Stop();
+            var metrics = _recorder.LastCaptureMetrics;
+            Log.Info(
+                $"Audio captured: {audioData.Length:N0} bytes, duration={metrics.Duration.TotalSeconds:F2}s, " +
+                $"rms={metrics.Rms:F4}, peak={metrics.Peak:F4}, active={metrics.ActiveSampleRatio:P1}, signal={(metrics.HasAnyNonZeroSample ? "yes" : "no")}");
+
+            if (metrics.IsLikelySilence)
+            {
+                if (!metrics.HasAnyNonZeroSample)
+                {
+                    Log.Info("Skipping transcription because captured audio stream was flat (all samples were zero).");
+                    ShowOverlay("No audio signal detected from the selected microphone", WarningOverlayColor, 2800);
+                    return;
+                }
+
+                if (metrics.Duration < TimeSpan.FromMilliseconds(250))
+                {
+                    Log.Info("Skipping transcription because capture duration was too short to analyze.");
+                    ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
+                    return;
+                }
+
+                Log.Info("Captured audio is weak but non-flat; attempting low-level normalization before transcription.");
+            }
+
+            var normalizedAudioData = NormalizeLowLevelCaptureForTranscription(audioData, metrics);
+            if (normalizedAudioData is not null && !ReferenceEquals(normalizedAudioData, audioData))
+            {
+                Log.Info("Applied low-level normalization to recorded audio before transcription.");
+                audioData = normalizedAudioData;
+            }
+
+            if (audioData.Length == 0)
+            {
+                Log.Info("Skipping transcription because processed audio is empty.");
+                ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
+                return;
+            }
+
+            using var transcriptionCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token);
+            transcriptionCts.CancelAfter(TranscriptionTimeout);
+            var rawText = await _transcriptionService.TranscribeAsync(audioData, transcriptionCts.Token);
+            var sanitizedText = PretextDetector.RemoveModelLeadingPreamble(rawText);
+            var textAfterPromptStrip = PretextDetector.StripPromptEcho(sanitizedText, _transcriptionPrompt);
+            var text = PretextDetector.StripFlowDirectives(textAfterPromptStrip);
+            if (!string.Equals(rawText, text, StringComparison.Ordinal))
+                Log.Info($"Transcription sanitized ({rawText.Length} -> {text.Length} chars): preamble/prompt/flow cleaned.");
+
+            Log.Info($"Transcription completed ({text.Length} chars)");
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                var command = ParseVoiceCommand(text);
+                if (command != null)
+                {
+                    Log.Info($"Voice command detected: {command}");
+                    HandleVoiceCommand(command);
+                    return;
+                }
+
+                var targetHasExistingText = TextInjector.TargetHasExistingText();
+                var hasPasteTarget = TextInjector.HasPasteTarget();
+                var hasLikelyPasteTextTarget = TextInjector.HasLikelyTextInputTarget();
+                ReloadPastedTextPrefixSettings();
+                var (textToInject, prefixTextForPreview) = ApplyPastePrefix(text, targetHasExistingText);
+                var adaptiveDurationMs = GetAdaptiveTranscribedOverlayDurationMs(textToInject);
+                var previewText = prefixTextForPreview is null ? textToInject : text;
+                var previewDecision = await ShowCancelableTranscribedPreviewAsync(
+                    previewText,
+                    adaptiveDurationMs,
+                    prefixTextForPreview,
+                    targetHasExistingText,
+                    audioData);
+                if (previewDecision == TranscribedPreviewDecision.Cancel)
+                {
+                    Log.Info("Paste canceled during transcribed preview.");
+                    ShowOverlay(
+                        "Paste canceled",
+                        NeutralOverlayColor,
+                        1000,
+                        overlayKey: PasteCanceledOverlayKey);
+                    return;
+                }
+
+                var autoSend = previewDecision == TranscribedPreviewDecision.PasteWithoutSend
+                    ? false
+                    : _autoEnter;
+                var pasted = TextInjector.InjectText(textToInject, autoSend);
+                if (pasted)
+                {
+                    Log.Info("Copy-to-clipboard fallback overlay not triggered: paste target was available or paste succeeded.");
+                    if (previewDecision == TranscribedPreviewDecision.PasteWithoutSend)
+                        ShowOverlay(
+                            "Pasted (auto-send skipped)",
+                            PastedAutoSendSkippedOverlayColor,
+                            1000,
+                            overlayKey: PastedAutoSendSkippedOverlayKey);
+
+                    Log.Info("Text injected via clipboard");
+                }
+                else
+                {
+                    Log.Info("No paste target, text on clipboard");
+                    Log.Info(
+                        $"Copy-to-clipboard overlay triggered via transcription: " +
+                        $"hasPasteTarget={hasPasteTarget}, hasLikelyPasteTarget={hasLikelyPasteTextTarget}, " +
+                        $"targetHasExistingText={targetHasExistingText}, previewDecision={previewDecision}");
+                    ShowCopyToClipboardOverlay(textToInject);
+                }
+            }
+            else
+            {
+                ShowOverlay("No speech detected", NeutralOverlayColor, 2000);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Info("Transcription canceled (shutdown requested or timeout reached).");
+            ShowOverlay("Transcription canceled or timed out", ErrorOverlayColor, 4000);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Transcription failed", ex);
+            ShowOverlay("Error: " + ex.Message, ErrorOverlayColor, 4000);
+            if (IsLikelyApiKeyError(ex))
+            {
+                Log.Info("Transcription failed with an authentication-like error. Opening settings for API key update.");
+                ShowOverlay("API key issue detected — opening settings...", ErrorOverlayColor, 1800);
+                _transcriptionService = null;
+                OpenSettings(focusApiKey: true, restorePreviousFocus: false);
+            }
+        }
+        finally
+        {
+            HideProcessingVoiceOverlay();
+            _isTranscribing = false;
+            _ignorePastedTextPrefixForNextTranscription = false;
+            CompleteShutdownIfRequested();
         }
     }
 
@@ -2171,7 +2179,7 @@ public class TrayContext : ApplicationContext
             return;
 
         Log.Info($"Listening stop icon tapped. message={e.MessageId}");
-        OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+        _ = StopActiveListeningForTranscriptionAsync();
     }
 
     private void OnOverlayCancelListeningIconTapped(
@@ -2439,6 +2447,24 @@ public class TrayContext : ApplicationContext
         ClearActivePreviewCountdownBar();
         Log.Info($"Pending paste preview resolved: {TranscribedPreviewDecision.Cancel} via {source}.");
         return true;
+    }
+
+    private void CancelPendingTranscribedPreviewFromSettings()
+    {
+        var activePreviewOverlayKey = _activeTranscribedPreviewOverlayKey;
+        if (string.IsNullOrWhiteSpace(activePreviewOverlayKey))
+            return;
+
+        if (!_previewCoordinator.TryResolve(TranscribedPreviewDecision.Cancel))
+            return;
+
+        Log.Info("Pending transcribed preview canceled due to settings close.");
+        SafeOverlayOperation(
+            "Failed to clear transcribed preview countdown after settings closed.",
+            () => _overlayManager.ClearCountdownBar(activePreviewOverlayKey));
+        SafeOverlayOperation(
+            "Failed to hide transcribed preview overlay after settings closed.",
+            () => _overlayManager.HideOverlay(activePreviewOverlayKey));
     }
 
     private void ClearActivePreviewCountdownBar()
