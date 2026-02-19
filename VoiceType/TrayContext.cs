@@ -810,7 +810,7 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
-            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.Cancel, "remote submit request"))
+            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote submit request"))
                 return;
 
             Log.Info("Remote submit requested");
