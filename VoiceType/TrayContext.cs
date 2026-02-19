@@ -363,6 +363,14 @@ public class TrayContext : ApplicationContext
             return;
         }
 
+        if (_previewCoordinator.IsActive &&
+            TryResolvePendingPastePreview(
+                TranscribedPreviewDecision.PasteWithoutSend,
+                e.HotkeyId == PEN_HOTKEY_ID ? "pen hotkey (preview active)" : "recording shortcut (preview active)"))
+        {
+            return;
+        }
+
         if (_isTranscribing)
         {
             if (e.HotkeyId == PEN_HOTKEY_ID)
@@ -372,14 +380,6 @@ public class TrayContext : ApplicationContext
             }
 
             ShowOverlay("Still processing previous dictation...", InfoOverlayColor, 2000);
-            return;
-        }
-
-        if (_previewCoordinator.IsActive &&
-            TryResolvePendingPastePreview(
-                TranscribedPreviewDecision.PasteWithoutSend,
-                e.HotkeyId == PEN_HOTKEY_ID ? "pen hotkey" : "recording shortcut"))
-        {
             return;
         }
 
