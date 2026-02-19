@@ -98,10 +98,10 @@ public class OverlayForm : Form
     private static readonly Color HelloTextFrameColor = Color.FromArgb(255, 240, 245, 255);
     private static readonly Dictionary<string, string> NerdFontIconClassToGlyph = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "nf-md-close_box", "\U0000F0157" },
-        { "md-close_box", "\U0000F0157" },
-        { "nf-md-record_rec", "\U0000F044B" },
-        { "md-record_rec", "\U0000F044B" },
+        { "nf-md-close_box", "\U000F0157" },
+        { "md-close_box", "\U000F0157" },
+        { "nf-md-record_rec", "\U000F044B" },
+        { "md-record_rec", "\U000F044B" },
         { "nf-fa-stop", "\U0000F04D" },
         { "fa-stop", "\U0000F04D" }
     };
