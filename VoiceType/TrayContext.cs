@@ -391,8 +391,8 @@ public class TrayContext : ApplicationContext
 
         if (_isRecording)
         {
-            Log.Info("Recording shortcut pressed while recording; canceling active capture.");
-            CancelActiveListening();
+            Log.Info("Recording shortcut pressed while recording; finalizing capture for transcription.");
+            _ = StopActiveListeningForTranscriptionAsync();
             return;
         }
         else
