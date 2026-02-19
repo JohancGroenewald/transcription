@@ -54,13 +54,16 @@ internal static class Program
         var inputName = options.InputName;
         var outputIndex = options.OutputIndex;
         var durationMs = options.DurationMs;
+        var requestedInputSummary = string.IsNullOrWhiteSpace(inputName)
+            ? $"index {inputIndex}"
+            : $"'{inputName}' (index {inputIndex})";
+        var requestedOutputSummary = outputIndex < 0
+            ? "system default output"
+            : $"index {outputIndex}";
 
         Console.WriteLine("=== VoiceType audio validation ===");
-        Console.WriteLine(
-            $"Input device request: {(string.IsNullOrWhiteSpace(inputName) ?
-            $"index {inputIndex}" : $"'{inputName}' (index {inputIndex})"}");
-        Console.WriteLine(
-            $"Output device request: {(outputIndex < 0 ? "system default output" : $"index {outputIndex}")}");
+        Console.WriteLine($"Input device request: {requestedInputSummary}");
+        Console.WriteLine($"Output device request: {requestedOutputSummary}");
         Console.WriteLine($"Capture duration: {durationMs} ms");
         Console.WriteLine();
         using var recorder = new AudioRecorder(inputIndex, inputName);
