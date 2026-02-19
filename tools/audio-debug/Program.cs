@@ -35,7 +35,9 @@ internal static class Program
             if (options.ListOnly)
                 return 0;
 
-            var result = options.Ding
+            var result = options.Play
+                ? await RunPlayFileAsync(options)
+                : options.Ding
                 ? await RunDingTestAsync(options)
                 : await RunMicValidationAsync(options);
             return result ? 0 : 1;
@@ -80,6 +82,41 @@ internal static class Program
         catch (Exception ex)
         {
             Console.WriteLine("[1/1] Ding playback failed.");
+            Console.WriteLine($"  {ex.Message}");
+            return false;
+        }
+    }
+
+    private static async Task<bool> RunPlayFileAsync(DebugOptions options)
+    {
+        var requestedOutputSummary = options.OutputIndex < 0
+            ? "system default output"
+            : $"index {options.OutputIndex}";
+        var path = ResolveSavePath(options.PlayFilePath);
+
+        Console.WriteLine("=== VoiceType audio file playback ===");
+        Console.WriteLine($"Output device request: {requestedOutputSummary}");
+        Console.WriteLine($"Audio file: {path}");
+        Console.WriteLine();
+
+        if (!File.Exists(path))
+        {
+            Console.WriteLine("[1/1] Audio file not found.");
+            Console.WriteLine($"  {path}");
+            return false;
+        }
+
+        try
+        {
+            Console.WriteLine("[1/1] Playing file...");
+            var audio = await File.ReadAllBytesAsync(path);
+            await StartPlaybackAsync(audio, options.OutputIndex, options.OutputVolume, cancellationToken: default);
+            Console.WriteLine("[1/1] File playback succeeded.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[1/1] File playback failed.");
             Console.WriteLine($"  {ex.Message}");
             return false;
         }
@@ -459,6 +496,16 @@ internal static class Program
                 case "--ding":
                     options = options with { Ding = true };
                     break;
+                case "--play":
+                    if (i + 1 < args.Length && !IsOptionLikeValue(args[i + 1]))
+                    {
+                        options = options with { Play = true, PlayFilePath = args[++i] };
+                    }
+                    else
+                    {
+                        options = options with { Play = true };
+                    }
+                    break;
                 case "--no-playback":
                     options = options with { NoPlayback = true };
                     break;
@@ -576,6 +623,7 @@ internal static class Program
         Console.WriteLine("  --list, -l                    List input/output devices and exit.");
         Console.WriteLine("  --from-config                  Load VoiceType defaults (saved mic/output indexes).");
         Console.WriteLine("  --ding                         Play a short output test tone (no capture).");
+        Console.WriteLine("  --play [path]                  Play default audio file (audio-debug-test.wav) or a custom path.");
         Console.WriteLine("  --save-in [path]               Save captured audio (default: audio-debug-test.wav).");
         Console.WriteLine("  --save-out [path]              Save playback output audio (default: audio-debug-test.wav).");
         Console.WriteLine("  --save, -s <path>              Legacy: save captured input audio (and ding output when --ding is used).");
@@ -594,6 +642,7 @@ internal static class Program
         bool FromConfig = false,
         bool NoPlayback = false,
         bool Ding = false,
+        bool Play = false,
         int InputIndex = -1,
         string? InputName = null,
         int OutputIndex = -1,
@@ -602,6 +651,7 @@ internal static class Program
         bool SaveInput = false,
         bool SaveOutput = false,
         string? SaveInputPath = null,
-        string? SaveOutputPath = null);
+        string? SaveOutputPath = null,
+        string? PlayFilePath = null);
 }
 

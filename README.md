@@ -223,6 +223,8 @@ dotnet run --project tools/audio-debug -- --ding --output-index 1 --output-volum
 dotnet run --project tools/audio-debug -- --ding --output-index 1 --save
 dotnet run --project tools/audio-debug -- --input-index 0 --no-playback --save-in
 dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 1500 --save-out .\audio-output.wav
+dotnet run --project tools/audio-debug -- --play
+dotnet run --project tools/audio-debug -- --play .\audio-debug-test.wav
 ```
 
 A shorthand wrapper is also available:
@@ -245,6 +247,7 @@ Options:
 - `--save-in [path]`: write captured input audio to disk (default `audio-debug-test.wav`)
 - `--save-out [path]`: write playback output audio to disk (default `audio-debug-test.wav`)
 - `--save, -s <path>`: legacy alias for `--save-in <path>`
+- `--play [path]`: play `audio-debug-test.wav` (or custom path if provided)
 
 ## Hardware Button Linking
 
