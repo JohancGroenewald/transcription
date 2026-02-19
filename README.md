@@ -210,6 +210,34 @@ Build automation:
 - On Windows `.exe` builds, VoiceType auto-creates three `.lnk` files in the output folder.
 - `VoiceTypeLinks.bat` is included in build/publish output to regenerate all links with one command.
 
+## Audio Debug Tool (Standalone)
+
+Use this to validate microphone capture/output playback independently from the tray app:
+
+```powershell
+dotnet run --project tools/audio-debug -- --list
+dotnet run --project tools/audio-debug -- --from-config --duration-ms 3000
+dotnet run --project tools/audio-debug -- --from-config --no-playback --save .\audio-capture.wav
+dotnet run --project tools/audio-debug -- --input-index 0 --output-index 1 --duration-ms 5000
+```
+
+A shorthand wrapper is also available:
+
+```powershell
+.\scripts\audio-debug.ps1 --from-config --duration-ms 3000
+```
+
+Options:
+
+- `--list, -l`: list input/output devices and exit
+- `--from-config`: load defaults from VoiceType config (`MicrophoneInputDeviceIndex`, `AudioOutputDeviceIndex`)
+- `--input-index <n>`: force a specific input
+- `--input-name <name>`: force an input by name
+- `--output-index <n>`: force playback output
+- `--duration-ms <n>`: capture window in milliseconds
+- `--no-playback`: capture and analyze only
+- `--save <path>`: write captured WAV to disk
+
 ## Hardware Button Linking
 
 You can bind generated `.lnk` files to Surface Pen or any programmable input device (mouse buttons, macro keyboards, Stream Deck, foot pedals, etc.).
