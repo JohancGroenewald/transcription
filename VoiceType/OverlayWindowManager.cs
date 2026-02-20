@@ -203,6 +203,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                 LogOverlayStackSnapshot($"show-message-update-before:{overlayKey ?? "<none>"}");
                 globalMessageId = ++_globalMessageId;
                 var wasTrackedInStack = managed.TrackInStack;
+                var shouldAutoPosition = autoPosition && !wasTrackedInStack;
                 var effectiveDurationMs = autoHide
                     ? ComputeDurationMs(durationMs, autoHide)
                     : durationMs;
@@ -219,7 +220,7 @@ public sealed class OverlayWindowManager : IOverlayManager
                     remoteActionColor,
                     prefixText,
                     prefixColor,
-                    autoPosition,
+                    shouldAutoPosition,
                     animateHide,
                     autoHide,
                     showListeningLevelMeter,
