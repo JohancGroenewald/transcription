@@ -553,12 +553,21 @@ public sealed class OverlayWindowManager : IOverlayManager
 
     public void SetStackHorizontalOffset(int offsetPx)
     {
+        var shouldReposition = false;
         lock (_sync)
         {
+            if (_stackHorizontalOffsetPx == offsetPx)
+            {
+                Log.Info($"SetStackHorizontalOffset skipped (unchanged): offset={offsetPx}");
+                return;
+            }
+
             _stackHorizontalOffsetPx = offsetPx;
+            shouldReposition = true;
         }
 
-        RepositionVisibleOverlaysLocked();
+        if (shouldReposition)
+            RepositionVisibleOverlaysLocked();
     }
 
     public void HideOverlay(string overlayKey)

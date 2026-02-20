@@ -246,7 +246,9 @@ public class TrayContext : ApplicationContext
             config.ShowOverlayBorder,
             _overlayBackgroundMode);
         _overlayManager.ApplyFadeProfile(config.OverlayFadeProfile);
-        _overlayManager.SetStackHorizontalOffset(config.OverlayStackHorizontalOffsetPx);
+        var currentStackHorizontalOffsetPx = _overlayManager.GetStackHorizontalOffset();
+        if (currentStackHorizontalOffsetPx != config.OverlayStackHorizontalOffsetPx)
+            _overlayManager.SetStackHorizontalOffset(config.OverlayStackHorizontalOffsetPx);
         _enablePenHotkey = config.EnablePenHotkey;
         _penHotkey = AppConfig.NormalizePenHotkey(config.PenHotkey);
         _enablePreviewPlayback = config.EnablePreviewPlayback;
