@@ -6,9 +6,9 @@ namespace VoiceType;
 
 public class SettingsForm : Form
 {
-    private const int WideSettingsMinWidth = 1040;
-    private const int WideSettingsMinHeight = 680;
-    private const int WideSettingsPreferredWidth = 1240;
+    private const int WideSettingsMinWidth = 1180;
+    private const int WideSettingsMinHeight = 740;
+    private const int WideSettingsPreferredWidth = 1440;
     private const int WideSettingsBasePadding = 16;
     private const int WM_APPCOMMAND = 0x0319;
     private const int APPCOMMAND_LAUNCH_APP1 = 17;
@@ -215,23 +215,22 @@ public class SettingsForm : Form
             Padding = new Padding(0)
         };
         rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var contentPanel = new Panel
         {
             Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            AutoSize = false,
             AutoScroll = true,
             Margin = new Padding(0, 0, 0, 8)
         };
 
         var contentLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            AutoSize = false,
+            AutoSizeMode = AutoSizeMode.GrowOnly,
             ColumnCount = 2,
             RowCount = 3,
             Margin = new Padding(0),
