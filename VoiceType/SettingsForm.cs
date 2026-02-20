@@ -6,6 +6,10 @@ namespace VoiceType;
 
 public class SettingsForm : Form
 {
+    private const int WideSettingsMinWidth = 1040;
+    private const int WideSettingsMinHeight = 680;
+    private const int WideSettingsPreferredWidth = 1240;
+    private const int WideSettingsBasePadding = 16;
     private const int WM_APPCOMMAND = 0x0319;
     private const int APPCOMMAND_LAUNCH_APP1 = 17;
     private const int APPCOMMAND_LAUNCH_APP2 = 18;
@@ -197,8 +201,9 @@ public class SettingsForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         DoubleBuffered = true;
         KeyPreview = true;
-        Padding = new Padding(12);
-        MinimumSize = new Size(760, 520);
+        Padding = new Padding(WideSettingsBasePadding);
+        MinimumSize = new Size(WideSettingsMinWidth, WideSettingsMinHeight);
+        Size = new Size(WideSettingsPreferredWidth, WideSettingsMinHeight);
         KeyDown += OnSettingsKeyDown;
 
         var rootLayout = new TableLayoutPanel
@@ -215,10 +220,10 @@ public class SettingsForm : Form
 
         var contentPanel = new Panel
         {
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            AutoScroll = false,
+            AutoScroll = true,
             Margin = new Padding(0, 0, 0, 8)
         };
 
@@ -227,13 +232,13 @@ public class SettingsForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 4,
+            ColumnCount = 2,
+            RowCount = 3,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
-        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58f));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42f));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -241,7 +246,7 @@ public class SettingsForm : Form
         var grpApi = new ThemedGroupBox
         {
             Text = "OpenAI API",
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
@@ -308,7 +313,7 @@ public class SettingsForm : Form
         var grpBehavior = new ThemedGroupBox
         {
             Text = "Behavior",
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
@@ -456,8 +461,8 @@ public class SettingsForm : Form
 
         _overlayFadeProfileCombo = new ComboBox
         {
-            Dock = DockStyle.Left,
-            Width = 240,
+            Dock = DockStyle.Fill,
+            MinimumSize = new Size(240, 0),
             DropDownStyle = ComboBoxStyle.DropDownList,
             Margin = new Padding(0, 6, 0, 0)
         };
@@ -474,8 +479,8 @@ public class SettingsForm : Form
 
         _overlayBackgroundModeCombo = new ComboBox
         {
-            Dock = DockStyle.Left,
-            Width = 240,
+            Dock = DockStyle.Fill,
+            MinimumSize = new Size(240, 0),
             DropDownStyle = ComboBoxStyle.DropDownList,
             Margin = new Padding(0, 6, 0, 0)
         };
@@ -683,7 +688,7 @@ public class SettingsForm : Form
             AutoSize = true,
             ForeColor = Color.DimGray,
             Margin = new Padding(0, 2, 0, 0),
-            MaximumSize = new Size(520, 0),
+            MaximumSize = new Size(640, 0),
             Text = "Press a pen button while this window is focused."
         };
 
@@ -746,7 +751,7 @@ public class SettingsForm : Form
         var grpVoiceCommands = new ThemedGroupBox
         {
             Text = "Voice Commands",
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
@@ -952,7 +957,7 @@ public class SettingsForm : Form
             AutoSize = true,
             ForeColor = Color.DimGray,
             Margin = new Padding(0, 6, 0, 0),
-            MaximumSize = new Size(520, 0),
+            MaximumSize = new Size(640, 0),
             Text = "Type a phrase to test command recognition."
         };
 
@@ -979,7 +984,7 @@ public class SettingsForm : Form
         var grpAppInfo = new ThemedGroupBox
         {
             Text = "App Info",
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12, 10, 12, 12),
@@ -1116,9 +1121,11 @@ public class SettingsForm : Form
         CancelButton = btnCancel;
 
         contentLayout.Controls.Add(grpApi, 0, 0);
+        contentLayout.SetColumnSpan(grpApi, 2);
         contentLayout.Controls.Add(grpBehavior, 0, 1);
+        contentLayout.SetColumnSpan(grpBehavior, 2);
         contentLayout.Controls.Add(grpVoiceCommands, 0, 2);
-        contentLayout.Controls.Add(grpAppInfo, 0, 3);
+        contentLayout.Controls.Add(grpAppInfo, 1, 2);
         contentPanel.Controls.Add(contentLayout);
 
         rootLayout.Controls.Add(contentPanel, 0, 0);
@@ -2205,6 +2212,7 @@ public class SettingsForm : Form
         var contentSize = contentPanel.GetPreferredSize(Size.Empty);
         var buttonsSize = buttonsLayout.GetPreferredSize(Size.Empty);
         var desiredWidth = Math.Max(contentSize.Width, buttonsSize.Width) + Padding.Horizontal + 6;
+        desiredWidth = Math.Max(desiredWidth, WideSettingsPreferredWidth);
         var desiredHeight = contentSize.Height + buttonsSize.Height + Padding.Vertical + 10;
 
         var workingArea = Screen.FromControl(this).WorkingArea;
