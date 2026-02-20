@@ -12,6 +12,9 @@ public class AppConfig
     private const string DefaultTranscriptionPrompt =
         "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
     public const string DefaultPenHotkey = "F20";
+    public const int DefaultSettingsFormVersion = 1;
+    public const int SettingsFormVersionLegacy = 1;
+    public const int SettingsFormVersionRedesigned = 2;
     public const int DefaultOverlayDurationMs = 3000;
     public const int MinOverlayDurationMs = 500;
     public const int MaxOverlayDurationMs = 60000;
@@ -118,6 +121,7 @@ public class AppConfig
     public bool EnableTranscriptionPrompt { get; set; } = true;
     public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
     public bool EnableSettingsDarkMode { get; set; }
+    public int SettingsUiVersion { get; set; } = DefaultSettingsFormVersion;
     public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
     public string MicrophoneInputDeviceName { get; set; } = string.Empty;
     public int AudioOutputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
@@ -162,6 +166,7 @@ public class AppConfig
         public bool EnableTranscriptionPrompt { get; set; } = true;
         public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
         public bool EnableSettingsDarkMode { get; set; }
+        public int SettingsUiVersion { get; set; } = DefaultSettingsFormVersion;
         public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
         public string MicrophoneInputDeviceName { get; set; } = string.Empty;
         public int AudioOutputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
@@ -213,6 +218,7 @@ public class AppConfig
                     ? DefaultTranscriptionPrompt
                     : configFile.TranscriptionPrompt,
                 EnableSettingsDarkMode = configFile.EnableSettingsDarkMode,
+                SettingsUiVersion = NormalizeSettingsUiVersion(configFile.SettingsUiVersion),
                 MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(configFile.MicrophoneInputDeviceIndex),
                 MicrophoneInputDeviceName = configFile.MicrophoneInputDeviceName?.Trim() ?? string.Empty,
                 AudioOutputDeviceIndex = NormalizeAudioDeviceIndex(configFile.AudioOutputDeviceIndex),
@@ -264,6 +270,7 @@ public class AppConfig
                     ? DefaultTranscriptionPrompt
                     : TranscriptionPrompt,
                 EnableSettingsDarkMode = EnableSettingsDarkMode,
+                SettingsUiVersion = NormalizeSettingsUiVersion(SettingsUiVersion),
                 MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(MicrophoneInputDeviceIndex),
                 MicrophoneInputDeviceName = string.IsNullOrWhiteSpace(MicrophoneInputDeviceName)
                     ? string.Empty
@@ -387,6 +394,17 @@ public class AppConfig
     public static int NormalizeAudioDeviceIndex(int deviceIndex)
     {
         return deviceIndex < DefaultAudioDeviceIndex ? DefaultAudioDeviceIndex : deviceIndex;
+    }
+
+    public static int NormalizeSettingsUiVersion(int settingsUiVersion)
+    {
+        if (settingsUiVersion < SettingsFormVersionLegacy)
+            return DefaultSettingsFormVersion;
+
+        if (settingsUiVersion > SettingsFormVersionRedesigned)
+            return SettingsFormVersionRedesigned;
+
+        return settingsUiVersion;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()
