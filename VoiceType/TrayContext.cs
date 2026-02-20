@@ -529,7 +529,9 @@ public class TrayContext : ApplicationContext
         {
             var previousForegroundWindow = GetForegroundWindow();
             IntPtr settingsWindow = IntPtr.Zero;
+            var config = AppConfig.Load();
             using var dlg = CreateSettingsForm(settingsFormVersion);
+            ApplySettingsWindowPlacementForVersion2(dlg, settingsFormVersion, config);
             dlg.Shown += (_, _) =>
             {
                 dlg.BeginInvoke(new Action(() =>
@@ -546,6 +548,7 @@ public class TrayContext : ApplicationContext
             };
             Log.Info("Opening settings dialog.");
             dlg.ShowDialog();
+            PersistSettingsWindowPlacementForVersion2(dlg, settingsFormVersion, config);
             CancelPendingTranscribedPreviewFromSettings();
             LoadTranscriptionService();
             RefreshHotkeyRegistration();
@@ -586,6 +589,109 @@ public class TrayContext : ApplicationContext
                 redesigned.FocusApiKeyInput();
                 break;
         }
+    }
+
+    private static void ApplySettingsWindowPlacementForVersion2(Form dialog, SettingsFormVersion settingsFormVersion, AppConfig config)
+    {
+        if (settingsFormVersion != SettingsFormVersion.Version2)
+            return;
+
+        if (dialog is not SettingsFormV2)
+            return;
+
+        var savedBounds = GetSavedSettingsWindowBounds(config);
+        if (!savedBounds.HasValue)
+            return;
+
+        var clampedBounds = ClampWindowBoundsToScreens(savedBounds.Value);
+        dialog.StartPosition = FormStartPosition.Manual;
+        dialog.Size = clampedBounds.Size;
+        dialog.Location = clampedBounds.Location;
+    }
+
+    private static void PersistSettingsWindowPlacementForVersion2(Form dialog, SettingsFormVersion settingsFormVersion, AppConfig config)
+    {
+        if (settingsFormVersion != SettingsFormVersion.Version2)
+            return;
+
+        if (dialog is not SettingsFormV2)
+            return;
+
+        try
+        {
+            var activeBounds = dialog.WindowState == FormWindowState.Normal
+                ? dialog.Bounds
+                : dialog.RestoreBounds;
+
+            if (activeBounds.Width < AppConfig.MinSettingsWindowWidth ||
+                activeBounds.Height < AppConfig.MinSettingsWindowHeight ||
+                activeBounds.IsEmpty)
+            {
+                return;
+            }
+
+            config.SettingsWindowX = activeBounds.X;
+            config.SettingsWindowY = activeBounds.Y;
+            config.SettingsWindowWidth = activeBounds.Width;
+            config.SettingsWindowHeight = activeBounds.Height;
+            config.Save();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to persist settings form position/size.", ex);
+        }
+    }
+
+    private static Rectangle? GetSavedSettingsWindowBounds(AppConfig config)
+    {
+        if (config.SettingsWindowX == AppConfig.DefaultSettingsWindowX &&
+            config.SettingsWindowY == AppConfig.DefaultSettingsWindowY)
+            return null;
+
+        if (config.SettingsWindowWidth <= 0 || config.SettingsWindowHeight <= 0)
+            return null;
+
+        return new Rectangle(
+            config.SettingsWindowX,
+            config.SettingsWindowY,
+            config.SettingsWindowWidth,
+            config.SettingsWindowHeight);
+    }
+
+    private static Rectangle ClampWindowBoundsToScreens(Rectangle targetBounds)
+    {
+        var screens = Screen.AllScreens;
+        if (screens.Length == 0)
+            return targetBounds;
+
+        var preferredScreen = screens.FirstOrDefault(s => s.WorkingArea.Contains(targetBounds.Location), screens[0]);
+        if (!preferredScreen.WorkingArea.Contains(targetBounds.Location))
+        {
+            preferredScreen = screens
+                .Where(s => s.WorkingArea.IntersectsWith(targetBounds))
+                .FirstOrDefault() ?? screens[0];
+        }
+
+        var workArea = preferredScreen.WorkingArea;
+        var width = Math.Max(AppConfig.MinSettingsWindowWidth, Math.Min(targetBounds.Width, workArea.Width));
+        var height = Math.Max(AppConfig.MinSettingsWindowHeight, Math.Min(targetBounds.Height, workArea.Height));
+
+        var x = targetBounds.X;
+        var y = targetBounds.Y;
+
+        if (x + width > workArea.Right)
+            x = workArea.Right - width;
+
+        if (y + height > workArea.Bottom)
+            y = workArea.Bottom - height;
+
+        if (x < workArea.Left)
+            x = workArea.Left;
+
+        if (y < workArea.Top)
+            y = workArea.Top;
+
+        return new Rectangle(x, y, width, height);
     }
 
     private async Task StopActiveListeningForTranscriptionAsync()

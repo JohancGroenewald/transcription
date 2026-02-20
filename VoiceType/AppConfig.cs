@@ -44,6 +44,12 @@ public class AppConfig
     public const int MinRemoteActionPopupLevel = 0;
     public const int DefaultRemoteActionPopupLevel = 1;
     public const int MaxRemoteActionPopupLevel = 2;
+    public const int DefaultSettingsWindowX = -1;
+    public const int DefaultSettingsWindowY = -1;
+    public const int DefaultSettingsWindowWidth = 1580;
+    public const int DefaultSettingsWindowHeight = 780;
+    public const int MinSettingsWindowWidth = 600;
+    public const int MinSettingsWindowHeight = 420;
     public static readonly string[] OverlayFadeProfiles =
     [
         "Off",
@@ -121,6 +127,10 @@ public class AppConfig
     public bool EnableTranscriptionPrompt { get; set; } = true;
     public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
     public bool EnableSettingsDarkMode { get; set; }
+    public int SettingsWindowX { get; set; } = DefaultSettingsWindowX;
+    public int SettingsWindowY { get; set; } = DefaultSettingsWindowY;
+    public int SettingsWindowWidth { get; set; } = DefaultSettingsWindowWidth;
+    public int SettingsWindowHeight { get; set; } = DefaultSettingsWindowHeight;
     public int SettingsUiVersion { get; set; } = DefaultSettingsFormVersion;
     public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
     public string MicrophoneInputDeviceName { get; set; } = string.Empty;
@@ -166,6 +176,10 @@ public class AppConfig
         public bool EnableTranscriptionPrompt { get; set; } = true;
         public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
         public bool EnableSettingsDarkMode { get; set; }
+        public int SettingsWindowX { get; set; } = DefaultSettingsWindowX;
+        public int SettingsWindowY { get; set; } = DefaultSettingsWindowY;
+        public int SettingsWindowWidth { get; set; } = DefaultSettingsWindowWidth;
+        public int SettingsWindowHeight { get; set; } = DefaultSettingsWindowHeight;
         public int SettingsUiVersion { get; set; } = DefaultSettingsFormVersion;
         public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
         public string MicrophoneInputDeviceName { get; set; } = string.Empty;
@@ -218,6 +232,10 @@ public class AppConfig
                     ? DefaultTranscriptionPrompt
                     : configFile.TranscriptionPrompt,
                 EnableSettingsDarkMode = configFile.EnableSettingsDarkMode,
+                SettingsWindowX = NormalizeSettingsWindowX(configFile.SettingsWindowX),
+                SettingsWindowY = NormalizeSettingsWindowY(configFile.SettingsWindowY),
+                SettingsWindowWidth = NormalizeSettingsWindowWidth(configFile.SettingsWindowWidth),
+                SettingsWindowHeight = NormalizeSettingsWindowHeight(configFile.SettingsWindowHeight),
                 SettingsUiVersion = NormalizeSettingsUiVersion(configFile.SettingsUiVersion),
                 MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(configFile.MicrophoneInputDeviceIndex),
                 MicrophoneInputDeviceName = configFile.MicrophoneInputDeviceName?.Trim() ?? string.Empty,
@@ -270,6 +288,10 @@ public class AppConfig
                     ? DefaultTranscriptionPrompt
                     : TranscriptionPrompt,
                 EnableSettingsDarkMode = EnableSettingsDarkMode,
+                SettingsWindowX = NormalizeSettingsWindowX(SettingsWindowX),
+                SettingsWindowY = NormalizeSettingsWindowY(SettingsWindowY),
+                SettingsWindowWidth = NormalizeSettingsWindowWidth(SettingsWindowWidth),
+                SettingsWindowHeight = NormalizeSettingsWindowHeight(SettingsWindowHeight),
                 SettingsUiVersion = NormalizeSettingsUiVersion(SettingsUiVersion),
                 MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(MicrophoneInputDeviceIndex),
                 MicrophoneInputDeviceName = string.IsNullOrWhiteSpace(MicrophoneInputDeviceName)
@@ -405,6 +427,30 @@ public class AppConfig
             return SettingsFormVersionRedesigned;
 
         return settingsUiVersion;
+    }
+
+    public static int NormalizeSettingsWindowX(int x)
+    {
+        return x;
+    }
+
+    public static int NormalizeSettingsWindowY(int y)
+    {
+        return y;
+    }
+
+    public static int NormalizeSettingsWindowWidth(int width)
+    {
+        if (width < MinSettingsWindowWidth)
+            return MinSettingsWindowWidth;
+        return width;
+    }
+
+    public static int NormalizeSettingsWindowHeight(int height)
+    {
+        if (height < MinSettingsWindowHeight)
+            return MinSettingsWindowHeight;
+        return height;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()
