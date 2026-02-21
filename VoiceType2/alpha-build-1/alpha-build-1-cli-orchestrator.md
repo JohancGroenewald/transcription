@@ -101,7 +101,7 @@ Suggested CLI command behavior:
 - `vt2 run --mode managed --api-url <url>`: spawn + attach fallback.
 - `vt2 run --api-timeout-ms 15000 --shutdown-timeout-ms 10000`.
 
-## 7) Command set and API management (alpha)
+## 5) Command set and API management (alpha)
 
 - `vt2`:
   - interactive default when no command is supplied
@@ -120,7 +120,7 @@ Suggested CLI command behavior:
 - `vt2 api config show`:
   - show effective endpoint + token profile
 
-## 5) Data flow and state machine
+## 6) Data flow and state machine
 
 States:
 
@@ -141,7 +141,7 @@ Rules:
 - Any terminal event can move to `Stopped`.
 - `start` is ignored unless state is `Registered` or `Completed`.
 
-## 6) CLI command set (alpha)
+## 7) CLI command set (alpha)
 
 - `vt2 run --mode headless|interactive`
 - `vt2 start`
@@ -153,7 +153,7 @@ Rules:
 - `vt2 config show`
 - `vt2 exit`
 
-## 7) Input and rendering contract
+## 8) Input and rendering contract
 
 ### Decision parsing
 
@@ -167,7 +167,7 @@ Rules:
 - transcripts print in a muted style, then one action line.
 - error lines include standardized code and session id.
 
-## 8) C# skeleton (alpha)
+## 9) C# skeleton (alpha)
 
 ```csharp
 public sealed record ApiEndpoints(Uri BaseUrl, string ApiToken);
@@ -201,14 +201,14 @@ public sealed class CliOrchestrator : IOrchestrator
 }
 ```
 
-## 9) Optional platform adapters
+## 10) Optional platform adapters
 
 - `IHotkeyAdapter`: optional, for users who want CLI hotkey support.
 - `ITrayProbeAdapter`: optional, for environments where tray visibility must signal session state.
 - `INotificationAdapter`: terminal + optional native fallback.
 - `IClipboardFallbackAdapter`: optional local output sink when session actions include copy.
 
-## 10) Alpha acceptance checklist
+## 11) Alpha acceptance checklist
 
 - CLI can register a session in one command.
 - Event stream updates are rendered without delay.
