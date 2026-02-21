@@ -10,11 +10,60 @@ has_app_file_changes() {
   git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^VoiceType/'
 }
 
+has_markdown_file_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qiE '\.md$'
+}
+
+run_markdown_lint() {
+  local markdown_files
+  markdown_files="$(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -iE '\.md$' || true)"
+  if [ -z "$markdown_files" ]; then
+    return 0
+  fi
+
+  local lint_cmd=""
+  if command -v markdownlint >/dev/null 2>&1; then
+    lint_cmd="markdownlint"
+  elif command -v npx >/dev/null 2>&1; then
+    lint_cmd="npx -y markdownlint-cli"
+  else
+    echo "[pre-commit] markdownlint not found (nor npx available). Install markdownlint or Node.js to lint markdown on pre-commit."
+    return 1
+  fi
+
+  echo "[pre-commit] Running markdown lint on staged markdown files."
+  local exit_code=0
+  while IFS= read -r md_file; do
+    [ -z "$md_file" ] && continue
+    if ! $lint_cmd "$md_file"; then
+      echo "[pre-commit] Markdown lint failed for: $md_file"
+      exit_code=1
+    fi
+  done <<< "$markdown_files"
+
+  if [ "$exit_code" -ne 0 ]; then
+    return 1
+  fi
+}
+
 if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
   exit 0
 fi
 
-if has_app_file_changes; then
+HAS_APP_CHANGES=$(has_app_file_changes; echo $?)
+HAS_MARKDOWN_CHANGES=$(has_markdown_file_changes; echo $?)
+
+if [ "$HAS_MARKDOWN_CHANGES" -eq 0 ]; then
+  if ! run_markdown_lint; then
+    echo "[pre-commit] Markdown lint failed. Please fix markdown issues before committing."
+    exit 1
+  fi
+else
+  echo "[pre-commit] No staged markdown files to lint."
+fi
+
+if [ "$HAS_APP_CHANGES" -eq 0 ]; then
   if [ -f "$SCRIPT" ]; then
     if command -v pwsh >/dev/null 2>&1; then
       pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
