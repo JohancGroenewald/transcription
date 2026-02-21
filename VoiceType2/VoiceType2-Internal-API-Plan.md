@@ -63,7 +63,11 @@ Primary goals:
 ### 3.1.1 Internal API data flow (Mermaid)
 
 ```mermaid
-flowchart LR
+flowchart TB
+    %% Force a wider vertical rhythm for readability
+    %% in case VS Code collapses nested labels.
+    linkStyle default interpolate basis
+
     subgraph "VoiceType2.App"
         appStart["App startup and dependency wiring"]
         hotkeys["Global hotkeys and tray actions"]
