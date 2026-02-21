@@ -219,6 +219,91 @@ flowchart TB
     apiEvents -->|"event: transcript ready"| orchBUI
 ```
 
+### 3.1.4 Multi-session and platform-aware orchestrator model
+
+To align with your recap:
+
+- The API runtime is single-process but supports **multiple concurrent sessions**.
+- Any orchestrator instance can connect independently using its own `sessionId`.
+- The API stores session metadata so two orchestrators can run in parallel and remain isolated.
+- Orchestrators are **platform-aware** and carry a capability profile:
+  - `platform`: `"windows"`, `"linux"`, `"macos"`
+  - `capabilities`: `hotkeys`, `clipboard`, `tray`, `notifications`, `audioCapture`, `uiShell`
+  - `policy`: who owns the input source and what actions are permitted.
+- If an orchestrator requests an unsupported capability, the API should reject with a structured validation error.
+- `VoiceType2` can be launched with different wrappers:
+  - `service` mode: run API runtime only.
+  - `tray` mode: run Windows orchestrator + API in-process or attach to local API.
+  - `cli` mode: terminal UI flow (start/stop, transcript output, status).
+  - Future modes: web/Electron/front-end orchestrator over the same API.
+
+```mermaid
+flowchart TB
+    %% Multiple orchestrators share one API runtime through sessions.
+    subgraph "VoiceType2 API Runtime"
+        runtime["VoiceType2 Runtime API"]
+        sessionManager["Session Manager (concurrent sessions)"]
+        validator["Session/Policy Validator"]
+        streamEngine["Capture + Transcription + Preview state store"]
+        events["Event Stream (WS/SSE)"]
+        auth["Orchestrator/Auth Gate"]
+    end
+
+    subgraph "Session A"
+        orchAStart["Windows Tray Orchestrator\n(session: A)"]
+        platformA["PlatformAdapter.Windows\nhotkey + tray + overlay + clipboard"]
+        sessionAFlow["Session A state machine"]
+    end
+
+    subgraph "Session B"
+        orchBStart["CLI Orchestrator\n(session: B)"]
+        platformB["PlatformAdapter.Null/TTY\nstdin/stdout + args + logs"]
+        sessionBFlow["Session B state machine"]
+    end
+
+    subgraph "Session C"
+        orchCStart["Frontend Orchestrator\n(session: C)"]
+        platformC["PlatformAdapter.Web\nRPC + local auth"]
+        sessionCFlow["Session C state machine"]
+    end
+
+    orchAStart -->|"POST /sessions (register + profile)"| sessionManager
+    orchBStart -->|"POST /sessions (register + profile)"| sessionManager
+    orchCStart -->|"POST /sessions (register + profile)"| sessionManager
+
+    sessionManager -->|validates profile| validator
+    validator -->|"ok"| runtime
+    validator -->|"reject unsupported capability"| events
+
+    runtime --> streamEngine
+    streamEngine --> events
+
+    orchAStart -->|"POST /sessions/A/start"| auth
+    orchAStart -->|"POST /sessions/A/resolve"| streamEngine
+    orchBStart -->|"POST /sessions/B/start"| auth
+    orchBStart -->|"POST /sessions/B/stop"| auth
+    orchCStart -->|"POST /sessions/C/start"| auth
+    orchCStart -->|"POST /sessions/C/stop"| auth
+
+    auth --> sessionAFlow
+    auth --> sessionBFlow
+    auth --> sessionCFlow
+
+    platformA -->|"hotkey/input state"| orchAStart
+    platformB -->|"command input and console output"| orchBStart
+    platformC -->|"UI commands and display updates"| orchCStart
+
+    events -->|"transcript-ready/error/cancel" | orchAStart
+    events -->|"transcript-ready/error/cancel" | orchBStart
+    events -->|"transcript-ready/error/cancel" | orchCStart
+```
+
+Suggested implementation implication:
+
+- `Runtime API` exposes a small host contract: register, start, stop, and resolve (submit/cancel).
+- `Orchestrators` are separate clients that consume the same host contract.
+- For Windows desktop packaging, `tray orchestrator` can be the default orchestrator while still allowing service-only and CLI distributions.
+
 ### 3.2 Core interface contract
 
 ```csharp
