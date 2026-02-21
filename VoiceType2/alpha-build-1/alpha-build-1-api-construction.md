@@ -44,6 +44,43 @@ flowchart TD
 - Host must remain single process for initial release.
 - Add `GET /health/live` and `GET /health/ready` for external checks.
 
+### 4.1 Runtime modes and lifecycle policy
+
+- `service mode`: API process launched directly, independent of any orchestrator.
+- `attached mode`: orchestrator discovers existing local API and performs session registration only.
+- `embedded mode`: orchestrator starts API as controlled child process (development/test convenience).
+
+```mermaid
+flowchart TD
+    direction TB
+    serviceStart["vt2-api start --mode service"]
+    attachedStart["Tray/CLI passes --api-url and --api-token"]
+    embeddedStart["Tray/CLI start with --api-managed-host"]
+    apiBoot["API bootstrap + validation"]
+    ready["/health/ready = true"]
+    runtime["Session registration + stream processing"]
+    stop["vt2-api stop or host signal"]
+    drain["Reject new sessions; drain active sessions"]
+    complete["Dispose and exit"]
+
+    serviceStart --> apiBoot
+    embeddedStart --> apiBoot
+    attachedStart --> ready
+    apiBoot --> ready
+    ready --> runtime
+    runtime --> stop
+    stop --> drain
+    drain --> complete
+```
+
+### 4.2 Settings ownership and reload policy
+
+- API settings belong to `RuntimeConfig` only.
+  - bind profile (`HostBinding`), auth mode, TLS, host policies, timeouts.
+  - changes to these require API restart for alpha.
+- Orchestrator settings stay local to each orchestrator and are passed in session registration payload.
+- Shared contracts are versioned through `ContractVersion` and validated during registration.
+
 ## 5) Session lifecycle API (alpha)
 
 | Method | Path                               | Responsibility                | Notes                                    |
@@ -145,3 +182,22 @@ All failures return:
 - One session can reach all states in the internal service flow.
 - CLI can receive SSE/WS events and call `resolve`.
 - No endpoint behavior depends on a specific orchestrator implementation.
+
+## 11) Build and run commands for Alpha Build 1
+
+```text
+dotnet run --project VoiceType2.ApiHost --configuration Debug -- --mode service --urls "http://127.0.0.1:5240" --config VoiceType2/config/RuntimeConfig.json
+dotnet run --project VoiceType2.ApiHost -- --mode service --urls "http://127.0.0.1:5240" --host-mode service --environment Development
+dotnet run --project VoiceType2.ApiHost -- --mode service --urls "http://127.0.0.1:5240" --help
+
+dotnet run --project VoiceType2.App.Cli --configuration Debug -- api run --api-url "http://127.0.0.1:5240" --api-token "<token>"
+dotnet run --project VoiceType2.App.Cli -- --status --api-url "http://127.0.0.1:5240"
+dotnet run --project VoiceType2.App.Cli -- --session start --api-url "http://127.0.0.1:5240"
+```
+
+CLI-driven API control target for alpha:
+
+- `vt2-api start --mode service --urls "http://127.0.0.1:5240"`
+- `vt2-api stop --graceful-timeout-ms 15000`
+- `vt2-api status`
+- `vt2-api sessions list`

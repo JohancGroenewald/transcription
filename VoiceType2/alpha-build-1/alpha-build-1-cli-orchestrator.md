@@ -74,6 +74,52 @@ sequenceDiagram
     O-->>R: final feedback
 ```
 
+## 4.1 API connection model for CLI
+
+CLI must support two startup styles from day one:
+
+- **Attach mode**: expect a running API and connect immediately.
+- **Managed mode**: if API is not available, optionally launch local API host (child process) and wait for `GET /health/ready`.
+
+```mermaid
+flowchart TD
+    start["CLI start"] --> hasUrl["api-url provided"]
+    hasUrl -->|yes| connect["GET /health/ready"]
+    hasUrl -->|no| discover["discover default api-url"]
+    discover --> connect
+    connect -->|ready| proceed["register session"]
+    connect -->|not ready| wait["retry with timeout"]
+    wait --> managed["if --managed-start=true, spawn API host"]
+    managed --> spawn["launch VoiceType2.ApiHost"]
+    spawn --> connect
+    proceed --> run["CLI state machine"]
+```
+
+Suggested CLI command behavior:
+
+- `vt2 run --mode attach --api-url <url>`: attach only.
+- `vt2 run --mode managed --api-url <url>`: spawn + attach fallback.
+- `vt2 run --api-timeout-ms 15000 --shutdown-timeout-ms 10000`.
+
+## 7) Command set and API management (alpha)
+
+- `vt2`:
+  - interactive default when no command is supplied
+- `vt2 run --mode attach|managed`:
+  - start interactive loop and register session
+- `vt2 status`:
+  - request API ready state and current session count
+- `vt2 stop`:
+  - request session stop
+- `vt2 resolve submit|cancel|retry`:
+  - send `POST /v1/sessions/{id}/resolve`
+- `vt2 api start [--port] [--urls]`:
+  - management command to start local API (managed mode default in alpha)
+- `vt2 api stop`:
+  - stop managed API host
+- `vt2 api config show`:
+  - show effective endpoint + token profile
+
 ## 5) Data flow and state machine
 
 States:

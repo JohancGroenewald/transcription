@@ -341,6 +341,58 @@ Notes:
 - The CLI mode can be launched without tray/hotkeys and still be functional by not wiring those adapters.
 - The same `CLI Orchestrator` shape can be reused as a base for a daemon wrapper later.
 
+### 3.1.6 API runtime lifecycle and management (new direction)
+
+The API should be treated as an independently managed process (or managed child process in development):
+
+- `service` mode: API owns transport + sessions + policy and exposes health probes.
+- `embedded` mode: orchestrator starts API in-process or as a local child process and owns stop.
+- `attach` mode: orchestrator discovers an already-running API and uses it.
+
+```mermaid
+flowchart TD
+    direction TB
+    bootReq["Start command: vt2-api start|--urls|--config|--host-mode"]
+    loadCfg["Load RuntimeConfig + env overrides"]
+    validate["Validate binding/auth/session policy"]
+    startHost["Build DI + map endpoints + start Kestrel"]
+    probes["Expose /health/live and /health/ready"]
+    attach["API accepts session registrations"]
+    run["Normal operation"]
+    signal["Stop signal: SIGINT/SIGTERM/`vt2-api stop`"]
+    drain["Drain sessions; reject new registrations"]
+    close["Cancel in-flight operations with timeout"]
+    shutdown["Dispose resources and exit"]
+
+    bootReq --> loadCfg
+    loadCfg --> validate
+    validate -->|invalid| loadCfg
+    validate -->|valid| startHost
+    startHost --> probes
+    probes --> attach
+    attach --> run
+    run --> signal
+    signal --> drain
+    drain --> close
+    close --> shutdown
+```
+
+Management commands to document for alpha:
+
+- `vt2-api start` → boots the API with selected bind URLs and config path.
+- `vt2-api stop` → posts shutdown signal; waits until drain completes.
+- `vt2-api status` → checks `GET /health/ready` and returns session count.
+- `vt2-api config show` → prints effective runtime config and profile.
+- `vt2-api config validate` → validates API-only config and exits non-zero on failure.
+
+Runtime settings ownership:
+
+- `RuntimeConfig` is owned by API startup and can only be changed through API configuration channel.
+- Orchestrator settings are loaded from orchestrator configs and sent only as capability profile payload at session registration.
+- Build behavior for alpha:
+  - restart required for host-level changes (`urls`, TLS, auth mode, session limits).
+  - orchestrator-level changes can be reloaded in orchestrator config at startup and during its own startup routine.
+
 ### 3.2 Complete testability of all components
 
 Every production component should have an injectable boundary and a deterministic test path.
@@ -555,6 +607,8 @@ flowchart TB
    - Fail fast for unsupported provider modes, except when running in explicit test/fallback stubs.
 5. **Verification + cutover**
    - Add VoiceType2 unit/integration tests with provider/test doubles.
+   - Add API lifecycle tests: `start`, `ready`, `shutdown`, and drain behavior.
+   - Add command contract tests for `vt2-api start/status/stop`.
    - Add end-to-end smoke checks for:
      - hotkey start/stop,
      - silence/short clip handling,

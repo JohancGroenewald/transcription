@@ -30,6 +30,22 @@ dotnet build VoiceType/VoiceType.csproj -c Debug
 dotnet run --project VoiceType/VoiceType.csproj
 ```
 
+VoiceType2 Alpha (new API-first architecture) planning and build documents:
+
+```powershell
+Get-ChildItem .\VoiceType2
+
+dotnet restore VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj
+dotnet build VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -c Debug
+dotnet run --project VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240"
+```
+
+Design docs for this build:
+
+- `VoiceType2/VoiceType2-Internal-API-and-Orchestrator-Testability-Plan.md`
+- `VoiceType2/alpha-build-1/alpha-build-1-api-construction.md`
+- `VoiceType2/alpha-build-1/alpha-build-1-cli-orchestrator.md`
+
 Run automated tests:
 
 ```powershell

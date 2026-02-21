@@ -34,6 +34,22 @@ dotnet restore VoiceType/VoiceType.csproj
 dotnet build VoiceType/VoiceType.csproj -c Debug
 ```
 
+## VoiceType2 quick build (API-first alpha)
+
+When implementing the new architecture, use this command set:
+
+```powershell
+dotnet restore VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj
+dotnet build VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -c Debug
+dotnet run --project VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240"
+```
+
+CLI entrypoint target for the first orchestrator:
+
+```powershell
+dotnet run --project VoiceType2/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- run --api-url "http://127.0.0.1:5240" --mode managed
+```
+
 ## Fast validation
 
 ```powershell
