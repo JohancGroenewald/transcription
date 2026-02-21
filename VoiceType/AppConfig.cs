@@ -44,6 +44,26 @@ public class AppConfig
     public const int MinRemoteActionPopupLevel = 0;
     public const int DefaultRemoteActionPopupLevel = 1;
     public const int MaxRemoteActionPopupLevel = 2;
+    public const bool DefaultRemoteListenWhileListening = true;
+    public const bool DefaultRemoteListenWhilePreprocessing = true;
+    public const bool DefaultRemoteListenWhileTextDisplayed = true;
+    public const bool DefaultRemoteListenWhileCountdown = true;
+    public const bool DefaultRemoteListenWhileIdle = true;
+    public const bool DefaultRemoteSubmitWhileListening = true;
+    public const bool DefaultRemoteSubmitWhilePreprocessing = false;
+    public const bool DefaultRemoteSubmitWhileTextDisplayed = true;
+    public const bool DefaultRemoteSubmitWhileCountdown = true;
+    public const bool DefaultRemoteSubmitWhileIdle = false;
+    public const bool DefaultRemoteActivateWhileListening = true;
+    public const bool DefaultRemoteActivateWhilePreprocessing = true;
+    public const bool DefaultRemoteActivateWhileTextDisplayed = true;
+    public const bool DefaultRemoteActivateWhileCountdown = true;
+    public const bool DefaultRemoteActivateWhileIdle = true;
+    public const bool DefaultRemoteCloseWhileListening = true;
+    public const bool DefaultRemoteCloseWhilePreprocessing = false;
+    public const bool DefaultRemoteCloseWhileTextDisplayed = true;
+    public const bool DefaultRemoteCloseWhileCountdown = true;
+    public const bool DefaultRemoteCloseWhileIdle = false;
     public const int DefaultSettingsWindowX = -1;
     public const int DefaultSettingsWindowY = -1;
     public const int DefaultSettingsWindowWidth = 1580;
@@ -122,26 +142,26 @@ public class AppConfig
     public bool EnableSendVoiceCommand { get; set; } = true;
     public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
     public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
-    public bool EnableRemoteListenWhileListening { get; set; } = true;
-    public bool EnableRemoteListenWhilePreprocessing { get; set; } = true;
-    public bool EnableRemoteListenWhileTextDisplayed { get; set; } = true;
-    public bool EnableRemoteListenWhileCountdown { get; set; } = true;
-    public bool EnableRemoteListenWhileIdle { get; set; } = true;
-    public bool EnableRemoteSubmitWhileListening { get; set; } = true;
-    public bool EnableRemoteSubmitWhilePreprocessing { get; set; } = true;
-    public bool EnableRemoteSubmitWhileTextDisplayed { get; set; } = true;
-    public bool EnableRemoteSubmitWhileCountdown { get; set; } = true;
-    public bool EnableRemoteSubmitWhileIdle { get; set; } = true;
-    public bool EnableRemoteActivateWhileListening { get; set; } = true;
-    public bool EnableRemoteActivateWhilePreprocessing { get; set; } = true;
-    public bool EnableRemoteActivateWhileTextDisplayed { get; set; } = true;
-    public bool EnableRemoteActivateWhileCountdown { get; set; } = true;
-    public bool EnableRemoteActivateWhileIdle { get; set; } = true;
-    public bool EnableRemoteCloseWhileListening { get; set; } = true;
-    public bool EnableRemoteCloseWhilePreprocessing { get; set; } = true;
-    public bool EnableRemoteCloseWhileTextDisplayed { get; set; } = true;
-    public bool EnableRemoteCloseWhileCountdown { get; set; } = true;
-    public bool EnableRemoteCloseWhileIdle { get; set; } = true;
+    public bool EnableRemoteListenWhileListening { get; set; } = DefaultRemoteListenWhileListening;
+    public bool EnableRemoteListenWhilePreprocessing { get; set; } = DefaultRemoteListenWhilePreprocessing;
+    public bool EnableRemoteListenWhileTextDisplayed { get; set; } = DefaultRemoteListenWhileTextDisplayed;
+    public bool EnableRemoteListenWhileCountdown { get; set; } = DefaultRemoteListenWhileCountdown;
+    public bool EnableRemoteListenWhileIdle { get; set; } = DefaultRemoteListenWhileIdle;
+    public bool EnableRemoteSubmitWhileListening { get; set; } = DefaultRemoteSubmitWhileListening;
+    public bool EnableRemoteSubmitWhilePreprocessing { get; set; } = DefaultRemoteSubmitWhilePreprocessing;
+    public bool EnableRemoteSubmitWhileTextDisplayed { get; set; } = DefaultRemoteSubmitWhileTextDisplayed;
+    public bool EnableRemoteSubmitWhileCountdown { get; set; } = DefaultRemoteSubmitWhileCountdown;
+    public bool EnableRemoteSubmitWhileIdle { get; set; } = DefaultRemoteSubmitWhileIdle;
+    public bool EnableRemoteActivateWhileListening { get; set; } = DefaultRemoteActivateWhileListening;
+    public bool EnableRemoteActivateWhilePreprocessing { get; set; } = DefaultRemoteActivateWhilePreprocessing;
+    public bool EnableRemoteActivateWhileTextDisplayed { get; set; } = DefaultRemoteActivateWhileTextDisplayed;
+    public bool EnableRemoteActivateWhileCountdown { get; set; } = DefaultRemoteActivateWhileCountdown;
+    public bool EnableRemoteActivateWhileIdle { get; set; } = DefaultRemoteActivateWhileIdle;
+    public bool EnableRemoteCloseWhileListening { get; set; } = DefaultRemoteCloseWhileListening;
+    public bool EnableRemoteCloseWhilePreprocessing { get; set; } = DefaultRemoteCloseWhilePreprocessing;
+    public bool EnableRemoteCloseWhileTextDisplayed { get; set; } = DefaultRemoteCloseWhileTextDisplayed;
+    public bool EnableRemoteCloseWhileCountdown { get; set; } = DefaultRemoteCloseWhileCountdown;
+    public bool EnableRemoteCloseWhileIdle { get; set; } = DefaultRemoteCloseWhileIdle;
     public bool EnablePastedTextPrefix { get; set; } = true;
     public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
     public bool EnableTranscriptionPrompt { get; set; } = true;
@@ -191,26 +211,26 @@ public class AppConfig
         public bool EnableSendVoiceCommand { get; set; } = true;
         public bool EnableShowVoiceCommandsVoiceCommand { get; set; } = true;
         public int RemoteActionPopupLevel { get; set; } = DefaultRemoteActionPopupLevel;
-        public bool EnableRemoteListenWhileListening { get; set; } = true;
-        public bool EnableRemoteListenWhilePreprocessing { get; set; } = true;
-        public bool EnableRemoteListenWhileTextDisplayed { get; set; } = true;
-        public bool EnableRemoteListenWhileCountdown { get; set; } = true;
-        public bool EnableRemoteListenWhileIdle { get; set; } = true;
-        public bool EnableRemoteSubmitWhileListening { get; set; } = true;
-        public bool EnableRemoteSubmitWhilePreprocessing { get; set; } = true;
-        public bool EnableRemoteSubmitWhileTextDisplayed { get; set; } = true;
-        public bool EnableRemoteSubmitWhileCountdown { get; set; } = true;
-        public bool EnableRemoteSubmitWhileIdle { get; set; } = true;
-        public bool EnableRemoteActivateWhileListening { get; set; } = true;
-        public bool EnableRemoteActivateWhilePreprocessing { get; set; } = true;
-        public bool EnableRemoteActivateWhileTextDisplayed { get; set; } = true;
-        public bool EnableRemoteActivateWhileCountdown { get; set; } = true;
-        public bool EnableRemoteActivateWhileIdle { get; set; } = true;
-        public bool EnableRemoteCloseWhileListening { get; set; } = true;
-        public bool EnableRemoteCloseWhilePreprocessing { get; set; } = true;
-        public bool EnableRemoteCloseWhileTextDisplayed { get; set; } = true;
-        public bool EnableRemoteCloseWhileCountdown { get; set; } = true;
-        public bool EnableRemoteCloseWhileIdle { get; set; } = true;
+        public bool? EnableRemoteListenWhileListening { get; set; }
+        public bool? EnableRemoteListenWhilePreprocessing { get; set; }
+        public bool? EnableRemoteListenWhileTextDisplayed { get; set; }
+        public bool? EnableRemoteListenWhileCountdown { get; set; }
+        public bool? EnableRemoteListenWhileIdle { get; set; }
+        public bool? EnableRemoteSubmitWhileListening { get; set; }
+        public bool? EnableRemoteSubmitWhilePreprocessing { get; set; }
+        public bool? EnableRemoteSubmitWhileTextDisplayed { get; set; }
+        public bool? EnableRemoteSubmitWhileCountdown { get; set; }
+        public bool? EnableRemoteSubmitWhileIdle { get; set; }
+        public bool? EnableRemoteActivateWhileListening { get; set; }
+        public bool? EnableRemoteActivateWhilePreprocessing { get; set; }
+        public bool? EnableRemoteActivateWhileTextDisplayed { get; set; }
+        public bool? EnableRemoteActivateWhileCountdown { get; set; }
+        public bool? EnableRemoteActivateWhileIdle { get; set; }
+        public bool? EnableRemoteCloseWhileListening { get; set; }
+        public bool? EnableRemoteCloseWhilePreprocessing { get; set; }
+        public bool? EnableRemoteCloseWhileTextDisplayed { get; set; }
+        public bool? EnableRemoteCloseWhileCountdown { get; set; }
+        public bool? EnableRemoteCloseWhileIdle { get; set; }
         public bool EnablePastedTextPrefix { get; set; } = true;
         public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
         public bool EnableTranscriptionPrompt { get; set; } = true;
@@ -265,26 +285,66 @@ public class AppConfig
                 EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
                 EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
                 RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(configFile.RemoteActionPopupLevel),
-                EnableRemoteListenWhileListening = configFile.EnableRemoteListenWhileListening,
-                EnableRemoteListenWhilePreprocessing = configFile.EnableRemoteListenWhilePreprocessing,
-                EnableRemoteListenWhileTextDisplayed = configFile.EnableRemoteListenWhileTextDisplayed,
-                EnableRemoteListenWhileCountdown = configFile.EnableRemoteListenWhileCountdown,
-                EnableRemoteListenWhileIdle = configFile.EnableRemoteListenWhileIdle,
-                EnableRemoteSubmitWhileListening = configFile.EnableRemoteSubmitWhileListening,
-                EnableRemoteSubmitWhilePreprocessing = configFile.EnableRemoteSubmitWhilePreprocessing,
-                EnableRemoteSubmitWhileTextDisplayed = configFile.EnableRemoteSubmitWhileTextDisplayed,
-                EnableRemoteSubmitWhileCountdown = configFile.EnableRemoteSubmitWhileCountdown,
-                EnableRemoteSubmitWhileIdle = configFile.EnableRemoteSubmitWhileIdle,
-                EnableRemoteActivateWhileListening = configFile.EnableRemoteActivateWhileListening,
-                EnableRemoteActivateWhilePreprocessing = configFile.EnableRemoteActivateWhilePreprocessing,
-                EnableRemoteActivateWhileTextDisplayed = configFile.EnableRemoteActivateWhileTextDisplayed,
-                EnableRemoteActivateWhileCountdown = configFile.EnableRemoteActivateWhileCountdown,
-                EnableRemoteActivateWhileIdle = configFile.EnableRemoteActivateWhileIdle,
-                EnableRemoteCloseWhileListening = configFile.EnableRemoteCloseWhileListening,
-                EnableRemoteCloseWhilePreprocessing = configFile.EnableRemoteCloseWhilePreprocessing,
-                EnableRemoteCloseWhileTextDisplayed = configFile.EnableRemoteCloseWhileTextDisplayed,
-                EnableRemoteCloseWhileCountdown = configFile.EnableRemoteCloseWhileCountdown,
-                EnableRemoteCloseWhileIdle = configFile.EnableRemoteCloseWhileIdle,
+                EnableRemoteListenWhileListening = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteListenWhileListening,
+                    DefaultRemoteListenWhileListening),
+                EnableRemoteListenWhilePreprocessing = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteListenWhilePreprocessing,
+                    DefaultRemoteListenWhilePreprocessing),
+                EnableRemoteListenWhileTextDisplayed = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteListenWhileTextDisplayed,
+                    DefaultRemoteListenWhileTextDisplayed),
+                EnableRemoteListenWhileCountdown = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteListenWhileCountdown,
+                    DefaultRemoteListenWhileCountdown),
+                EnableRemoteListenWhileIdle = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteListenWhileIdle,
+                    DefaultRemoteListenWhileIdle),
+                EnableRemoteSubmitWhileListening = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteSubmitWhileListening,
+                    DefaultRemoteSubmitWhileListening),
+                EnableRemoteSubmitWhilePreprocessing = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteSubmitWhilePreprocessing,
+                    DefaultRemoteSubmitWhilePreprocessing),
+                EnableRemoteSubmitWhileTextDisplayed = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteSubmitWhileTextDisplayed,
+                    DefaultRemoteSubmitWhileTextDisplayed),
+                EnableRemoteSubmitWhileCountdown = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteSubmitWhileCountdown,
+                    DefaultRemoteSubmitWhileCountdown),
+                EnableRemoteSubmitWhileIdle = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteSubmitWhileIdle,
+                    DefaultRemoteSubmitWhileIdle),
+                EnableRemoteActivateWhileListening = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteActivateWhileListening,
+                    DefaultRemoteActivateWhileListening),
+                EnableRemoteActivateWhilePreprocessing = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteActivateWhilePreprocessing,
+                    DefaultRemoteActivateWhilePreprocessing),
+                EnableRemoteActivateWhileTextDisplayed = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteActivateWhileTextDisplayed,
+                    DefaultRemoteActivateWhileTextDisplayed),
+                EnableRemoteActivateWhileCountdown = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteActivateWhileCountdown,
+                    DefaultRemoteActivateWhileCountdown),
+                EnableRemoteActivateWhileIdle = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteActivateWhileIdle,
+                    DefaultRemoteActivateWhileIdle),
+                EnableRemoteCloseWhileListening = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteCloseWhileListening,
+                    DefaultRemoteCloseWhileListening),
+                EnableRemoteCloseWhilePreprocessing = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteCloseWhilePreprocessing,
+                    DefaultRemoteCloseWhilePreprocessing),
+                EnableRemoteCloseWhileTextDisplayed = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteCloseWhileTextDisplayed,
+                    DefaultRemoteCloseWhileTextDisplayed),
+                EnableRemoteCloseWhileCountdown = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteCloseWhileCountdown,
+                    DefaultRemoteCloseWhileCountdown),
+                EnableRemoteCloseWhileIdle = ReadRemoteStateFilterValue(
+                    configFile.EnableRemoteCloseWhileIdle,
+                    DefaultRemoteCloseWhileIdle),
                 EnablePastedTextPrefix = configFile.EnablePastedTextPrefix,
                 PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix,
                 EnableTranscriptionPrompt = configFile.EnableTranscriptionPrompt,
@@ -491,6 +551,11 @@ public class AppConfig
         if (level > MaxRemoteActionPopupLevel)
             return MaxRemoteActionPopupLevel;
         return level;
+    }
+
+    private static bool ReadRemoteStateFilterValue(bool? value, bool fallback)
+    {
+        return value ?? fallback;
     }
 
     public static int NormalizeAudioDeviceIndex(int deviceIndex)
