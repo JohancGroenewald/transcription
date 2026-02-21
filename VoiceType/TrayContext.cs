@@ -107,9 +107,6 @@ public class TrayContext : ApplicationContext
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _uptimeMenuItem = new() { Enabled = false };
-    private readonly ToolStripMenuItem _settingsLayoutMenuItem = new("Settings UI");
-    private readonly ToolStripMenuItem _settingsLayoutV1MenuItem = new("Version 1 (legacy)");
-    private readonly ToolStripMenuItem _settingsLayoutV2MenuItem = new("Version 2 (redesigned)");
     private bool _overlayRuntimeHealthy = true;
     private bool _overlayFailureMessageShown;
     private TranscriptionService? _transcriptionService;
@@ -153,7 +150,6 @@ public class TrayContext : ApplicationContext
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
     private bool _isOpeningSettings;
-    private SettingsFormVersion _settingsFormVersion = (SettingsFormVersion)AppConfig.DefaultSettingsFormVersion;
     private WaveOutEvent? _previewPlaybackOutput;
     private WaveFileReader? _previewPlaybackReader;
     private MemoryStream? _previewPlaybackStream;
@@ -278,14 +274,13 @@ public class TrayContext : ApplicationContext
         _transcriptionPrompt = string.IsNullOrWhiteSpace(config.TranscriptionPrompt)
             ? DefaultTranscriptionPrompt
             : config.TranscriptionPrompt.Trim();
-        _settingsFormVersion = (SettingsFormVersion)AppConfig.NormalizeSettingsUiVersion(config.SettingsUiVersion);
         Log.Info(
             $"Config loaded: model={config.Model}, autoEnter={_autoEnter}, overlayPopups={_enableOverlayPopups}, " +
             $"previewPlayback={_enablePreviewPlayback}, " +
             $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
             $"micInputDevice={DescribeCapturedDeviceSelection()}, " +
             $"audioOutputDevice={DescribeOutputDeviceSelection()}, " +
-            $"settingsDarkMode={config.EnableSettingsDarkMode}, settingsFormVersion={_settingsFormVersion}");
+            $"settingsDarkMode={config.EnableSettingsDarkMode}");
         _overlayManager.ApplyCountdownPlaybackIcon(GetCountdownPlaybackIcon());
         ApplyCaptureDeviceSelection();
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
@@ -354,15 +349,9 @@ public class TrayContext : ApplicationContext
         menu.Items.Add(_startedAtMenuItem);
         menu.Items.Add(_uptimeMenuItem);
         menu.Items.Add(new ToolStripSeparator());
-        _settingsLayoutV1MenuItem.Click += (_, _) => SetSettingsFormVersion(SettingsFormVersion.Version1, true);
-        _settingsLayoutV2MenuItem.Click += (_, _) => SetSettingsFormVersion(SettingsFormVersion.Version2, true);
-        _settingsLayoutMenuItem.DropDownItems.Add(_settingsLayoutV1MenuItem);
-        _settingsLayoutMenuItem.DropDownItems.Add(_settingsLayoutV2MenuItem);
-        menu.Items.Add(_settingsLayoutMenuItem);
         menu.Items.Add("Settings...", null, OnSettings);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, OnExit);
-        UpdateSettingsLayoutMenu();
         return menu;
     }
 
@@ -371,40 +360,6 @@ public class TrayContext : ApplicationContext
         _versionMenuItem.Text = $"Version: {AppInfo.Version}";
         _startedAtMenuItem.Text = $"Started: {AppInfo.StartedAtLocal:yyyy-MM-dd HH:mm:ss}";
         _uptimeMenuItem.Text = $"Uptime: {AppInfo.FormatUptime(AppInfo.Uptime)}";
-        UpdateSettingsLayoutMenu();
-    }
-
-    private void UpdateSettingsLayoutMenu()
-    {
-        _settingsLayoutV1MenuItem.Checked = _settingsFormVersion == SettingsFormVersion.Version1;
-        _settingsLayoutV2MenuItem.Checked = _settingsFormVersion == SettingsFormVersion.Version2;
-    }
-
-    private void SetSettingsFormVersion(SettingsFormVersion selectedVersion, bool persist)
-    {
-        if (_settingsFormVersion == selectedVersion)
-        {
-            UpdateSettingsLayoutMenu();
-            return;
-        }
-
-        _settingsFormVersion = selectedVersion;
-        UpdateSettingsLayoutMenu();
-        if (!persist)
-            return;
-
-        try
-        {
-            var config = AppConfig.Load();
-            config.SettingsUiVersion = (int)selectedVersion;
-            config.Save();
-            Log.Info($"Settings form version changed to {_settingsFormVersion}.");
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Failed to persist settings form version.", ex);
-            ShowOverlay("Unable to remember settings UI version; try again next launch.", WarningOverlayColor, 1600);
-        }
     }
 
     private void OnHotkeyPressed(object? sender, HotkeyPressedEventArgs e)
@@ -503,12 +458,12 @@ public class TrayContext : ApplicationContext
     {
         LogHelloStackState("settings-selected");
         Log.Info("Settings menu selected.");
-        OpenSettings(_settingsFormVersion);
+        OpenSettings(SettingsFormVersion.Version2);
     }
 
     private void OpenSettings(bool focusApiKey = false, bool restorePreviousFocus = true)
     {
-        OpenSettings(_settingsFormVersion, focusApiKey, restorePreviousFocus);
+        OpenSettings(SettingsFormVersion.Version2, focusApiKey, restorePreviousFocus);
     }
 
     private void OpenSettings(SettingsFormVersion settingsFormVersion, bool focusApiKey = false, bool restorePreviousFocus = true)
