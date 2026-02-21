@@ -107,6 +107,12 @@ public class TrayContext : ApplicationContext
     private readonly ToolStripMenuItem _versionMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _startedAtMenuItem = new() { Enabled = false };
     private readonly ToolStripMenuItem _uptimeMenuItem = new() { Enabled = false };
+    private readonly ToolStripMenuItem _menuLoadingItem = new() { Enabled = false };
+    private readonly string[] _menuLoadingFrames = new[] { "|", "/", "-", "\\" };
+    private readonly System.Windows.Forms.Timer _menuLoadingTimer;
+    private bool _isMenuLoading;
+    private int _menuLoadingFrame;
+    private ContextMenuStrip? _activeLoadingMenu;
     private bool _overlayRuntimeHealthy = true;
     private bool _overlayFailureMessageShown;
     private TranscriptionService? _transcriptionService;
@@ -179,6 +185,8 @@ public class TrayContext : ApplicationContext
         _recorder.InputLevelChanged += OnRecorderInputLevelChanged;
         _listeningOverlayTimer = new System.Windows.Forms.Timer { Interval = 120 };
         _listeningOverlayTimer.Tick += (_, _) => UpdateListeningOverlay();
+        _menuLoadingTimer = new System.Windows.Forms.Timer { Interval = 140 };
+        _menuLoadingTimer.Tick += OnTrayMenuLoadingTick;
         var extractedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _appIcon = extractedIcon != null
             ? (Icon)extractedIcon.Clone()
@@ -338,12 +346,7 @@ public class TrayContext : ApplicationContext
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
-        UpdateRuntimeMenuItems();
-        menu.Opening += (_, _) =>
-        {
-            UpdateRuntimeMenuItems();
-            RestoreHiddenStackOnReactivation();
-        };
+        menu.Opening += OnTrayMenuOpening;
         menu.Closed += OnTrayMenuClosed;
         menu.Items.Add(_versionMenuItem);
         menu.Items.Add(_startedAtMenuItem);
@@ -353,6 +356,65 @@ public class TrayContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, OnExit);
         return menu;
+    }
+
+    private void OnTrayMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (sender is not ContextMenuStrip menu)
+            return;
+
+        StartTrayMenuLoading(menu);
+
+        _uiDispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!_isMenuLoading || !ReferenceEquals(_activeLoadingMenu, menu) || menu.IsDisposed || !menu.Visible)
+                return;
+
+            menu.Items.Clear();
+            RestoreHiddenStackOnReactivation();
+            UpdateRuntimeMenuItems();
+            menu.Items.Add(_versionMenuItem);
+            menu.Items.Add(_startedAtMenuItem);
+            menu.Items.Add(_uptimeMenuItem);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Settings...", null, OnSettings);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Exit", null, OnExit);
+            FinishTrayMenuLoading();
+        }));
+    }
+
+    private void StartTrayMenuLoading(ContextMenuStrip menu)
+    {
+        _activeLoadingMenu = menu;
+        _isMenuLoading = true;
+        _menuLoadingFrame = 0;
+        _menuLoadingItem.Text = "Loading menu... |";
+        menu.Items.Clear();
+        menu.Items.Add(_menuLoadingItem);
+        _menuLoadingTimer.Start();
+    }
+
+    private void FinishTrayMenuLoading()
+    {
+        _menuLoadingTimer.Stop();
+        _isMenuLoading = false;
+        _activeLoadingMenu = null;
+    }
+
+    private void OnTrayMenuLoadingTick(object? sender, EventArgs e)
+    {
+        if (!_isMenuLoading || _activeLoadingMenu is null || _activeLoadingMenu.IsDisposed || !_activeLoadingMenu.Visible)
+        {
+            _menuLoadingTimer.Stop();
+            _isMenuLoading = false;
+            _activeLoadingMenu = null;
+            return;
+        }
+
+        var frame = _menuLoadingFrames[_menuLoadingFrame % _menuLoadingFrames.Length];
+        _menuLoadingFrame++;
+        _menuLoadingItem.Text = $"Loading menu... {frame}";
     }
 
     private void UpdateRuntimeMenuItems()
@@ -812,6 +874,7 @@ public class TrayContext : ApplicationContext
 
     private void OnTrayMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
     {
+        FinishTrayMenuLoading();
         if (_isOpeningSettings)
         {
             Log.Info("Tray menu closed while opening settings; skipping stack restoration.");
