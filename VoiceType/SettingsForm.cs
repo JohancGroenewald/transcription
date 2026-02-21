@@ -112,6 +112,7 @@ public class SettingsForm : Form
     private readonly CheckBox _remoteCloseWhileTextDisplayedCheck;
     private readonly CheckBox _remoteCloseWhileCountdownCheck;
     private readonly CheckBox _remoteCloseWhileIdleCheck;
+    private readonly Label _remoteStateFilterSummaryLabel;
     private readonly CheckBox _enablePastedTextPrefixCheck;
     private readonly TextBox _pastedTextPrefixTextBox;
     private readonly CheckBox _enableTranscriptionPromptCheck;
@@ -345,7 +346,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 29,
+            RowCount = 30,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -623,6 +624,7 @@ public class SettingsForm : Form
         _remoteCloseWhileTextDisplayedCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
         _remoteCloseWhileCountdownCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
         _remoteCloseWhileIdleCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        AttachRemoteStateFilterCheckboxes();
 
         var remoteStateFiltersLayout = new TableLayoutPanel
         {
@@ -749,6 +751,13 @@ public class SettingsForm : Form
             Anchor = AnchorStyles.Left,
             Font = new Font(Font, FontStyle.Bold),
             Margin = new Padding(0, 10, 0, 2)
+        };
+        _remoteStateFilterSummaryLabel = new Label
+        {
+            Text = "Remote command state summary: none",
+            AutoSize = true,
+            ForeColor = GetMutedTextColor(),
+            Margin = new Padding(0, 4, 0, 0)
         };
 
         var lblPastedTextPrefix = new Label
@@ -917,6 +926,8 @@ public class SettingsForm : Form
         behaviorLayout.SetColumnSpan(remoteStateFiltersHeader, 2);
         behaviorLayout.Controls.Add(remoteStateFiltersLayout, 0, 28);
         behaviorLayout.SetColumnSpan(remoteStateFiltersLayout, 2);
+        behaviorLayout.Controls.Add(_remoteStateFilterSummaryLabel, 0, 29);
+        behaviorLayout.SetColumnSpan(_remoteStateFilterSummaryLabel, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new ThemedGroupBox
@@ -1354,6 +1365,7 @@ public class SettingsForm : Form
         _remoteCloseWhileTextDisplayedCheck.Checked = config.EnableRemoteCloseWhileTextDisplayed;
         _remoteCloseWhileCountdownCheck.Checked = config.EnableRemoteCloseWhileCountdown;
         _remoteCloseWhileIdleCheck.Checked = config.EnableRemoteCloseWhileIdle;
+        UpdateRemoteStateFilterSummary();
         _enablePastedTextPrefixCheck.Checked = config.EnablePastedTextPrefix;
         _pastedTextPrefixTextBox.Text = config.PastedTextPrefix ?? "";
         _enableTranscriptionPromptCheck.Checked = config.EnableTranscriptionPrompt;
@@ -1462,6 +1474,99 @@ public class SettingsForm : Form
                 MessageBoxIcon.Error);
         }
     }
+
+    private void AttachRemoteStateFilterCheckboxes()
+    {
+        var stateFilterCheckBoxes = new[]
+        {
+            _remoteListenWhileListeningCheck,
+            _remoteListenWhilePreprocessingCheck,
+            _remoteListenWhileTextDisplayedCheck,
+            _remoteListenWhileCountdownCheck,
+            _remoteListenWhileIdleCheck,
+            _remoteSubmitWhileListeningCheck,
+            _remoteSubmitWhilePreprocessingCheck,
+            _remoteSubmitWhileTextDisplayedCheck,
+            _remoteSubmitWhileCountdownCheck,
+            _remoteSubmitWhileIdleCheck,
+            _remoteActivateWhileListeningCheck,
+            _remoteActivateWhilePreprocessingCheck,
+            _remoteActivateWhileTextDisplayedCheck,
+            _remoteActivateWhileCountdownCheck,
+            _remoteActivateWhileIdleCheck,
+            _remoteCloseWhileListeningCheck,
+            _remoteCloseWhilePreprocessingCheck,
+            _remoteCloseWhileTextDisplayedCheck,
+            _remoteCloseWhileCountdownCheck,
+            _remoteCloseWhileIdleCheck
+        };
+
+        foreach (var checkBox in stateFilterCheckBoxes)
+            checkBox.CheckedChanged += (_, _) => UpdateRemoteStateFilterSummary();
+    }
+
+    private void UpdateRemoteStateFilterSummary()
+    {
+        var listenSummary = BuildRemoteActionStateSummary(
+            "Listen",
+            _remoteListenWhileListeningCheck.Checked,
+            _remoteListenWhilePreprocessingCheck.Checked,
+            _remoteListenWhileTextDisplayedCheck.Checked,
+            _remoteListenWhileCountdownCheck.Checked,
+            _remoteListenWhileIdleCheck.Checked);
+        var submitSummary = BuildRemoteActionStateSummary(
+            "Submit",
+            _remoteSubmitWhileListeningCheck.Checked,
+            _remoteSubmitWhilePreprocessingCheck.Checked,
+            _remoteSubmitWhileTextDisplayedCheck.Checked,
+            _remoteSubmitWhileCountdownCheck.Checked,
+            _remoteSubmitWhileIdleCheck.Checked);
+        var activateSummary = BuildRemoteActionStateSummary(
+            "Activate",
+            _remoteActivateWhileListeningCheck.Checked,
+            _remoteActivateWhilePreprocessingCheck.Checked,
+            _remoteActivateWhileTextDisplayedCheck.Checked,
+            _remoteActivateWhileCountdownCheck.Checked,
+            _remoteActivateWhileIdleCheck.Checked);
+        var closeSummary = BuildRemoteActionStateSummary(
+            "Close",
+            _remoteCloseWhileListeningCheck.Checked,
+            _remoteCloseWhilePreprocessingCheck.Checked,
+            _remoteCloseWhileTextDisplayedCheck.Checked,
+            _remoteCloseWhileCountdownCheck.Checked,
+            _remoteCloseWhileIdleCheck.Checked);
+
+        _remoteStateFilterSummaryLabel.Text = string.Join(" | ", listenSummary, submitSummary, activateSummary, closeSummary);
+    }
+
+    private static string BuildRemoteActionStateSummary(
+        string action,
+        bool listeningState,
+        bool preprocessingState,
+        bool textDisplayedState,
+        bool countdownState,
+        bool idleState)
+    {
+        var statesText = "";
+        if (listeningState)
+            statesText = AppendRemoteState(statesText, "Listening");
+        if (preprocessingState)
+            statesText = AppendRemoteState(statesText, "Pre-processing");
+        if (textDisplayedState)
+            statesText = AppendRemoteState(statesText, "Text displayed");
+        if (countdownState)
+            statesText = AppendRemoteState(statesText, "Auto-submit countdown");
+        if (idleState)
+            statesText = AppendRemoteState(statesText, "Idle");
+
+        if (string.IsNullOrWhiteSpace(statesText))
+            statesText = "None";
+
+        return $"{action}: {statesText}";
+    }
+
+    private static string AppendRemoteState(string states, string state)
+        => string.IsNullOrWhiteSpace(states) ? state : $"{states}, {state}";
 
     private async void OnTestMicrophoneClicked(object? sender, EventArgs e)
     {
