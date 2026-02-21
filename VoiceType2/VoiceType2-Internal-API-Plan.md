@@ -350,20 +350,115 @@ Use retry policy (e.g. `HttpClient` + exponential backoff) and strict timeout ar
 
 ## 4) Config changes
 
-Add to `AppConfig` in VoiceType2:
+This should be split by ownership to avoid coupling the runtime core and UI layers.
 
-- `TranscriptionProvider` (`"InternalApi"` | `"Mock"` | `"Stub"`)
-- `InternalApiBaseUrl`
-- `InternalApiApiPath`
-- `InternalApiAuthMode` (`"apikey"` / `"bearer"` / `"none"`)
-- `InternalApiApiKeyOrToken` (stored using DPAPI semantics, same model as current `ApiKey`)
-- `InternalApiTimeoutMs`
+### 4.1 API config (Runtime-owned)
 
-Behavior:
+The API service owns transport/runtime behavior and policy.
 
-- If provider is `InternalApi`, instantiate `InternalApiTranscriptionProvider`.
-- If provider is `Mock`/`Stub`, inject test implementations from configuration.
-- Preserve existing prompt and audio normalization behavior.
+Add to `RuntimeConfig`:
+
+- `HostBinding`
+  - `Urls` (`"http://127.0.0.1:5240"` etc.)
+  - `UseHttps` / `Tls` settings
+  - `AuthMode` (`"apikey"`, `"bearer"`, `"mtls"`, `"none"`)
+  - `ApiKeys` / trust policy / token introspection policy
+- `SessionPolicy`
+  - `MaxConcurrentSessions`
+  - `DefaultSessionTimeoutMs`
+  - `SessionIdleTimeoutMs`
+  - `PerSessionCommandRateLimit`
+- `TranscriptionDefaults`
+  - `Provider` (`"InternalApi"` / `"Mock"` / `"Stub"`)
+  - `BaseUrl`
+  - `ApiPath`
+  - `DefaultLanguage`
+  - `DefaultPrompt`
+  - `DefaultTimeoutMs`
+- `RuntimeSecurity`
+  - `RateLimit`
+  - `EnableCorrelationIds`
+  - `StructuredErrorEnvelope`
+- `Storage`
+  - `ConfigRoot` / path
+  - `EncryptSensitiveValues` (DPAPI default for local secrets)
+
+### 4.2 Orchestrator config (UI/platform-owned)
+
+Each orchestrator has its own config surface because capabilities differ by platform.
+
+Add to `OrchestratorConfig`:
+
+- `OrchestratorType` (`"tray"`, `"cli"`, `"frontend"`)
+- `OrchestratorProfile`
+  - `Platform` (`"windows"`, `"linux"`, `"macos"`)
+  - `Capabilities` (`hotkeys`, `clipboard`, `tray`, `notifications`, `overlay`, `audioCapture`)
+  - `UiTheme`, `Windowing`, `AccessibilityProfile`
+- `InputSettings`
+  - `GlobalHotkey`
+  - `DevicePreference`
+  - `MicGainPolicy`
+  - `UsePushToTalk`
+- `OutputSettings`
+  - `OverlayEnabled`
+  - `PreviewDurationMs`
+  - `AutoSend`
+  - `PrefixText`
+
+### 4.3 Shared contract settings
+
+A small shared schema defines how API and orchestrator agree on behavior.
+
+- `SessionRequest` schema used by all orchestrators
+  - `sessionMode` (`dictate`, `previewOnly`, `streamOnly`)
+  - `commandSet` (exit/settings/autoSend/send/etc.)
+  - `transcriptionOptions`
+  - `localeHints`
+- `EventEnvelope`
+  - `sessionId`
+  - `correlationId`
+  - `eventType` (`status`, `transcript`, `command`, `error`)
+  - `payloadVersion`
+- `DecisionContract`
+  - `sessionId`
+  - `correlationId`
+  - `action` (`submit`, `cancel`, `retry`, `insertWithoutSend`)
+  - `timeoutBehavior`
+
+### 4.4 Configuration ownership flow
+
+```mermaid
+flowchart TB
+    %% Ownership and merge boundaries for runtime config
+    apiCfg["RuntimeConfig file\n(API service owner)"] --> apiMerge["RuntimeConfig merge and validation"]
+    orchCfg["OrchestratorConfig file\n(orchestrator owner)"] --> orchMerge["OrchestratorConfig merge and validation"]
+    sharedSchema["Shared contract schema\n(API + orchestrators)"] --> schemaMerge["Contract version check"]
+    envCfg["Environment overrides\n(least/most? define policy)"] --> envMerge["Environment overlay"]
+
+    apiMerge --> finalRuntime["Runtime effective config"]
+    orchMerge --> finalOrchestrator["Orchestrator effective config"]
+    schemaMerge --> finalOrchestrator
+    schemaMerge --> finalRuntime
+    envMerge --> finalRuntime
+    envMerge --> finalOrchestrator
+    finalRuntime --> sessionManager["Session manager"]
+    finalOrchestrator --> orchestratorRuntime["Session adapters / commands"]
+    sessionManager --> apiGate["Policy + capability gate"]
+    orchestratorRuntime --> apiGate
+    apiGate --> sessionStore["Session execution"]
+```
+
+### 4.5 Recommended behavior
+
+- Start with API bootstrapping:
+  - load `RuntimeConfig`
+  - validate host binding/policy/security
+  - expose session APIs
+- Each orchestrator loads/maintains its own `OrchestratorConfig` and advertises capabilities at registration.
+- API should reject incompatible registration requests (for example, orchestrator asks for tray on headless host).
+- Shared contracts define versioned wire payloads; all parties must agree on payload versions before accepting sessions.
+- Only orchestrator-visible settings (hotkeys/overlay/CLI UX) should be changed via orchestrator config.
+- Only API-owned settings (session policy, storage, transport, timeout, security) should be mutated by API-level config.
 
 ## 5) Migration plan (practical 5-phase path)
 
