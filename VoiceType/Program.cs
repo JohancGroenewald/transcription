@@ -317,7 +317,7 @@ static class Program
                 try
                 {
                     _exitEvent.WaitOne();
-                    trayContext.RequestShutdown(fromRemoteAction: true);
+                    trayContext.RequestClose();
                 }
                 catch (ObjectDisposedException)
                 {

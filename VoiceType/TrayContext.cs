@@ -149,6 +149,7 @@ public class TrayContext : ApplicationContext
     private bool _eventsHooked;
     private bool _promptedForApiKeyOnStartup;
     private readonly TranscribedPreviewCoordinator _previewCoordinator = new();
+    private readonly RemoteCommandManager _remoteCommandManager = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly object _previewPlaybackLock = new();
     private bool _isOpeningSettings;
@@ -188,6 +189,7 @@ public class TrayContext : ApplicationContext
             : (Icon)SystemIcons.Application.Clone();
         extractedIcon?.Dispose();
         LoadTranscriptionService();
+        ConfigureRemoteCommandBindings();
         // Refresh dependency now that transcription state is loaded.
         _stackWindowManager = new OverlayStackWindowManager(
             _overlayManager,
@@ -923,9 +925,23 @@ public class TrayContext : ApplicationContext
             if (_shutdownRequested || _isShuttingDown)
                 return;
 
-            Log.Info("Remote activate requested");
-            RestoreHiddenStackOnReactivation();
-            RequestListen(ignorePastedTextPrefix: false);
+            if (!TryHandleRemoteCommand(new RemoteCommandInvocation(RemoteCommandKind.Activate, "remote activate request")))
+                Log.Info("Remote activate command was not handled by remote command bindings.");
+        });
+    }
+
+    public void RequestClose()
+    {
+        if (_isShuttingDown)
+            return;
+
+        Invoke(() =>
+        {
+            if (_shutdownRequested || _isShuttingDown)
+                return;
+
+            if (!TryHandleRemoteCommand(new RemoteCommandInvocation(RemoteCommandKind.Close, "remote close request")))
+                RequestShutdown(fromRemoteAction: true);
         });
     }
 
@@ -942,16 +958,12 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
-            RestoreHiddenStackOnReactivation();
-            ShowRemoteActionPopup(
-                ignorePastedTextPrefix ? "Listen requested (ignore prefix)" : "Listen requested",
-                ignorePastedTextPrefix ? "listen --ignore-prefix" : "listen");
-            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote listen request"))
-                return;
-
-            _ignorePastedTextPrefixForNextTranscription = ignorePastedTextPrefix;
-            Log.Info("Remote listen requested");
-            OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+            var invocation = new RemoteCommandInvocation(
+                RemoteCommandKind.Listen,
+                ignorePastedTextPrefix ? "remote listen request (ignore prefix)" : "remote listen request",
+                ignorePastedTextPrefix);
+            if (!TryHandleRemoteCommand(invocation))
+                Log.Info($"Remote listen command '{invocation.Source}' was not handled by remote command bindings.");
         });
     }
 
@@ -968,40 +980,183 @@ public class TrayContext : ApplicationContext
                 return;
             }
 
-            RestoreHiddenStackOnReactivation();
-            ShowRemoteActionPopup("Submit requested");
-
-            if (_isRecording)
-            {
-                Log.Info("Remote submit received while recording; canceling active recording.");
-                _isRecording = false;
-                StopListeningOverlay();
-                _trayIcon.Icon = _appIcon;
-                _trayIcon.Text = $"VoiceType - Ready ({BuildHotkeyHint()})";
-
-                try
-                {
-                    _ = _recorder.Stop();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("Failed to stop recorder while canceling on remote submit.", ex);
-                }
-
-                ShowOverlay(
-                    "Recording canceled",
-                    NeutralOverlayColor,
-                    1500,
-                    overlayKey: RecordingCanceledOverlayKey);
-                return;
-            }
-
-            if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, "remote submit request"))
-                return;
-
-            Log.Info("Remote submit requested");
-            TriggerSend();
+            var invocation = new RemoteCommandInvocation(RemoteCommandKind.Submit, "remote submit request");
+            if (!TryHandleRemoteCommand(invocation))
+                Log.Info($"Remote submit command '{invocation.Source}' was not handled by remote command bindings.");
         });
+    }
+
+    private bool TryHandleRemoteCommand(RemoteCommandInvocation invocation)
+    {
+        return _remoteCommandManager.TryHandleCommand(invocation, BuildRemoteCommandState());
+    }
+
+    private RemoteCommandState BuildRemoteCommandState()
+    {
+        return new RemoteCommandState(
+            isRecording: _isRecording,
+            isTranscribing: _isTranscribing,
+            isTranscribedPreviewActive: _previewCoordinator.IsActive,
+            isShutdownRequested: _shutdownRequested,
+            isShuttingDown: _isShuttingDown);
+    }
+
+    private void ConfigureRemoteCommandBindings()
+    {
+        _remoteCommandManager.ClearBindings();
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "listen-preview-paste-without-send",
+            command: RemoteCommandKind.Listen,
+            canHandle: state => state.CanHandleRemoteCommands && state.IsTranscribedPreviewActive,
+            execute: HandleRemoteListenCommand,
+            priority: 100));
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "listen-default",
+            command: RemoteCommandKind.Listen,
+            canHandle: state => state.CanHandleRemoteCommands,
+            execute: HandleRemoteListenCommand,
+            priority: 0));
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "submit-recording-cancel",
+            command: RemoteCommandKind.Submit,
+            canHandle: state => state.CanHandleRemoteCommands && state.IsRecording,
+            execute: HandleRemoteSubmitCommandWhileRecording,
+            priority: 110));
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "submit-preview-paste-without-send",
+            command: RemoteCommandKind.Submit,
+            canHandle: state => state.CanHandleRemoteCommands && state.IsTranscribedPreviewActive,
+            execute: HandleRemoteSubmitCommandDuringPreview,
+            priority: 100));
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "submit-default",
+            command: RemoteCommandKind.Submit,
+            canHandle: state => state.CanHandleRemoteCommands,
+            execute: HandleRemoteSubmitCommand,
+            priority: 0));
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "activate-via-listen",
+            command: RemoteCommandKind.Activate,
+            canHandle: state => state.CanHandleRemoteCommands,
+            execute: HandleRemoteActivateCommand,
+            priority: 0));
+
+        _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
+            id: "close-default",
+            command: RemoteCommandKind.Close,
+            canHandle: state => true,
+            execute: HandleRemoteCloseCommand,
+            priority: 0));
+    }
+
+    private bool HandleRemoteListenCommand(RemoteCommandInvocation invocation, RemoteCommandState state)
+    {
+        RestoreHiddenStackOnReactivation();
+        ShowRemoteActionPopup(
+            invocation.IgnorePastedTextPrefix ? "Listen requested (ignore prefix)" : "Listen requested",
+            invocation.IgnorePastedTextPrefix ? "listen --ignore-prefix" : "listen");
+
+        if (TryResolvePendingPastePreview(
+            TranscribedPreviewDecision.PasteWithoutSend,
+            invocation.Source))
+        {
+            return true;
+        }
+
+        _ignorePastedTextPrefixForNextTranscription = invocation.IgnorePastedTextPrefix;
+        Log.Info("Remote listen requested");
+        OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+        return true;
+    }
+
+    private bool HandleRemoteSubmitCommand(RemoteCommandInvocation invocation, RemoteCommandState state)
+    {
+        RestoreHiddenStackOnReactivation();
+        ShowRemoteActionPopup("Submit requested");
+
+        if (state.IsTranscribedPreviewActive || state.IsRecording)
+            return false;
+
+        Log.Info("Remote submit requested");
+        TriggerSend();
+        return true;
+    }
+
+    private bool HandleRemoteSubmitCommandDuringPreview(RemoteCommandInvocation invocation, RemoteCommandState state)
+    {
+        if (!state.IsTranscribedPreviewActive)
+            return false;
+
+        RestoreHiddenStackOnReactivation();
+        ShowRemoteActionPopup("Submit requested");
+
+        return TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, invocation.Source);
+    }
+
+    private bool HandleRemoteSubmitCommandWhileRecording(
+        RemoteCommandInvocation invocation,
+        RemoteCommandState state)
+    {
+        if (!state.IsRecording)
+            return false;
+
+        RestoreHiddenStackOnReactivation();
+        ShowRemoteActionPopup("Submit requested");
+        Log.Info("Remote submit received while recording; canceling active recording.");
+
+        _isRecording = false;
+        StopListeningOverlay();
+        _trayIcon.Icon = _appIcon;
+        _trayIcon.Text = $"VoiceType - Ready ({BuildHotkeyHint()})";
+
+        try
+        {
+            _ = _recorder.Stop();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to stop recorder while canceling on remote submit.", ex);
+        }
+
+        ShowOverlay(
+            "Recording canceled",
+            NeutralOverlayColor,
+            1500,
+            overlayKey: RecordingCanceledOverlayKey);
+        return true;
+    }
+
+    private bool HandleRemoteActivateCommand(RemoteCommandInvocation invocation, RemoteCommandState state)
+    {
+        if (!state.CanHandleRemoteCommands)
+            return false;
+
+        Log.Info("Remote activate requested");
+        RestoreHiddenStackOnReactivation();
+        return ExecuteRemoteListenWithoutPopup(ignorePastedTextPrefix: false, source: invocation.Source);
+    }
+
+    private bool HandleRemoteCloseCommand(RemoteCommandInvocation invocation, RemoteCommandState state)
+    {
+        RequestShutdown(fromRemoteAction: true);
+        return true;
+    }
+
+    private bool ExecuteRemoteListenWithoutPopup(bool ignorePastedTextPrefix, string source)
+    {
+        if (TryResolvePendingPastePreview(TranscribedPreviewDecision.PasteWithoutSend, source))
+            return true;
+
+        _ignorePastedTextPrefixForNextTranscription = ignorePastedTextPrefix;
+        Log.Info("Remote listen requested");
+        OnHotkeyPressed(this, new HotkeyPressedEventArgs(PRIMARY_HOTKEY_ID));
+        return true;
     }
 
     private void Shutdown()
@@ -2664,3 +2819,4 @@ internal sealed class HotkeyPressedEventArgs : EventArgs
 
     public int HotkeyId { get; }
 }
+
