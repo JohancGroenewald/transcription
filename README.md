@@ -319,7 +319,7 @@ Note: `--submit` targets a running VoiceType instance. If VoiceType is not runni
 - `VoiceType/AudioRecorder.cs`: microphone capture (NAudio)
 - `VoiceType/TranscriptionService.cs`: OpenAI transcription client
 - `VoiceType/TextInjector.cs`: clipboard and paste/send-key injection
-- `VoiceType/SettingsForm.cs`: settings UI
+- `VoiceType/SettingsManagerForm.cs`: JSON settings import/export UI
 - `VoiceType/AppConfig.cs`: config load/save and API-key protection
 - `VoiceType/AppInfo.cs`: version and uptime information helpers
 - `VoiceType/TranscribedPreviewCoordinator.cs`: transcribed-preview cancel/submit decision state

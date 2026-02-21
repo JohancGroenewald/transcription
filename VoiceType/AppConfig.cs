@@ -12,9 +12,6 @@ public class AppConfig
     private const string DefaultTranscriptionPrompt =
         "The speaker is always English. Transcribe the audio as technical instructions for a large language model.";
     public const string DefaultPenHotkey = "F20";
-    public const int DefaultSettingsFormVersion = 1;
-    public const int SettingsFormVersionLegacy = 1;
-    public const int SettingsFormVersionRedesigned = 2;
     public const int DefaultOverlayDurationMs = 3000;
     public const int MinOverlayDurationMs = 500;
     public const int MaxOverlayDurationMs = 60000;
@@ -64,12 +61,6 @@ public class AppConfig
     public const bool DefaultRemoteCloseWhileTextDisplayed = true;
     public const bool DefaultRemoteCloseWhileCountdown = true;
     public const bool DefaultRemoteCloseWhileIdle = false;
-    public const int DefaultSettingsWindowX = -1;
-    public const int DefaultSettingsWindowY = -1;
-    public const int DefaultSettingsWindowWidth = 1580;
-    public const int DefaultSettingsWindowHeight = 780;
-    public const int MinSettingsWindowWidth = 600;
-    public const int MinSettingsWindowHeight = 420;
     public static readonly string[] OverlayFadeProfiles =
     [
         "Off",
@@ -166,12 +157,6 @@ public class AppConfig
     public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
     public bool EnableTranscriptionPrompt { get; set; } = true;
     public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
-    public bool EnableSettingsDarkMode { get; set; }
-    public int SettingsWindowX { get; set; } = DefaultSettingsWindowX;
-    public int SettingsWindowY { get; set; } = DefaultSettingsWindowY;
-    public int SettingsWindowWidth { get; set; } = DefaultSettingsWindowWidth;
-    public int SettingsWindowHeight { get; set; } = DefaultSettingsWindowHeight;
-    public int SettingsUiVersion { get; set; } = DefaultSettingsFormVersion;
     public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
     public string MicrophoneInputDeviceName { get; set; } = string.Empty;
     public int AudioOutputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
@@ -184,6 +169,7 @@ public class AppConfig
 
     private static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    public static string DefaultConfigPath => ConfigPath;
 
     private class ConfigFile
     {
@@ -235,12 +221,6 @@ public class AppConfig
         public string PastedTextPrefix { get; set; } = DefaultPastedTextPrefix;
         public bool EnableTranscriptionPrompt { get; set; } = true;
         public string TranscriptionPrompt { get; set; } = DefaultTranscriptionPrompt;
-        public bool EnableSettingsDarkMode { get; set; }
-        public int SettingsWindowX { get; set; } = DefaultSettingsWindowX;
-        public int SettingsWindowY { get; set; } = DefaultSettingsWindowY;
-        public int SettingsWindowWidth { get; set; } = DefaultSettingsWindowWidth;
-        public int SettingsWindowHeight { get; set; } = DefaultSettingsWindowHeight;
-        public int SettingsUiVersion { get; set; } = DefaultSettingsFormVersion;
         public int MicrophoneInputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
         public string MicrophoneInputDeviceName { get; set; } = string.Empty;
         public int AudioOutputDeviceIndex { get; set; } = DefaultAudioDeviceIndex;
@@ -250,132 +230,181 @@ public class AppConfig
 
     public static AppConfig Load()
     {
-        if (!File.Exists(ConfigPath))
-            return new AppConfig();
+        return Load(ConfigPath);
+    }
 
-        try
-        {
-            var json = File.ReadAllText(ConfigPath);
-            var configFile = JsonSerializer.Deserialize<ConfigFile>(json);
-            if (configFile == null)
-                return new AppConfig();
+    public static AppConfig Load(string configPath)
+    {
+        return LoadConfigFromPath(configPath, failSilently: true);
+    }
 
-            return new AppConfig
-            {
-                ApiKey = LoadApiKey(configFile),
-                Model = string.IsNullOrWhiteSpace(configFile.Model) ? DefaultModel : configFile.Model,
-                AutoEnter = configFile.AutoEnter,
-                EnableDebugLogging = configFile.EnableDebugLogging,
-                EnableOverlayPopups = configFile.EnableOverlayPopups,
-                OverlayDurationMs = NormalizeOverlayDuration(configFile.OverlayDurationMs),
-                OverlayOpacityPercent = NormalizeOverlayOpacityPercent(configFile.OverlayOpacityPercent),
-                OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
-                OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
-                OverlayFadeProfile = NormalizeOverlayFadeProfile(configFile.OverlayFadeProfile),
-                OverlayBackgroundMode = NormalizeOverlayBackgroundMode(configFile.OverlayBackgroundMode),
-                ShowOverlayBorder = configFile.ShowOverlayBorder,
-                UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
-                EnablePreviewPlaybackCleanup = configFile.EnablePreviewPlaybackCleanup,
-                EnablePreviewPlayback = configFile.EnablePreviewPlayback,
-                EnablePenHotkey = configFile.EnablePenHotkey,
-                PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
-                EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
-                EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
-                EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand,
-                EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
-                EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
-                RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(configFile.RemoteActionPopupLevel),
-                EnableRemoteListenWhileListening = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteListenWhileListening,
-                    DefaultRemoteListenWhileListening),
-                EnableRemoteListenWhilePreprocessing = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteListenWhilePreprocessing,
-                    DefaultRemoteListenWhilePreprocessing),
-                EnableRemoteListenWhileTextDisplayed = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteListenWhileTextDisplayed,
-                    DefaultRemoteListenWhileTextDisplayed),
-                EnableRemoteListenWhileCountdown = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteListenWhileCountdown,
-                    DefaultRemoteListenWhileCountdown),
-                EnableRemoteListenWhileIdle = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteListenWhileIdle,
-                    DefaultRemoteListenWhileIdle),
-                EnableRemoteSubmitWhileListening = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteSubmitWhileListening,
-                    DefaultRemoteSubmitWhileListening),
-                EnableRemoteSubmitWhilePreprocessing = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteSubmitWhilePreprocessing,
-                    DefaultRemoteSubmitWhilePreprocessing),
-                EnableRemoteSubmitWhileTextDisplayed = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteSubmitWhileTextDisplayed,
-                    DefaultRemoteSubmitWhileTextDisplayed),
-                EnableRemoteSubmitWhileCountdown = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteSubmitWhileCountdown,
-                    DefaultRemoteSubmitWhileCountdown),
-                EnableRemoteSubmitWhileIdle = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteSubmitWhileIdle,
-                    DefaultRemoteSubmitWhileIdle),
-                EnableRemoteActivateWhileListening = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteActivateWhileListening,
-                    DefaultRemoteActivateWhileListening),
-                EnableRemoteActivateWhilePreprocessing = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteActivateWhilePreprocessing,
-                    DefaultRemoteActivateWhilePreprocessing),
-                EnableRemoteActivateWhileTextDisplayed = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteActivateWhileTextDisplayed,
-                    DefaultRemoteActivateWhileTextDisplayed),
-                EnableRemoteActivateWhileCountdown = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteActivateWhileCountdown,
-                    DefaultRemoteActivateWhileCountdown),
-                EnableRemoteActivateWhileIdle = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteActivateWhileIdle,
-                    DefaultRemoteActivateWhileIdle),
-                EnableRemoteCloseWhileListening = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteCloseWhileListening,
-                    DefaultRemoteCloseWhileListening),
-                EnableRemoteCloseWhilePreprocessing = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteCloseWhilePreprocessing,
-                    DefaultRemoteCloseWhilePreprocessing),
-                EnableRemoteCloseWhileTextDisplayed = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteCloseWhileTextDisplayed,
-                    DefaultRemoteCloseWhileTextDisplayed),
-                EnableRemoteCloseWhileCountdown = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteCloseWhileCountdown,
-                    DefaultRemoteCloseWhileCountdown),
-                EnableRemoteCloseWhileIdle = ReadRemoteStateFilterValue(
-                    configFile.EnableRemoteCloseWhileIdle,
-                    DefaultRemoteCloseWhileIdle),
-                EnablePastedTextPrefix = configFile.EnablePastedTextPrefix,
-                PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix,
-                EnableTranscriptionPrompt = configFile.EnableTranscriptionPrompt,
-                TranscriptionPrompt = string.IsNullOrWhiteSpace(configFile.TranscriptionPrompt)
-                    ? DefaultTranscriptionPrompt
-                    : configFile.TranscriptionPrompt,
-                EnableSettingsDarkMode = configFile.EnableSettingsDarkMode,
-                SettingsWindowX = NormalizeSettingsWindowX(configFile.SettingsWindowX),
-                SettingsWindowY = NormalizeSettingsWindowY(configFile.SettingsWindowY),
-                SettingsWindowWidth = NormalizeSettingsWindowWidth(configFile.SettingsWindowWidth),
-                SettingsWindowHeight = NormalizeSettingsWindowHeight(configFile.SettingsWindowHeight),
-                SettingsUiVersion = NormalizeSettingsUiVersion(configFile.SettingsUiVersion),
-                MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(configFile.MicrophoneInputDeviceIndex),
-                MicrophoneInputDeviceName = configFile.MicrophoneInputDeviceName?.Trim() ?? string.Empty,
-                AudioOutputDeviceIndex = NormalizeAudioDeviceIndex(configFile.AudioOutputDeviceIndex),
-                AudioOutputDeviceName = configFile.AudioOutputDeviceName?.Trim() ?? string.Empty,
-                OverlayStackHorizontalOffsetPx = configFile.OverlayStackHorizontalOffsetPx
-            };
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        {
-            Log.Error("Failed to load config. Using defaults.", ex);
-            return new AppConfig();
-        }
+    public static AppConfig LoadFromConfigPath(string configPath)
+    {
+        return LoadConfigFromPath(configPath, failSilently: false);
     }
 
     public void Save()
     {
+        Save(ConfigPath);
+    }
+
+    public void Save(string configPath)
+    {
+        SaveToPath(configPath);
+    }
+
+    private static AppConfig LoadConfigFromPath(string configPath, bool failSilently)
+    {
+        var path = ResolveConfigPath(configPath);
+        if (!File.Exists(path))
+        {
+            if (failSilently)
+                return new AppConfig();
+
+            throw new FileNotFoundException("Configuration file was not found.", path);
+        }
+
         try
         {
-            Directory.CreateDirectory(ConfigDir);
+            var json = File.ReadAllText(path, Encoding.UTF8);
+            var configFile = JsonSerializer.Deserialize<ConfigFile>(json, JsonOptions);
+            if (configFile == null)
+            {
+                if (!failSilently)
+                    throw new InvalidDataException("Configuration JSON was empty.");
+
+                return new AppConfig();
+            }
+
+            return BuildFromConfigFile(configFile);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+        {
+            if (failSilently)
+            {
+                Log.Error("Failed to load config. Using defaults.", ex);
+                return new AppConfig();
+            }
+
+            throw;
+        }
+    }
+
+    private static AppConfig BuildFromConfigFile(ConfigFile configFile)
+    {
+        return new AppConfig
+        {
+            ApiKey = LoadApiKey(configFile),
+            Model = string.IsNullOrWhiteSpace(configFile.Model) ? DefaultModel : configFile.Model,
+            AutoEnter = configFile.AutoEnter,
+            EnableDebugLogging = configFile.EnableDebugLogging,
+            EnableOverlayPopups = configFile.EnableOverlayPopups,
+            OverlayDurationMs = NormalizeOverlayDuration(configFile.OverlayDurationMs),
+            OverlayOpacityPercent = NormalizeOverlayOpacityPercent(configFile.OverlayOpacityPercent),
+            OverlayWidthPercent = NormalizeOverlayWidthPercent(configFile.OverlayWidthPercent),
+            OverlayFontSizePt = NormalizeOverlayFontSizePt(configFile.OverlayFontSizePt),
+            OverlayFadeProfile = NormalizeOverlayFadeProfile(configFile.OverlayFadeProfile),
+            OverlayBackgroundMode = NormalizeOverlayBackgroundMode(configFile.OverlayBackgroundMode),
+            ShowOverlayBorder = configFile.ShowOverlayBorder,
+            UseSimpleMicSpinner = configFile.UseSimpleMicSpinner,
+            EnablePreviewPlaybackCleanup = configFile.EnablePreviewPlaybackCleanup,
+            EnablePreviewPlayback = configFile.EnablePreviewPlayback,
+            EnablePenHotkey = configFile.EnablePenHotkey,
+            PenHotkey = NormalizePenHotkey(configFile.PenHotkey),
+            EnableOpenSettingsVoiceCommand = configFile.EnableOpenSettingsVoiceCommand,
+            EnableExitAppVoiceCommand = configFile.EnableExitAppVoiceCommand,
+            EnableToggleAutoEnterVoiceCommand = configFile.EnableToggleAutoEnterVoiceCommand,
+            EnableSendVoiceCommand = configFile.EnableSendVoiceCommand,
+            EnableShowVoiceCommandsVoiceCommand = configFile.EnableShowVoiceCommandsVoiceCommand,
+            RemoteActionPopupLevel = NormalizeRemoteActionPopupLevel(configFile.RemoteActionPopupLevel),
+            EnableRemoteListenWhileListening = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteListenWhileListening,
+                DefaultRemoteListenWhileListening),
+            EnableRemoteListenWhilePreprocessing = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteListenWhilePreprocessing,
+                DefaultRemoteListenWhilePreprocessing),
+            EnableRemoteListenWhileTextDisplayed = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteListenWhileTextDisplayed,
+                DefaultRemoteListenWhileTextDisplayed),
+            EnableRemoteListenWhileCountdown = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteListenWhileCountdown,
+                DefaultRemoteListenWhileCountdown),
+            EnableRemoteListenWhileIdle = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteListenWhileIdle,
+                DefaultRemoteListenWhileIdle),
+            EnableRemoteSubmitWhileListening = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteSubmitWhileListening,
+                DefaultRemoteSubmitWhileListening),
+            EnableRemoteSubmitWhilePreprocessing = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteSubmitWhilePreprocessing,
+                DefaultRemoteSubmitWhilePreprocessing),
+            EnableRemoteSubmitWhileTextDisplayed = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteSubmitWhileTextDisplayed,
+                DefaultRemoteSubmitWhileTextDisplayed),
+            EnableRemoteSubmitWhileCountdown = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteSubmitWhileCountdown,
+                DefaultRemoteSubmitWhileCountdown),
+            EnableRemoteSubmitWhileIdle = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteSubmitWhileIdle,
+                DefaultRemoteSubmitWhileIdle),
+            EnableRemoteActivateWhileListening = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteActivateWhileListening,
+                DefaultRemoteActivateWhileListening),
+            EnableRemoteActivateWhilePreprocessing = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteActivateWhilePreprocessing,
+                DefaultRemoteActivateWhilePreprocessing),
+            EnableRemoteActivateWhileTextDisplayed = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteActivateWhileTextDisplayed,
+                DefaultRemoteActivateWhileTextDisplayed),
+            EnableRemoteActivateWhileCountdown = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteActivateWhileCountdown,
+                DefaultRemoteActivateWhileCountdown),
+            EnableRemoteActivateWhileIdle = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteActivateWhileIdle,
+                DefaultRemoteActivateWhileIdle),
+            EnableRemoteCloseWhileListening = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteCloseWhileListening,
+                DefaultRemoteCloseWhileListening),
+            EnableRemoteCloseWhilePreprocessing = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteCloseWhilePreprocessing,
+                DefaultRemoteCloseWhilePreprocessing),
+            EnableRemoteCloseWhileTextDisplayed = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteCloseWhileTextDisplayed,
+                DefaultRemoteCloseWhileTextDisplayed),
+            EnableRemoteCloseWhileCountdown = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteCloseWhileCountdown,
+                DefaultRemoteCloseWhileCountdown),
+            EnableRemoteCloseWhileIdle = ReadRemoteStateFilterValue(
+                configFile.EnableRemoteCloseWhileIdle,
+                DefaultRemoteCloseWhileIdle),
+            EnablePastedTextPrefix = configFile.EnablePastedTextPrefix,
+            PastedTextPrefix = configFile.PastedTextPrefix ?? DefaultPastedTextPrefix,
+            EnableTranscriptionPrompt = configFile.EnableTranscriptionPrompt,
+            TranscriptionPrompt = string.IsNullOrWhiteSpace(configFile.TranscriptionPrompt)
+                ? DefaultTranscriptionPrompt
+                : configFile.TranscriptionPrompt,
+            MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(configFile.MicrophoneInputDeviceIndex),
+            MicrophoneInputDeviceName = configFile.MicrophoneInputDeviceName?.Trim() ?? string.Empty,
+            AudioOutputDeviceIndex = NormalizeAudioDeviceIndex(configFile.AudioOutputDeviceIndex),
+            AudioOutputDeviceName = configFile.AudioOutputDeviceName?.Trim() ?? string.Empty,
+            OverlayStackHorizontalOffsetPx = configFile.OverlayStackHorizontalOffsetPx
+        };
+    }
+
+    private static string ResolveConfigPath(string? configPath)
+    {
+        if (string.IsNullOrWhiteSpace(configPath))
+            return ConfigPath;
+
+        return Path.GetFullPath(configPath);
+    }
+
+    private void SaveToPath(string configPath)
+    {
+        try
+        {
+            var path = ResolveConfigPath(configPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ConfigDir);
             var configFile = new ConfigFile
             {
                 ProtectedApiKey = ProtectApiKey(ApiKey),
@@ -427,12 +456,6 @@ public class AppConfig
                 TranscriptionPrompt = string.IsNullOrWhiteSpace(TranscriptionPrompt)
                     ? DefaultTranscriptionPrompt
                     : TranscriptionPrompt,
-                EnableSettingsDarkMode = EnableSettingsDarkMode,
-                SettingsWindowX = NormalizeSettingsWindowX(SettingsWindowX),
-                SettingsWindowY = NormalizeSettingsWindowY(SettingsWindowY),
-                SettingsWindowWidth = NormalizeSettingsWindowWidth(SettingsWindowWidth),
-                SettingsWindowHeight = NormalizeSettingsWindowHeight(SettingsWindowHeight),
-                SettingsUiVersion = NormalizeSettingsUiVersion(SettingsUiVersion),
                 MicrophoneInputDeviceIndex = NormalizeAudioDeviceIndex(MicrophoneInputDeviceIndex),
                 MicrophoneInputDeviceName = string.IsNullOrWhiteSpace(MicrophoneInputDeviceName)
                     ? string.Empty
@@ -445,9 +468,9 @@ public class AppConfig
             };
 
             var json = JsonSerializer.Serialize(configFile, JsonOptions);
-            var tempPath = ConfigPath + ".tmp";
+            var tempPath = path + ".tmp";
             File.WriteAllText(tempPath, json, Encoding.UTF8);
-            File.Move(tempPath, ConfigPath, true);
+            File.Move(tempPath, path, true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
         {
@@ -561,41 +584,6 @@ public class AppConfig
     public static int NormalizeAudioDeviceIndex(int deviceIndex)
     {
         return deviceIndex < DefaultAudioDeviceIndex ? DefaultAudioDeviceIndex : deviceIndex;
-    }
-
-    public static int NormalizeSettingsUiVersion(int settingsUiVersion)
-    {
-        if (settingsUiVersion < SettingsFormVersionLegacy)
-            return DefaultSettingsFormVersion;
-
-        if (settingsUiVersion > SettingsFormVersionRedesigned)
-            return SettingsFormVersionRedesigned;
-
-        return settingsUiVersion;
-    }
-
-    public static int NormalizeSettingsWindowX(int x)
-    {
-        return x;
-    }
-
-    public static int NormalizeSettingsWindowY(int y)
-    {
-        return y;
-    }
-
-    public static int NormalizeSettingsWindowWidth(int width)
-    {
-        if (width < MinSettingsWindowWidth)
-            return MinSettingsWindowWidth;
-        return width;
-    }
-
-    public static int NormalizeSettingsWindowHeight(int height)
-    {
-        if (height < MinSettingsWindowHeight)
-            return MinSettingsWindowHeight;
-        return height;
     }
 
     public static IReadOnlyList<string> GetSupportedPenHotkeys()

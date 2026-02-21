@@ -111,6 +111,7 @@ public class TrayContext : ApplicationContext
     private readonly string[] _menuLoadingFrames = new[] { "|", "/", "-", "\\" };
     private readonly System.Windows.Forms.Timer _menuLoadingTimer;
     private bool _isMenuLoading;
+    private bool _menuLoadingCanPopulate;
     private int _menuLoadingFrame;
     private ContextMenuStrip? _activeLoadingMenu;
     private bool _overlayRuntimeHealthy = true;
@@ -288,7 +289,7 @@ public class TrayContext : ApplicationContext
             $"enablePastedTextPrefix={_enablePastedTextPrefix} (prefixLen={_pastedTextPrefix.Length}), " +
             $"micInputDevice={DescribeCapturedDeviceSelection()}, " +
             $"audioOutputDevice={DescribeOutputDeviceSelection()}, " +
-            $"settingsDarkMode={config.EnableSettingsDarkMode}");
+            $"overlayPopupLevel={config.RemoteActionPopupLevel}");
         _overlayManager.ApplyCountdownPlaybackIcon(GetCountdownPlaybackIcon());
         ApplyCaptureDeviceSelection();
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
@@ -347,14 +348,9 @@ public class TrayContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Opening += OnTrayMenuOpening;
+        menu.Opened += OnTrayMenuOpened;
         menu.Closed += OnTrayMenuClosed;
-        menu.Items.Add(_versionMenuItem);
-        menu.Items.Add(_startedAtMenuItem);
-        menu.Items.Add(_uptimeMenuItem);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Settings...", null, OnSettings);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, OnExit);
+        menu.Items.Add(_menuLoadingItem);
         return menu;
     }
 
@@ -364,30 +360,25 @@ public class TrayContext : ApplicationContext
             return;
 
         StartTrayMenuLoading(menu);
+    }
 
-        _uiDispatcher.BeginInvoke(new Action(() =>
-        {
-            if (!_isMenuLoading || !ReferenceEquals(_activeLoadingMenu, menu) || menu.IsDisposed || !menu.Visible)
-                return;
+    private void OnTrayMenuOpened(object? sender, EventArgs e)
+    {
+        if (sender is not ContextMenuStrip menu)
+            return;
 
-            menu.Items.Clear();
-            RestoreHiddenStackOnReactivation();
-            UpdateRuntimeMenuItems();
-            menu.Items.Add(_versionMenuItem);
-            menu.Items.Add(_startedAtMenuItem);
-            menu.Items.Add(_uptimeMenuItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Settings...", null, OnSettings);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Exit", null, OnExit);
-            FinishTrayMenuLoading();
-        }));
+        if (!ReferenceEquals(_activeLoadingMenu, menu))
+            return;
+
+        _menuLoadingCanPopulate = true;
+
     }
 
     private void StartTrayMenuLoading(ContextMenuStrip menu)
     {
         _activeLoadingMenu = menu;
         _isMenuLoading = true;
+        _menuLoadingCanPopulate = false;
         _menuLoadingFrame = 0;
         _menuLoadingItem.Text = "Loading menu... |";
         menu.Items.Clear();
@@ -400,21 +391,42 @@ public class TrayContext : ApplicationContext
         _menuLoadingTimer.Stop();
         _isMenuLoading = false;
         _activeLoadingMenu = null;
+        _menuLoadingCanPopulate = false;
     }
 
     private void OnTrayMenuLoadingTick(object? sender, EventArgs e)
     {
-        if (!_isMenuLoading || _activeLoadingMenu is null || _activeLoadingMenu.IsDisposed || !_activeLoadingMenu.Visible)
+        if (!_isMenuLoading || _activeLoadingMenu is null || _activeLoadingMenu.IsDisposed)
         {
-            _menuLoadingTimer.Stop();
-            _isMenuLoading = false;
-            _activeLoadingMenu = null;
+            FinishTrayMenuLoading();
             return;
         }
 
         var frame = _menuLoadingFrames[_menuLoadingFrame % _menuLoadingFrames.Length];
         _menuLoadingFrame++;
         _menuLoadingItem.Text = $"Loading menu... {frame}";
+
+        if (_menuLoadingCanPopulate)
+            PopulateTrayMenuItems();
+    }
+
+    private void PopulateTrayMenuItems()
+    {
+        if (!_isMenuLoading || _activeLoadingMenu is null || _activeLoadingMenu.IsDisposed)
+            return;
+
+        _menuLoadingCanPopulate = false;
+        _activeLoadingMenu.Items.Clear();
+        RestoreHiddenStackOnReactivation();
+        UpdateRuntimeMenuItems();
+        _activeLoadingMenu.Items.Add(_versionMenuItem);
+        _activeLoadingMenu.Items.Add(_startedAtMenuItem);
+        _activeLoadingMenu.Items.Add(_uptimeMenuItem);
+        _activeLoadingMenu.Items.Add(new ToolStripSeparator());
+        _activeLoadingMenu.Items.Add("Settings...", null, OnSettings);
+        _activeLoadingMenu.Items.Add(new ToolStripSeparator());
+        _activeLoadingMenu.Items.Add("Exit", null, OnExit);
+        FinishTrayMenuLoading();
     }
 
     private void UpdateRuntimeMenuItems()
@@ -520,17 +532,12 @@ public class TrayContext : ApplicationContext
     {
         LogHelloStackState("settings-selected");
         Log.Info("Settings menu selected.");
-        OpenSettings(SettingsFormVersion.Version2);
+        OpenSettings();
     }
 
-    private void OpenSettings(bool focusApiKey = false, bool restorePreviousFocus = true)
+    private void OpenSettings(bool restorePreviousFocus = true)
     {
-        OpenSettings(SettingsFormVersion.Version2, focusApiKey, restorePreviousFocus);
-    }
-
-    private void OpenSettings(SettingsFormVersion settingsFormVersion, bool focusApiKey = false, bool restorePreviousFocus = true)
-    {
-        Log.Info($"OpenSettings called: focusApiKey={focusApiKey}, restorePreviousFocus={restorePreviousFocus}, isOpening={_isOpeningSettings}");
+        Log.Info($"OpenSettings called: restorePreviousFocus={restorePreviousFocus}, isOpening={_isOpeningSettings}");
         if (_isOpeningSettings)
         {
             Log.Info("Ignoring settings request because settings is already open.");
@@ -539,7 +546,7 @@ public class TrayContext : ApplicationContext
 
         if (_uiDispatcher.InvokeRequired)
         {
-            _uiDispatcher.Invoke(new Action(() => OpenSettings(settingsFormVersion, focusApiKey, restorePreviousFocus)));
+            _uiDispatcher.Invoke(new Action(() => OpenSettings(restorePreviousFocus)));
             return;
         }
 
@@ -548,9 +555,7 @@ public class TrayContext : ApplicationContext
         {
             var previousForegroundWindow = GetForegroundWindow();
             IntPtr settingsWindow = IntPtr.Zero;
-            var config = AppConfig.Load();
-            using var dlg = CreateSettingsForm(settingsFormVersion);
-            ApplySettingsWindowPlacementForVersion2(dlg, settingsFormVersion, config);
+            using var dlg = new SettingsManagerForm();
             dlg.Shown += (_, _) =>
             {
                 dlg.BeginInvoke(new Action(() =>
@@ -560,21 +565,21 @@ public class TrayContext : ApplicationContext
                     dlg.Activate();
                     dlg.BringToFront();
                     SetForegroundWindow(dlg.Handle);
-                    if (focusApiKey)
-                        SetSettingsFormFocus(dlg);
                     dlg.TopMost = false;
                 }));
             };
-            Log.Info("Opening settings dialog.");
+            Log.Info("Opening settings manager.");
             dlg.ShowDialog();
-            var settingsSaved = dlg.DialogResult == DialogResult.OK;
-            PersistSettingsWindowPlacementForVersion2(dlg, settingsFormVersion, config);
+            var settingsChanged = dlg.SettingsImported;
             CancelPendingTranscribedPreviewFromSettings();
-            LoadTranscriptionService();
-            RefreshHotkeyRegistration();
-            SetReadyState();
-            if (settingsSaved)
+
+            if (settingsChanged)
+            {
+                LoadTranscriptionService();
+                RefreshHotkeyRegistration();
                 ConfigureRemoteCommandBindings();
+                SetReadyState();
+            }
             RestoreHiddenStackOnReactivation();
             if (restorePreviousFocus)
                 RestorePreviousFocus(previousForegroundWindow, settingsWindow);
@@ -589,131 +594,6 @@ public class TrayContext : ApplicationContext
             _isOpeningSettings = false;
             LogHelloStackState("settings-closed");
         }
-    }
-
-    private static Form CreateSettingsForm(SettingsFormVersion version)
-    {
-        return version switch
-        {
-            SettingsFormVersion.Version2 => new SettingsFormV2(),
-            _ => new SettingsForm()
-        };
-    }
-
-    private static void SetSettingsFormFocus(Form dialog)
-    {
-        switch (dialog)
-        {
-            case SettingsForm legacy:
-                legacy.FocusApiKeyInput();
-                break;
-            case SettingsFormV2 redesigned:
-                redesigned.FocusApiKeyInput();
-                break;
-        }
-    }
-
-    private static void ApplySettingsWindowPlacementForVersion2(Form dialog, SettingsFormVersion settingsFormVersion, AppConfig config)
-    {
-        if (settingsFormVersion != SettingsFormVersion.Version2)
-            return;
-
-        if (dialog is not SettingsFormV2)
-            return;
-
-        var savedBounds = GetSavedSettingsWindowBounds(config);
-        if (!savedBounds.HasValue)
-            return;
-
-        var clampedBounds = ClampWindowBoundsToScreens(savedBounds.Value);
-        dialog.StartPosition = FormStartPosition.Manual;
-        dialog.Size = clampedBounds.Size;
-        dialog.Location = clampedBounds.Location;
-    }
-
-    private static void PersistSettingsWindowPlacementForVersion2(Form dialog, SettingsFormVersion settingsFormVersion, AppConfig config)
-    {
-        if (settingsFormVersion != SettingsFormVersion.Version2)
-            return;
-
-        if (dialog is not SettingsFormV2)
-            return;
-
-        try
-        {
-            var activeBounds = dialog.WindowState == FormWindowState.Normal
-                ? dialog.Bounds
-                : dialog.RestoreBounds;
-
-            if (activeBounds.Width < AppConfig.MinSettingsWindowWidth ||
-                activeBounds.Height < AppConfig.MinSettingsWindowHeight ||
-                activeBounds.IsEmpty)
-            {
-                return;
-            }
-
-            config.SettingsWindowX = activeBounds.X;
-            config.SettingsWindowY = activeBounds.Y;
-            config.SettingsWindowWidth = activeBounds.Width;
-            config.SettingsWindowHeight = activeBounds.Height;
-            config.Save();
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Failed to persist settings form position/size.", ex);
-        }
-    }
-
-    private static Rectangle? GetSavedSettingsWindowBounds(AppConfig config)
-    {
-        if (config.SettingsWindowX == AppConfig.DefaultSettingsWindowX &&
-            config.SettingsWindowY == AppConfig.DefaultSettingsWindowY)
-            return null;
-
-        if (config.SettingsWindowWidth <= 0 || config.SettingsWindowHeight <= 0)
-            return null;
-
-        return new Rectangle(
-            config.SettingsWindowX,
-            config.SettingsWindowY,
-            config.SettingsWindowWidth,
-            config.SettingsWindowHeight);
-    }
-
-    private static Rectangle ClampWindowBoundsToScreens(Rectangle targetBounds)
-    {
-        var screens = Screen.AllScreens;
-        if (screens.Length == 0)
-            return targetBounds;
-
-        var preferredScreen = screens.FirstOrDefault(s => s.WorkingArea.Contains(targetBounds.Location), screens[0]);
-        if (!preferredScreen.WorkingArea.Contains(targetBounds.Location))
-        {
-            preferredScreen = screens
-                .Where(s => s.WorkingArea.IntersectsWith(targetBounds))
-                .FirstOrDefault() ?? screens[0];
-        }
-
-        var workArea = preferredScreen.WorkingArea;
-        var width = Math.Max(AppConfig.MinSettingsWindowWidth, Math.Min(targetBounds.Width, workArea.Width));
-        var height = Math.Max(AppConfig.MinSettingsWindowHeight, Math.Min(targetBounds.Height, workArea.Height));
-
-        var x = targetBounds.X;
-        var y = targetBounds.Y;
-
-        if (x + width > workArea.Right)
-            x = workArea.Right - width;
-
-        if (y + height > workArea.Bottom)
-            y = workArea.Bottom - height;
-
-        if (x < workArea.Left)
-            x = workArea.Left;
-
-        if (y < workArea.Top)
-            y = workArea.Top;
-
-        return new Rectangle(x, y, width, height);
     }
 
     private async Task StopActiveListeningForTranscriptionAsync()
@@ -860,7 +740,7 @@ public class TrayContext : ApplicationContext
                 Log.Info("Transcription failed with an authentication-like error. Opening settings for API key update.");
                 ShowOverlay("API key issue detected — opening settings...", ErrorOverlayColor, 1800);
                 _transcriptionService = null;
-                OpenSettings(focusApiKey: true, restorePreviousFocus: false);
+                OpenSettings(restorePreviousFocus: false);
             }
         }
         finally
@@ -1893,7 +1773,7 @@ public class TrayContext : ApplicationContext
 
         _promptedForApiKeyOnStartup = true;
         Log.Info("Opening settings on startup because API key is missing.");
-        OpenSettings(focusApiKey: true, restorePreviousFocus: false);
+        OpenSettings(restorePreviousFocus: false);
     }
 
     private static bool IsLikelyApiKeyError(Exception ex)

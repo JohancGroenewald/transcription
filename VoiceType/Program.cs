@@ -757,7 +757,7 @@ static class Program
             Console.WriteLine("[2/3] Checking API key configuration...");
             if (string.IsNullOrWhiteSpace(config.ApiKey))
             {
-                Console.WriteLine("  WARNING - No API key configured. Run the app and go to Settings to add one.");
+                Console.WriteLine("  WARNING - No API key configured. Export, edit, or import config.json to set one.");
                 Console.WriteLine(
                     $"  Config location: {Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoiceType", "config.json")}");
