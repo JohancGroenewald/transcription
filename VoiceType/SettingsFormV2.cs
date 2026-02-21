@@ -414,7 +414,7 @@ public sealed class SettingsFormV2 : Form
             Text = "Save",
             AutoSize = true,
             MinimumSize = new Size(90, 32),
-            DialogResult = DialogResult.OK
+            DialogResult = DialogResult.None
         };
         saveButton.Click += OnSave;
 
