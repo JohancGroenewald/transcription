@@ -161,6 +161,7 @@ Behavior:
 ## 7) Expected outcome
 
 By splitting VoiceType2 around `ITranscriptionProvider`, you get:
+
 - zero rewrite of UI/hotkey/overlay/paste flow,
 - a clean migration path away from vendor SDK lock-in,
 - and a controlled rollout where internal API can be replaced later without rewriting the host again.
