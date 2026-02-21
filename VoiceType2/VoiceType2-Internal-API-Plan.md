@@ -1,34 +1,6 @@
 # VoiceType2 — Internal API Migration Plan (C#)
 
-## 1) Deep study of the current VoiceType implementation
-
-This repo already has a stable Windows tray dictation app with clear separation between:
-
-- Process bootstrap + CLI + single-instance routing (`VoiceType/Program.cs`)
-- Runtime orchestration and dictation flow (`VoiceType/TrayContext.cs`)
-- Hotkey handling + overlay + settings reload (`VoiceType/TrayContext.cs`)
-- Audio capture (`VoiceType/AudioRecorder.cs`)
-- Transcription provider (`VoiceType/TranscriptionService.cs`)
-- Paste/injection (`VoiceType/TextInjector.cs`)
-- Config persistence + DPAPI key protection (`VoiceType/AppConfig.cs`)
-- Remote command policy/dispatch (`VoiceType/RemoteCommandManager.cs`)
-
-Current end-to-end path is:
-
-1. User presses trigger hotkey → `TrayContext` starts/stops recording.
-2. Audio buffer is built by `AudioRecorder` (NAudio `WaveInEvent`) and finalized to WAV in `AudioRecorder.Stop()`.
-3. `TrayContext` calls `TranscriptionService.TranscribeAsync()` (OpenAI SDK client).
-4. Response text is sanitized (`PretextDetector`) then optionally parsed as a voice command (`VoiceCommandParser`).
-5. Text is inserted via clipboard/paste (`TextInjector`) after preview countdown.
-
-Constraints that matter for migration:
-
-- `net9.0-windows` + WinForms + user32 interop + native clipboard/paste mechanics.
-- Current dependency on OpenAI .NET package is concentrated in one place (`TranscriptionService`), but call site assumptions are embedded in `TrayContext`.
-- Config is currently file-based at `%LOCALAPPDATA%\VoiceType\config.json`, with API key decryption via DPAPI on load/save.
-- Existing tests cover config normalization, command parsing, preview flow, and prompt sanitization, not API transport internals.
-
-## 2) VoiceType2 objective
+## 1) VoiceType2 objective
 
 Build a new standalone version of the app with the same user goals as VoiceType, while implementing everything in a clean-room C# architecture.
 
@@ -39,7 +11,7 @@ Primary goals:
 - Maintain testability with injected fake transport clients.
 - Keep VoiceType2 independent from VoiceType1 runtime, startup flow, and transport implementation.
 
-## 3) Recommended C# architecture (for `VoiceType2`)
+## 2) Recommended C# architecture (for `VoiceType2`)
 
 ### 3.1 Layered design
 
@@ -304,6 +276,71 @@ Suggested implementation implication:
 - `Orchestrators` are separate clients that consume the same host contract.
 - For Windows desktop packaging, `tray orchestrator` can be the default orchestrator while still allowing service-only and CLI distributions.
 
+### 3.1.5 CLI orchestrator skeleton (top-down)
+
+Use a consistent vocabulary across all host types:
+
+- `Orchestrator` = mode entrypoint (CLI/tray/frontend/etc.).
+- `Platform Adapter` = isolated helper component for platform-specific concerns (tray, clipboard, notifications, hotkeys, etc.).
+- `Sub-orchestrator` is optional wording; the document should prefer **Platform Adapter** for clarity.
+
+```mermaid
+flowchart TD
+    %% CLI orchestrator skeleton with reusable platform adapters
+    subgraph "VoiceType2.CLI"
+        cliBoot["CLI host bootstrap"]
+        cliArgs["CLI argument parser"]
+        cliSessionCmds["Session command parser<br/>(start/stop/status)"]
+        cliRenderer["Terminal UI renderer<br/>(status + transcript output)"]
+        cliDecision["User decision parser<br/>(submit/cancel/retry)"]
+        cliOrchestrator["CLI Orchestrator"]
+        cliLoop["Interaction loop"]
+    end
+
+    subgraph "API Runtime Client"
+        apiGate["Session-aware API client"]
+        apiTransport["HTTP/WS client"]
+        apiEvents["Event stream listener"]
+        apiDecisions["Decision poster"]
+    end
+
+    subgraph "Platform Adapters"
+        trayAdapter["Tray Adapter<br/>(optional in CLI mode)"]
+        hotkeyAdapter["Hotkey Adapter<br/>(optional)"]
+        clipboardAdapter["Clipboard Adapter<br/>(optional text sink)"]
+        notifyAdapter["Notification Adapter<br/>(console + native fallback)"]
+    end
+
+    cliBoot --> cliOrchestrator
+    cliArgs --> cliOrchestrator
+    cliOrchestrator --> cliSessionCmds
+    cliOrchestrator --> cliRenderer
+    cliOrchestrator --> cliDecision
+    cliOrchestrator --> cliLoop
+
+    cliSessionCmds --> apiGate
+    cliLoop --> apiGate
+    apiGate --> apiTransport
+    apiTransport --> apiEvents
+    apiEvents --> cliRenderer
+    apiEvents --> cliDecision
+    apiDecisions --> apiGate
+    cliDecision --> apiDecisions
+
+    cliOrchestrator --> trayAdapter
+    cliOrchestrator --> hotkeyAdapter
+    cliOrchestrator --> clipboardAdapter
+    cliOrchestrator --> notifyAdapter
+
+    trayAdapter -->|"status signals<br/>and control intents"| cliOrchestrator
+    hotkeyAdapter -->|"fallback trigger"| cliOrchestrator
+```
+
+Notes:
+
+- The CLI mode can be launched without tray/hotkeys and still be functional by not wiring those adapters.
+- The same `CLI Orchestrator` shape can be reused as a base for a daemon wrapper later.
+
 ### 3.2 Core interface contract
 
 ```csharp
@@ -348,7 +385,7 @@ public sealed record TranscriptionOptions(
 
 Use retry policy (e.g. `HttpClient` + exponential backoff) and strict timeout around `TranscribeAsync`.
 
-## 4) Config changes
+## 3) Config changes
 
 This should be split by ownership to avoid coupling the runtime core and UI layers.
 
@@ -460,7 +497,7 @@ flowchart TB
 - Only orchestrator-visible settings (hotkeys/overlay/CLI UX) should be changed via orchestrator config.
 - Only API-owned settings (session policy, storage, transport, timeout, security) should be mutated by API-level config.
 
-## 5) Migration plan (practical 5-phase path)
+## 4) Migration plan (practical 5-phase path)
 
 1. **Scaffold VoiceType2**
    - Create `VoiceType2` solution folder with `VoiceType2.Core`, `VoiceType2.App`, `VoiceType2.Infrastructure`.
@@ -486,7 +523,7 @@ flowchart TB
      - injection path.
    - Validate against your internal API contract before broad rollout.
 
-## 6) Risks and controls
+## 5) Risks and controls
 
 - **Windows-only API surface**: keep `TextInjector` + overlay behavior in host app (same restrictions).
 - **Audio format drift**: ensure `AudioRecorder` still emits exact WAV PCM mono 16-bit and preserves the current fallback/sample-rate behavior.
@@ -494,7 +531,7 @@ flowchart TB
 - **Security drift**: keep DPAPI for local secrets; avoid writing raw tokens in logs.
 - **Latency**: preview duration is user-facing; expose provider latency in logs and tune timeout.
 
-## 7) Expected outcome
+## 6) Expected outcome
 
 By splitting VoiceType2 around `ITranscriptionProvider`, you get:
 
