@@ -114,6 +114,55 @@ flowchart TB
     requestModel --> contract
 ```
 
+### 3.1.2 Proposed application flow (Mermaid)
+
+```mermaid
+flowchart TB
+    %% App lifecycle and command flow for VoiceType2
+    start["Application starts"] --> load["Load configuration and secrets"]
+    load --> validate["Validate provider + network settings"]
+    validate -->|invalid| failApp["Show startup failure"]
+    validate -->|valid| hostReady["Initialize host services (tray, hotkeys, overlay)"]
+    hostReady --> idle["Idle state (ready for input)"]
+
+    idle -->|"Global hotkey pressed"| recording["Start recording with selected input device"]
+    idle -->|"Remote command / external trigger"| remote["Remote command handler"]
+    remote -->|"submit command"| submitNow["Submit without preview"]
+    remote -->|"listen command"| recording
+    remote -->|"close command"| shuttingDown["Shut down host"]
+    submitNow --> injector["Paste/inject preview text"]
+
+    recording --> meter["Update input level + mic UI"]
+    meter -->|"Stop hotkey or timeout"| stopCapture["Stop capture + inspect metrics"]
+    meter -->|"Error from recorder"| recordFail["Report recorder error"]
+
+    stopCapture -->|no speech detected| noSpeech["Show no-speech overlay"]
+    noSpeech --> idle
+
+    stopCapture -->|"Has audio"| normalize["Normalize/prepare audio payload"]
+    normalize --> transcribe["Call ITranscriptionProvider.TranscribeAsync()"]
+    transcribe -->|provider error| transcriptFail["Show transcription error"]
+    transcribe -->|success| sanitize["Sanitize transcript (prompt + directives)"]
+
+    sanitize -->|"Empty text"| idle
+    sanitize -->|"Command match"| commandMatch["Dispatch voice command"]
+    commandMatch --> idle
+
+    sanitize -->|"Free text"| preview["Show transcribed preview + countdown"]
+    preview -->|"Countdown expires"| autoInsert["Insert and optional auto-send"]
+    preview -->|"User taps preview"| cancel["Cancel paste"]
+    preview -->|"submit during preview"| pasteWithoutEnter["Insert without auto-send"]
+
+    autoInsert --> injector
+    pasteWithoutEnter --> injector
+    cancel -->|"No insertion performed"| idle
+    injector -->|"Paste succeeded / fallback"| idle
+    transcriptFail --> idle
+    recordFail --> idle
+    failApp --> shutdown1["Exit with error"]
+    shuttingDown --> idle
+```
+
 ### 3.2 Core interface contract
 
 ```csharp
