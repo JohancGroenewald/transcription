@@ -1,4 +1,4 @@
-# VoiceType2 — Internal API Migration Plan (C#)
+# VoiceType2 — Internal API, Orchestrator, and Testability Plan (C#)
 
 ## 1) VoiceType2 objective
 
