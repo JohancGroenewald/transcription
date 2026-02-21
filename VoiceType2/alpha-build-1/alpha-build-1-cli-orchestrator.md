@@ -1,0 +1,171 @@
+# Alpha Build 1 — CLI orchestrator blueprint
+
+## 1) Objective
+
+Build a CLI orchestrator that can:
+
+- Register a session with the API,
+- Start and stop capture,
+- Render transcript events in terminal,
+- Resolve transcripts (`submit`, `cancel`, `retry`),
+- Run independently of the API process.
+
+## 2) Responsibilities and non-responsibilities
+
+- Responsibilities:
+  - Orchestrator session lifecycle
+  - Human interaction model
+  - Local command parsing and status display
+  - Optional helper adapters for hotkeys/notifications
+- Non-responsibilities:
+  - Audio capture implementation
+  - Transcription transport details
+  - Session policies and API host validation
+
+## 3) Component layout
+
+```mermaid
+flowchart TD
+    cliHost["CliHost"]
+    cmdParser["CliCommandParser"]
+    orch["IOrchestrator"]
+    apiClient["ApiSessionClient"]
+    stateMachine["SessionStateMachine"]
+    evtRenderer["EventRenderer"]
+    inputLoop["InputLoop"]
+    platformAdapter["PlatformAdapters (optional)"]
+
+    cliHost --> cmdParser
+    cliHost --> orch
+    orch --> apiClient
+    orch --> stateMachine
+    orch --> evtRenderer
+    orch --> inputLoop
+    orch --> platformAdapter
+    stateMachine --> apiClient
+    inputLoop --> stateMachine
+    apiClient --> orch
+```
+
+## 4) Minimal CLI run sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant C as CLI Host
+    participant O as Orchestrator
+    participant A as API
+    participant R as Terminal
+
+    U->>C: start command
+    C->>O: bootstrap + parse config
+    O->>A: POST /v1/sessions
+    A-->>O: sessionId + token
+    U->>C: start command
+    C->>O: start request
+    O->>A: POST /v1/sessions/{id}/start
+    A-->>R: stream events
+    O-->>R: status / transcript updates
+    U->>C: submit / cancel / retry
+    C->>O: action
+    O->>A: POST /resolve
+    A-->>O: updated state
+    O-->>R: final feedback
+```
+
+## 5) Data flow and state machine
+
+States:
+
+- `Uninitialized`
+- `Configured`
+- `Registered`
+- `Running`
+- `Listening`
+- `AwaitingDecision`
+- `Completed`
+- `Stopped`
+- `Failed`
+
+Rules:
+
+- `submit` from `AwaitingDecision` moves to `Completed`.
+- `retry` from `AwaitingDecision` calls `POST /start` again.
+- Any terminal event can move to `Stopped`.
+- `start` is ignored unless state is `Registered` or `Completed`.
+
+## 6) CLI command set (alpha)
+
+- `vt2 run --mode headless|interactive`
+- `vt2 start`
+- `vt2 stop`
+- `vt2 status`
+- `vt2 submit`
+- `vt2 cancel`
+- `vt2 retry`
+- `vt2 config show`
+- `vt2 exit`
+
+## 7) Input and rendering contract
+
+### Decision parsing
+
+- `submit` and `s` resolve submit
+- `cancel` and `c` resolve cancel
+- `retry` and `r` resolve retry
+
+### Output policy
+
+- status line always prints: `sessionId`, state, last event, correlationId.
+- transcripts print in a muted style, then one action line.
+- error lines include standardized code and session id.
+
+## 8) C# skeleton (alpha)
+
+```csharp
+public sealed record ApiEndpoints(Uri BaseUrl, string ApiToken);
+
+public interface IOrchestrator
+{
+    Task<int> RunAsync(CancellationToken ct = default);
+}
+
+public interface IApiSessionClient
+{
+    Task<SessionCreated> RegisterAsync(OrchestratorProfile profile, CancellationToken ct = default);
+    Task StartAsync(string sessionId, CancellationToken ct = default);
+    Task StopAsync(string sessionId, CancellationToken ct = default);
+    IAsyncEnumerable<ApiEvent> StreamEventsAsync(string sessionId, CancellationToken ct = default);
+    Task ResolveAsync(string sessionId, string action, CancellationToken ct = default);
+}
+
+public sealed class CliOrchestrator : IOrchestrator
+{
+    public async Task<int> RunAsync(CancellationToken ct = default)
+    {
+        var profile = LoadProfile();
+        var session = await _client.RegisterAsync(profile, ct);
+        await _state.ConfigureAsync(session.SessionId, ct);
+
+        await _render.ShowAsync("ready", ct);
+        await ReadLoopAsync(ct); // parses submit/cancel/retry
+        return 0;
+    }
+}
+```
+
+## 9) Optional platform adapters
+
+- `IHotkeyAdapter`: optional, for users who want CLI hotkey support.
+- `ITrayProbeAdapter`: optional, for environments where tray visibility must signal session state.
+- `INotificationAdapter`: terminal + optional native fallback.
+- `IClipboardFallbackAdapter`: optional local output sink when session actions include copy.
+
+## 10) Alpha acceptance checklist
+
+- CLI can register a session in one command.
+- Event stream updates are rendered without delay.
+- `submit/cancel/retry` resolves and returns deterministic status.
+- CLI can run headless (no tray/hotkey dependencies).
+- `stop` and `status` remain valid in every non-terminal state.
