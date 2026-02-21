@@ -163,6 +163,62 @@ flowchart TB
     shuttingDown --> idle
 ```
 
+### 3.1.3 Proposed API-First architecture (headless API + pluggable orchestrators)
+
+```mermaid
+flowchart TB
+    %% API-first architecture: one service runs independently,
+    %% multiple orchestrators can attach and control sessions.
+
+    subgraph "VoiceType2 Runtime API Service"
+        apiBoot["API service bootstraps config + DI + providers"]
+        apiTransport["HTTP/WS transport + authentication"]
+        apiSession["Session and lifecycle manager"]
+        apiCapture["Capture pipeline (device + encoding)"]
+        apiTranscribe["InternalApiTranscriptionProvider"]
+        apiEvents["Result/event broadcaster (WS/SSE)"]
+    end
+
+    subgraph "Orchestrator A"
+        orchAStart["VoiceType2 Orchestrator starts"]
+        orchASetup["Discover API + register session"]
+        orchAHotkeys["Register hotkeys and tray UX"]
+        orchAPreview["Show preview + user decisions"]
+        orchAInject["Inject text/copy fallback"]
+    end
+
+    subgraph "Orchestrator B"
+        orchBStart["Alternative orchestrator starts"]
+        orchBSetup["Discover API + register session"]
+        orchBUI["Alternative UI flow"]
+    end
+
+    apiBoot --> apiTransport
+    apiTransport --> apiSession
+    apiSession --> apiCapture
+    apiCapture --> apiTranscribe
+    apiTranscribe --> apiEvents
+
+    orchAStart --> orchASetup
+    orchASetup -->|"POST /v1/sessions (register) + token"| apiSession
+    orchASetup --> orchAHotkeys
+    orchAHotkeys -->|"POST /v1/sessions/{id}/start"| apiSession
+    orchAHotkeys -->|"POST /v1/sessions/{id}/stop"| apiSession
+    orchASetup -->|"Event: connected, capabilities"| orchAPreview
+
+    apiEvents -->|"event: transcript ready"| orchAPreview
+    apiEvents -->|"event: transcribing / error"| orchAPreview
+    orchAPreview -->|"User decision: submit / cancel / retry"| orchAInject
+    orchAPreview -->|"User decision: command action"| orchASetup
+    orchAInject -->|"POST /v1/sessions/{id}/resolve"| apiSession
+
+    orchBStart --> orchBSetup
+    orchBSetup -->|"POST /v1/sessions (register) + token"| apiSession
+    orchBSetup --> orchBUI
+    orchBUI -->|"POST /v1/sessions/{id}/start/stop"| apiSession
+    apiEvents -->|"event: transcript ready"| orchBUI
+```
+
 ### 3.2 Core interface contract
 
 ```csharp
