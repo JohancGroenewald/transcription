@@ -341,7 +341,46 @@ Notes:
 - The CLI mode can be launched without tray/hotkeys and still be functional by not wiring those adapters.
 - The same `CLI Orchestrator` shape can be reused as a base for a daemon wrapper later.
 
-### 3.2 Core interface contract
+### 3.2 Complete testability of all components
+
+Every production component should have an injectable boundary and a deterministic test path.
+
+- `VoiceType2.App` and orchestrators:
+  - Register by interface: `IOrchestrator`, `ISessionCommandParser`, `IInputDispatcher`, `ITextSink`, `IUserFeedback`.
+  - Replace all UI/terminal side effects with adapters:
+    - Windows tray/overlay, CLI renderer, and future frontend transport as separate adapters.
+  - Record command outcomes as immutable events for assertions.
+
+- `VoiceType2.Core`:
+  - Core workflows remain mostly pure: state machines, parsing, sanitization, and decision rules should be side-effect free.
+  - Inject clocks, random/input generators, and policy providers for reproducible tests.
+  - Prefer immutable DTOs and explicit transition results so tests can validate complete outcomes.
+
+- `VoiceType2.Infrastructure`:
+  - `ITranscriptionProvider` has fake/stub and contract-mocking implementations.
+  - HTTP transport isolated behind an interface so unit tests can validate headers/auth/payload shape without external calls.
+  - Retry/timeouts tested through a controlled scheduler/fake clock.
+
+- API runtime/session stack:
+  - `ISessionRepository`, `ISessionPolicyEvaluator`, and `IEventPublisher` are all injectable.
+  - Use in-memory repository for unit tests and dedicated contract tests for request/response schema.
+  - Run event streams through a fake event bus for deterministic ordering and replay.
+
+Test plan by boundary:
+
+- **Unit tests**: all parsers, state machines, config validators, contract mappers, and policy checks.
+- **Contract tests**: API endpoints, event envelopes, decision payloads, and versioned schema compatibility.
+- **Integration tests**: in-memory service host + fake providers + fake adapters to run CLI and tray control flows.
+- **End-to-end tests**: one happy path and representative error paths through real host process with local mocks for external network.
+
+Acceptance criteria for testability:
+
+- Any component can be tested in under 200ms without waiting on disk or network.
+- No production component reaches into the environment directly without an interface (filesystem, keyboard, clipboard, process, time, HTTP).
+- Session behavior is deterministic when provided with the same seed and event sequence.
+- All orchestration flows support both command-driven and event-driven assertions.
+
+### 3.3 Core interface contract
 
 ```csharp
 public interface ITranscriptionProvider
@@ -369,7 +408,7 @@ public sealed record TranscriptionOptions(
     int? MaxTokens = null);
 ```
 
-### 3.3 Internal API implementation concept
+### 3.4 Internal API implementation concept
 
 - `InternalApiTranscriptionProvider : ITranscriptionProvider`
 - Sends:
