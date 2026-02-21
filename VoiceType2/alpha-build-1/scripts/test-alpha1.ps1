@@ -5,6 +5,8 @@ param(
     [switch]$NoBuild
 )
 
+$ErrorActionPreference = "Stop"
+
 Set-Location -Path (Join-Path $PSScriptRoot "..")
 
 $apiProject = "src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj"

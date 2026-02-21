@@ -13,5 +13,13 @@ $projects = @(
 Write-Host "Building VoiceType2 Alpha 1 ($Configuration)"
 
 Set-Location -Path (Join-Path $PSScriptRoot "..")
-dotnet restore $projects
-dotnet build $projects --no-restore --configuration $Configuration
+
+foreach ($project in $projects)
+{
+    dotnet restore $project
+}
+
+foreach ($project in $projects)
+{
+    dotnet build $project --no-restore --configuration $Configuration
+}
