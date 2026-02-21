@@ -31,12 +31,14 @@ internal sealed class RemoteCommandState
         bool isRecording,
         bool isTranscribing,
         bool isTranscribedPreviewActive,
+        bool isAutoSubmitCountdownActive,
         bool isShutdownRequested,
         bool isShuttingDown)
     {
         IsRecording = isRecording;
         IsTranscribing = isTranscribing;
         IsTranscribedPreviewActive = isTranscribedPreviewActive;
+        IsAutoSubmitCountdownActive = isAutoSubmitCountdownActive;
         IsShutdownRequested = isShutdownRequested;
         IsShuttingDown = isShuttingDown;
     }
@@ -44,6 +46,11 @@ internal sealed class RemoteCommandState
     public bool IsRecording { get; }
     public bool IsTranscribing { get; }
     public bool IsTranscribedPreviewActive { get; }
+    public bool IsAutoSubmitCountdownActive { get; }
+    public bool IsListening => IsRecording;
+    public bool IsPreprocessing => IsTranscribing;
+    public bool IsTextDisplayed => IsTranscribedPreviewActive;
+    public bool IsIdle => !IsListening && !IsPreprocessing && !IsTextDisplayed;
     public bool IsShutdownRequested { get; }
     public bool IsShuttingDown { get; }
     public bool CanHandleRemoteCommands => !IsShuttingDown && !IsShutdownRequested;
@@ -107,6 +114,7 @@ internal sealed class RemoteCommandManager
             isRecording: false,
             isTranscribing: false,
             isTranscribedPreviewActive: false,
+            isAutoSubmitCountdownActive: false,
             isShutdownRequested: false,
             isShuttingDown: false);
         return TryHandleCommand(invocation, state);
@@ -137,4 +145,3 @@ internal sealed class RemoteCommandManager
 
     public IReadOnlyList<RemoteCommandBinding> GetBindings() => _bindings;
 }
-

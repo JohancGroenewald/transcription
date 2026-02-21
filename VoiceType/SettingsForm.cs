@@ -92,6 +92,26 @@ public class SettingsForm : Form
     private readonly CheckBox _useSimpleMicSpinnerCheck;
     private readonly CheckBox _enablePreviewPlaybackCleanupCheck;
     private readonly ComboBox _remoteActionPopupLevelCombo;
+    private readonly CheckBox _remoteListenWhileListeningCheck;
+    private readonly CheckBox _remoteListenWhilePreprocessingCheck;
+    private readonly CheckBox _remoteListenWhileTextDisplayedCheck;
+    private readonly CheckBox _remoteListenWhileCountdownCheck;
+    private readonly CheckBox _remoteListenWhileIdleCheck;
+    private readonly CheckBox _remoteSubmitWhileListeningCheck;
+    private readonly CheckBox _remoteSubmitWhilePreprocessingCheck;
+    private readonly CheckBox _remoteSubmitWhileTextDisplayedCheck;
+    private readonly CheckBox _remoteSubmitWhileCountdownCheck;
+    private readonly CheckBox _remoteSubmitWhileIdleCheck;
+    private readonly CheckBox _remoteActivateWhileListeningCheck;
+    private readonly CheckBox _remoteActivateWhilePreprocessingCheck;
+    private readonly CheckBox _remoteActivateWhileTextDisplayedCheck;
+    private readonly CheckBox _remoteActivateWhileCountdownCheck;
+    private readonly CheckBox _remoteActivateWhileIdleCheck;
+    private readonly CheckBox _remoteCloseWhileListeningCheck;
+    private readonly CheckBox _remoteCloseWhilePreprocessingCheck;
+    private readonly CheckBox _remoteCloseWhileTextDisplayedCheck;
+    private readonly CheckBox _remoteCloseWhileCountdownCheck;
+    private readonly CheckBox _remoteCloseWhileIdleCheck;
     private readonly CheckBox _enablePastedTextPrefixCheck;
     private readonly TextBox _pastedTextPrefixTextBox;
     private readonly CheckBox _enableTranscriptionPromptCheck;
@@ -325,7 +345,7 @@ public class SettingsForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = 27,
+            RowCount = 29,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
@@ -583,6 +603,154 @@ public class SettingsForm : Form
         });
         SetupThemedComboBox(_remoteActionPopupLevelCombo);
 
+        _remoteListenWhileListeningCheck = new CheckBox { Text = "Listen", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteListenWhilePreprocessingCheck = new CheckBox { Text = "Listen", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteListenWhileTextDisplayedCheck = new CheckBox { Text = "Listen", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteListenWhileCountdownCheck = new CheckBox { Text = "Listen", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteListenWhileIdleCheck = new CheckBox { Text = "Listen", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteSubmitWhileListeningCheck = new CheckBox { Text = "Submit", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteSubmitWhilePreprocessingCheck = new CheckBox { Text = "Submit", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteSubmitWhileTextDisplayedCheck = new CheckBox { Text = "Submit", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteSubmitWhileCountdownCheck = new CheckBox { Text = "Submit", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteSubmitWhileIdleCheck = new CheckBox { Text = "Submit", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteActivateWhileListeningCheck = new CheckBox { Text = "Activate", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteActivateWhilePreprocessingCheck = new CheckBox { Text = "Activate", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteActivateWhileTextDisplayedCheck = new CheckBox { Text = "Activate", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteActivateWhileCountdownCheck = new CheckBox { Text = "Activate", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteActivateWhileIdleCheck = new CheckBox { Text = "Activate", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteCloseWhileListeningCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteCloseWhilePreprocessingCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteCloseWhileTextDisplayedCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteCloseWhileCountdownCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+        _remoteCloseWhileIdleCheck = new CheckBox { Text = "Close", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+
+        var remoteStateFiltersLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 5,
+            RowCount = 6,
+            Margin = new Padding(0, 6, 0, 0),
+            Padding = new Padding(0)
+        };
+        remoteStateFiltersLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        remoteStateFiltersLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        remoteStateFiltersLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        remoteStateFiltersLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        remoteStateFiltersLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        for (var i = 0; i < remoteStateFiltersLayout.RowCount; i++)
+            remoteStateFiltersLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "State",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 0, 10, 2)
+        }, 0, 0);
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Listen",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 0, 10, 2)
+        }, 1, 0);
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Submit",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 0, 10, 2)
+        }, 2, 0);
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Activate",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 0, 10, 2)
+        }, 3, 0);
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Close",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 2)
+        }, 4, 0);
+
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Listening",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 2, 10, 2)
+        }, 0, 1);
+        remoteStateFiltersLayout.Controls.Add(_remoteListenWhileListeningCheck, 1, 1);
+        remoteStateFiltersLayout.Controls.Add(_remoteSubmitWhileListeningCheck, 2, 1);
+        remoteStateFiltersLayout.Controls.Add(_remoteActivateWhileListeningCheck, 3, 1);
+        remoteStateFiltersLayout.Controls.Add(_remoteCloseWhileListeningCheck, 4, 1);
+
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Pre-processing",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 2, 10, 2)
+        }, 0, 2);
+        remoteStateFiltersLayout.Controls.Add(_remoteListenWhilePreprocessingCheck, 1, 2);
+        remoteStateFiltersLayout.Controls.Add(_remoteSubmitWhilePreprocessingCheck, 2, 2);
+        remoteStateFiltersLayout.Controls.Add(_remoteActivateWhilePreprocessingCheck, 3, 2);
+        remoteStateFiltersLayout.Controls.Add(_remoteCloseWhilePreprocessingCheck, 4, 2);
+
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Text displayed",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 2, 10, 2)
+        }, 0, 3);
+        remoteStateFiltersLayout.Controls.Add(_remoteListenWhileTextDisplayedCheck, 1, 3);
+        remoteStateFiltersLayout.Controls.Add(_remoteSubmitWhileTextDisplayedCheck, 2, 3);
+        remoteStateFiltersLayout.Controls.Add(_remoteActivateWhileTextDisplayedCheck, 3, 3);
+        remoteStateFiltersLayout.Controls.Add(_remoteCloseWhileTextDisplayedCheck, 4, 3);
+
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Auto-submit countdown",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 2, 10, 2)
+        }, 0, 4);
+        remoteStateFiltersLayout.Controls.Add(_remoteListenWhileCountdownCheck, 1, 4);
+        remoteStateFiltersLayout.Controls.Add(_remoteSubmitWhileCountdownCheck, 2, 4);
+        remoteStateFiltersLayout.Controls.Add(_remoteActivateWhileCountdownCheck, 3, 4);
+        remoteStateFiltersLayout.Controls.Add(_remoteCloseWhileCountdownCheck, 4, 4);
+
+        remoteStateFiltersLayout.Controls.Add(new Label
+        {
+            Text = "Idle",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 2, 10, 2)
+        }, 0, 5);
+        remoteStateFiltersLayout.Controls.Add(_remoteListenWhileIdleCheck, 1, 5);
+        remoteStateFiltersLayout.Controls.Add(_remoteSubmitWhileIdleCheck, 2, 5);
+        remoteStateFiltersLayout.Controls.Add(_remoteActivateWhileIdleCheck, 3, 5);
+        remoteStateFiltersLayout.Controls.Add(_remoteCloseWhileIdleCheck, 4, 5);
+
+        var remoteStateFiltersHeader = new Label
+        {
+            Text = "Remote command state filters",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 10, 0, 2)
+        };
+
         var lblPastedTextPrefix = new Label
         {
             Text = "Pasted text prefix",
@@ -745,6 +913,10 @@ public class SettingsForm : Form
         behaviorLayout.Controls.Add(_overlayFadeProfileCombo, 1, 21);
         behaviorLayout.Controls.Add(_overlayBackgroundModeLabel, 0, 26);
         behaviorLayout.Controls.Add(_overlayBackgroundModeCombo, 1, 26);
+        behaviorLayout.Controls.Add(remoteStateFiltersHeader, 0, 27);
+        behaviorLayout.SetColumnSpan(remoteStateFiltersHeader, 2);
+        behaviorLayout.Controls.Add(remoteStateFiltersLayout, 0, 28);
+        behaviorLayout.SetColumnSpan(remoteStateFiltersLayout, 2);
         grpBehavior.Controls.Add(behaviorLayout);
 
         var grpVoiceCommands = new ThemedGroupBox
@@ -1162,6 +1334,26 @@ public class SettingsForm : Form
             AppConfig.NormalizeRemoteActionPopupLevel(config.RemoteActionPopupLevel),
             0,
             _remoteActionPopupLevelCombo.Items.Count - 1);
+        _remoteListenWhileListeningCheck.Checked = config.EnableRemoteListenWhileListening;
+        _remoteListenWhilePreprocessingCheck.Checked = config.EnableRemoteListenWhilePreprocessing;
+        _remoteListenWhileTextDisplayedCheck.Checked = config.EnableRemoteListenWhileTextDisplayed;
+        _remoteListenWhileCountdownCheck.Checked = config.EnableRemoteListenWhileCountdown;
+        _remoteListenWhileIdleCheck.Checked = config.EnableRemoteListenWhileIdle;
+        _remoteSubmitWhileListeningCheck.Checked = config.EnableRemoteSubmitWhileListening;
+        _remoteSubmitWhilePreprocessingCheck.Checked = config.EnableRemoteSubmitWhilePreprocessing;
+        _remoteSubmitWhileTextDisplayedCheck.Checked = config.EnableRemoteSubmitWhileTextDisplayed;
+        _remoteSubmitWhileCountdownCheck.Checked = config.EnableRemoteSubmitWhileCountdown;
+        _remoteSubmitWhileIdleCheck.Checked = config.EnableRemoteSubmitWhileIdle;
+        _remoteActivateWhileListeningCheck.Checked = config.EnableRemoteActivateWhileListening;
+        _remoteActivateWhilePreprocessingCheck.Checked = config.EnableRemoteActivateWhilePreprocessing;
+        _remoteActivateWhileTextDisplayedCheck.Checked = config.EnableRemoteActivateWhileTextDisplayed;
+        _remoteActivateWhileCountdownCheck.Checked = config.EnableRemoteActivateWhileCountdown;
+        _remoteActivateWhileIdleCheck.Checked = config.EnableRemoteActivateWhileIdle;
+        _remoteCloseWhileListeningCheck.Checked = config.EnableRemoteCloseWhileListening;
+        _remoteCloseWhilePreprocessingCheck.Checked = config.EnableRemoteCloseWhilePreprocessing;
+        _remoteCloseWhileTextDisplayedCheck.Checked = config.EnableRemoteCloseWhileTextDisplayed;
+        _remoteCloseWhileCountdownCheck.Checked = config.EnableRemoteCloseWhileCountdown;
+        _remoteCloseWhileIdleCheck.Checked = config.EnableRemoteCloseWhileIdle;
         _enablePastedTextPrefixCheck.Checked = config.EnablePastedTextPrefix;
         _pastedTextPrefixTextBox.Text = config.PastedTextPrefix ?? "";
         _enableTranscriptionPromptCheck.Checked = config.EnableTranscriptionPrompt;
@@ -1220,6 +1412,26 @@ public class SettingsForm : Form
                 _remoteActionPopupLevelCombo.SelectedIndex,
                 AppConfig.MinRemoteActionPopupLevel,
                 AppConfig.MaxRemoteActionPopupLevel),
+            EnableRemoteListenWhileListening = _remoteListenWhileListeningCheck.Checked,
+            EnableRemoteListenWhilePreprocessing = _remoteListenWhilePreprocessingCheck.Checked,
+            EnableRemoteListenWhileTextDisplayed = _remoteListenWhileTextDisplayedCheck.Checked,
+            EnableRemoteListenWhileCountdown = _remoteListenWhileCountdownCheck.Checked,
+            EnableRemoteListenWhileIdle = _remoteListenWhileIdleCheck.Checked,
+            EnableRemoteSubmitWhileListening = _remoteSubmitWhileListeningCheck.Checked,
+            EnableRemoteSubmitWhilePreprocessing = _remoteSubmitWhilePreprocessingCheck.Checked,
+            EnableRemoteSubmitWhileTextDisplayed = _remoteSubmitWhileTextDisplayedCheck.Checked,
+            EnableRemoteSubmitWhileCountdown = _remoteSubmitWhileCountdownCheck.Checked,
+            EnableRemoteSubmitWhileIdle = _remoteSubmitWhileIdleCheck.Checked,
+            EnableRemoteActivateWhileListening = _remoteActivateWhileListeningCheck.Checked,
+            EnableRemoteActivateWhilePreprocessing = _remoteActivateWhilePreprocessingCheck.Checked,
+            EnableRemoteActivateWhileTextDisplayed = _remoteActivateWhileTextDisplayedCheck.Checked,
+            EnableRemoteActivateWhileCountdown = _remoteActivateWhileCountdownCheck.Checked,
+            EnableRemoteActivateWhileIdle = _remoteActivateWhileIdleCheck.Checked,
+            EnableRemoteCloseWhileListening = _remoteCloseWhileListeningCheck.Checked,
+            EnableRemoteCloseWhilePreprocessing = _remoteCloseWhilePreprocessingCheck.Checked,
+            EnableRemoteCloseWhileTextDisplayed = _remoteCloseWhileTextDisplayedCheck.Checked,
+            EnableRemoteCloseWhileCountdown = _remoteCloseWhileCountdownCheck.Checked,
+            EnableRemoteCloseWhileIdle = _remoteCloseWhileIdleCheck.Checked,
             EnablePastedTextPrefix = _enablePastedTextPrefixCheck.Checked,
             PastedTextPrefix = _pastedTextPrefixTextBox.Text,
             EnableTranscriptionPrompt = _enableTranscriptionPromptCheck.Checked,

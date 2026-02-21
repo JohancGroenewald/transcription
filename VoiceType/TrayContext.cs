@@ -550,11 +550,14 @@ public class TrayContext : ApplicationContext
             };
             Log.Info("Opening settings dialog.");
             dlg.ShowDialog();
+            var settingsSaved = dlg.DialogResult == DialogResult.OK;
             PersistSettingsWindowPlacementForVersion2(dlg, settingsFormVersion, config);
             CancelPendingTranscribedPreviewFromSettings();
             LoadTranscriptionService();
             RefreshHotkeyRegistration();
             SetReadyState();
+            if (settingsSaved)
+                ConfigureRemoteCommandBindings();
             RestoreHiddenStackOnReactivation();
             if (restorePreviousFocus)
                 RestorePreviousFocus(previousForegroundWindow, settingsWindow);
@@ -997,62 +1000,135 @@ public class TrayContext : ApplicationContext
             isRecording: _isRecording,
             isTranscribing: _isTranscribing,
             isTranscribedPreviewActive: _previewCoordinator.IsActive,
+            isAutoSubmitCountdownActive: _previewCoordinator.IsActive,
             isShutdownRequested: _shutdownRequested,
             isShuttingDown: _isShuttingDown);
     }
 
     private void ConfigureRemoteCommandBindings()
     {
+        var config = AppConfig.Load();
         _remoteCommandManager.ClearBindings();
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "listen-preview-paste-without-send",
             command: RemoteCommandKind.Listen,
-            canHandle: state => state.CanHandleRemoteCommands && state.IsTranscribedPreviewActive,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: false,
+                    preprocessingAllowed: false,
+                    textDisplayedAllowed: config.EnableRemoteListenWhileTextDisplayed,
+                    countdownAllowed: config.EnableRemoteListenWhileCountdown,
+                    idleAllowed: false),
             execute: HandleRemoteListenCommand,
             priority: 100));
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "listen-default",
             command: RemoteCommandKind.Listen,
-            canHandle: state => state.CanHandleRemoteCommands,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: config.EnableRemoteListenWhileListening,
+                    preprocessingAllowed: config.EnableRemoteListenWhilePreprocessing,
+                    textDisplayedAllowed: false,
+                    countdownAllowed: false,
+                    idleAllowed: config.EnableRemoteListenWhileIdle),
             execute: HandleRemoteListenCommand,
             priority: 0));
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "submit-recording-cancel",
             command: RemoteCommandKind.Submit,
-            canHandle: state => state.CanHandleRemoteCommands && state.IsRecording,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: config.EnableRemoteSubmitWhileListening,
+                    preprocessingAllowed: false,
+                    textDisplayedAllowed: false,
+                    countdownAllowed: false,
+                    idleAllowed: false),
             execute: HandleRemoteSubmitCommandWhileRecording,
             priority: 110));
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "submit-preview-paste-without-send",
             command: RemoteCommandKind.Submit,
-            canHandle: state => state.CanHandleRemoteCommands && state.IsTranscribedPreviewActive,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: false,
+                    preprocessingAllowed: false,
+                    textDisplayedAllowed: config.EnableRemoteSubmitWhileTextDisplayed,
+                    countdownAllowed: config.EnableRemoteSubmitWhileCountdown,
+                    idleAllowed: false),
             execute: HandleRemoteSubmitCommandDuringPreview,
             priority: 100));
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "submit-default",
             command: RemoteCommandKind.Submit,
-            canHandle: state => state.CanHandleRemoteCommands,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: false,
+                    preprocessingAllowed: config.EnableRemoteSubmitWhilePreprocessing,
+                    textDisplayedAllowed: false,
+                    countdownAllowed: false,
+                    idleAllowed: config.EnableRemoteSubmitWhileIdle),
             execute: HandleRemoteSubmitCommand,
             priority: 0));
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "activate-via-listen",
             command: RemoteCommandKind.Activate,
-            canHandle: state => state.CanHandleRemoteCommands,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: config.EnableRemoteActivateWhileListening,
+                    preprocessingAllowed: config.EnableRemoteActivateWhilePreprocessing,
+                    textDisplayedAllowed: config.EnableRemoteActivateWhileTextDisplayed,
+                    countdownAllowed: config.EnableRemoteActivateWhileCountdown,
+                    idleAllowed: config.EnableRemoteActivateWhileIdle),
             execute: HandleRemoteActivateCommand,
             priority: 0));
 
         _remoteCommandManager.RegisterBinding(new RemoteCommandBinding(
             id: "close-default",
             command: RemoteCommandKind.Close,
-            canHandle: state => true,
+            canHandle: state =>
+                state.CanHandleRemoteCommands &&
+                IsRemoteCommandAllowedInState(
+                    state,
+                    listeningAllowed: config.EnableRemoteCloseWhileListening,
+                    preprocessingAllowed: config.EnableRemoteCloseWhilePreprocessing,
+                    textDisplayedAllowed: config.EnableRemoteCloseWhileTextDisplayed,
+                    countdownAllowed: config.EnableRemoteCloseWhileCountdown,
+                    idleAllowed: config.EnableRemoteCloseWhileIdle),
             execute: HandleRemoteCloseCommand,
             priority: 0));
+    }
+
+    private static bool IsRemoteCommandAllowedInState(
+        RemoteCommandState state,
+        bool listeningAllowed,
+        bool preprocessingAllowed,
+        bool textDisplayedAllowed,
+        bool countdownAllowed,
+        bool idleAllowed)
+    {
+        return (state.IsListening && listeningAllowed) ||
+               (state.IsPreprocessing && preprocessingAllowed) ||
+               (state.IsTextDisplayed && textDisplayedAllowed) ||
+               (state.IsAutoSubmitCountdownActive && countdownAllowed) ||
+               (state.IsIdle && idleAllowed);
     }
 
     private bool HandleRemoteListenCommand(RemoteCommandInvocation invocation, RemoteCommandState state)
