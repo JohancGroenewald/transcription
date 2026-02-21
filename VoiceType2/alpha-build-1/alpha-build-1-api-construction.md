@@ -7,15 +7,17 @@ Build a minimal but production-ready internal API runtime first, with clear star
 ## 2) Project layout for day one
 
 ```text
-VoiceType2/
-  VoiceType2.ApiHost/           # ASP.NET Core API + host startup
-  VoiceType2.Core/              # Domain contracts + policies + session state
-  VoiceType2.Infrastructure/    # Internal provider clients + transport
-  VoiceType2.App.Cli/           # CLI orchestrator (uses API, separate doc)
+VoiceType2/alpha-build-1/
+  src/VoiceType2.Core/             # Domain contracts + policies + session state
+  src/VoiceType2.Infrastructure/    # Internal provider clients + transport
+  src/VoiceType2.ApiHost/          # ASP.NET Core API + host startup
+  src/VoiceType2.App.Cli/          # CLI orchestrator (uses API, separate doc)
+  scripts/                         # Build and run helpers
+  RuntimeConfig.sample.json        # Runtime defaults used by docs and runtime defaults
 ```
 
 - Keep app and infra concerns out of the API host; orchestrators are clients, not co-resident UI.
-- Keep contracts in `VoiceType2.Core` and versioned.
+- Keep contracts in `src/VoiceType2.Core` and versioned.
 
 ## 3) API responsibility boundaries
 
@@ -186,18 +188,51 @@ All failures return:
 ## 11) Build and run commands for Alpha Build 1
 
 ```text
-dotnet run --project VoiceType2.ApiHost --configuration Debug -- --mode service --urls "http://127.0.0.1:5240" --config VoiceType2/config/RuntimeConfig.json
-dotnet run --project VoiceType2.ApiHost -- --mode service --urls "http://127.0.0.1:5240" --host-mode service --environment Development
-dotnet run --project VoiceType2.ApiHost -- --mode service --urls "http://127.0.0.1:5240" --help
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj --configuration Debug -- --mode service --urls "http://127.0.0.1:5240" --config "VoiceType2/alpha-build-1/RuntimeConfig.sample.json"
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240" --environment Development
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240" --help
 
-dotnet run --project VoiceType2.App.Cli --configuration Debug -- api run --api-url "http://127.0.0.1:5240" --api-token "<token>"
-dotnet run --project VoiceType2.App.Cli -- --status --api-url "http://127.0.0.1:5240"
-dotnet run --project VoiceType2.App.Cli -- --session start --api-url "http://127.0.0.1:5240"
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj --configuration Debug -- run --api-url "http://127.0.0.1:5240"
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- status --session-id "<session-id>" --api-url "http://127.0.0.1:5240"
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- resolve submit --session-id "<session-id>" --api-url "http://127.0.0.1:5240"
 ```
 
-CLI-driven API control target for alpha:
+CLI-driven API control target for alpha (planned):
 
 - `vt2-api start --mode service --urls "http://127.0.0.1:5240"`
 - `vt2-api stop --graceful-timeout-ms 15000`
 - `vt2-api status`
 - `vt2-api sessions list`
+
+In the current Alpha-1 scaffold, startup and readiness are currently validated via:
+
+- `vt2 api` (probes the configured `/health/ready`)
+
+## 12) Alpha 1 one-command bootstrap (recommended sequence)
+
+From the repository root:
+
+```powershell
+dotnet build VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -c Debug
+dotnet build VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -c Debug
+
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240"
+```
+
+Then in another terminal:
+
+```powershell
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- run --api-url "http://127.0.0.1:5240"
+```
+
+## 13) Alpha 1 testing strategy (implemented now, expandable in Alpha 1+)
+
+- Unit: `ApiSessionClient` request/response and SSE parsing (newly added in `tests/VoiceType2.Alpha1.Tests`).
+- API-only smoke: start API host, register session, start/stop, and assert terminal state transitions.
+- Orchestrator smoke: CLI help and command wiring remains part of subsequent alpha increments once managed launch mode is fully implemented.
+
+Preferred command:
+
+```powershell
+.\scripts\test-alpha1.ps1 -Configuration Debug
+```

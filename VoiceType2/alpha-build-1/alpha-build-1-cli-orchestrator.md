@@ -103,16 +103,21 @@ Suggested CLI command behavior:
 
 ## 5) Command set and API management (alpha)
 
+For the Alpha-1 kickoff scaffold, the implementation currently supports a subset of the final contract.
+Use the command list below as the runtime behavior target now, and the rest as post-Alpha-1 expansion.
+
 - `vt2`:
   - interactive default when no command is supplied
 - `vt2 run --mode attach|managed`:
   - start interactive loop and register session
 - `vt2 status`:
-  - request API ready state and current session count
+  - interactive status display when used from run loop
 - `vt2 stop`:
-  - request session stop
-- `vt2 resolve submit|cancel|retry`:
+  - request session stop (requires `--session-id` when used outside run loop)
+- `vt2 resolve submit|cancel|retry --session-id <id>`:
   - send `POST /v1/sessions/{id}/resolve`
+Planned (not yet in the current scaffold):
+
 - `vt2 api start [--port] [--urls]`:
   - management command to start local API (managed mode default in alpha)
 - `vt2 api stop`:
@@ -143,15 +148,17 @@ Rules:
 
 ## 7) CLI command set (alpha)
 
-- `vt2 run --mode headless|interactive`
-- `vt2 start`
+- `vt2 run`
 - `vt2 stop`
 - `vt2 status`
-- `vt2 submit`
-- `vt2 cancel`
-- `vt2 retry`
+- `vt2 resolve submit|cancel|retry`
 - `vt2 config show`
 - `vt2 exit`
+
+Notes:
+
+- For the current scaffold, `start`, `submit`, `cancel`, and `retry` are intentionally implemented in the interactive `run` loop and as `resolve` command aliases (`resolve submit|cancel|retry`).
+- `stop`, `status`, and `resolve` are available as top-level commands.
 
 ## 8) Input and rendering contract
 
@@ -215,3 +222,8 @@ public sealed class CliOrchestrator : IOrchestrator
 - `submit/cancel/retry` resolves and returns deterministic status.
 - CLI can run headless (no tray/hotkey dependencies).
 - `stop` and `status` remain valid in every non-terminal state.
+
+Recommended verification:
+
+- `dotnet test VoiceType2/alpha-build-1/tests/VoiceType2.Alpha1.Tests/VoiceType2.Alpha1.Tests.csproj`
+- `.\scripts\test-alpha1.ps1 -Configuration Debug`

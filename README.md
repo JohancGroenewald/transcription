@@ -35,9 +35,28 @@ VoiceType2 Alpha (new API-first architecture) planning and build documents:
 ```powershell
 Get-ChildItem .\VoiceType2
 
-dotnet restore VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj
-dotnet build VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -c Debug
-dotnet run --project VoiceType2/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240"
+dotnet restore VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj
+dotnet build VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -c Debug
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service --urls "http://127.0.0.1:5240"
+```
+
+Build both Alpha 1 projects:
+
+```powershell
+dotnet build VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -c Debug
+dotnet build VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -c Debug
+```
+
+Shortcut bootstrap script:
+
+```powershell
+.\VoiceType2\alpha-build-1\scripts\run-alpha1-all.ps1 -Configuration Debug
+```
+
+Alpha 1 test sweep (unit + smoke):
+
+```powershell
+.\VoiceType2\alpha-build-1\scripts\test-alpha1.ps1 -Configuration Debug
 ```
 
 Design docs for this build:
