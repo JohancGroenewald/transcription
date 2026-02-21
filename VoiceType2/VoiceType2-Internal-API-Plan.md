@@ -250,20 +250,20 @@ flowchart TB
     end
 
     subgraph "Session A"
-        orchAStart["Windows Tray Orchestrator\n(session: A)"]
-        platformA["PlatformAdapter.Windows\nhotkey + tray + overlay + clipboard"]
+        orchAStart["Windows Tray Orchestrator<br/>(session: A)"]
+        platformA["PlatformAdapter.Windows<br/>hotkey + tray + overlay + clipboard"]
         sessionAFlow["Session A state machine"]
     end
 
     subgraph "Session B"
-        orchBStart["CLI Orchestrator\n(session: B)"]
-        platformB["PlatformAdapter.Null/TTY\nstdin/stdout + args + logs"]
+        orchBStart["CLI Orchestrator<br/>(session: B)"]
+        platformB["PlatformAdapter.Null/TTY<br/>stdin/stdout + args + logs"]
         sessionBFlow["Session B state machine"]
     end
 
     subgraph "Session C"
-        orchCStart["Frontend Orchestrator\n(session: C)"]
-        platformC["PlatformAdapter.Web\nRPC + local auth"]
+        orchCStart["Frontend Orchestrator<br/>(session: C)"]
+        platformC["PlatformAdapter.Web<br/>RPC + local auth"]
         sessionCFlow["Session C state machine"]
     end
 
@@ -430,10 +430,10 @@ A small shared schema defines how API and orchestrator agree on behavior.
 ```mermaid
 flowchart TB
     %% Ownership and merge boundaries for runtime config
-    apiCfg["RuntimeConfig file\n(API service owner)"] --> apiMerge["RuntimeConfig merge and validation"]
-    orchCfg["OrchestratorConfig file\n(orchestrator owner)"] --> orchMerge["OrchestratorConfig merge and validation"]
-    sharedSchema["Shared contract schema\n(API + orchestrators)"] --> schemaMerge["Contract version check"]
-    envCfg["Environment overrides\n(least/most? define policy)"] --> envMerge["Environment overlay"]
+    apiCfg["RuntimeConfig file<br/>(API service owner)"] --> apiMerge["RuntimeConfig merge and validation"]
+    orchCfg["OrchestratorConfig file<br/>(orchestrator owner)"] --> orchMerge["OrchestratorConfig merge and validation"]
+    sharedSchema["Shared contract schema<br/>(API + orchestrators)"] --> schemaMerge["Contract version check"]
+    envCfg["Environment overrides<br/>(least/most? define policy)"] --> envMerge["Environment overlay"]
 
     apiMerge --> finalRuntime["Runtime effective config"]
     orchMerge --> finalOrchestrator["Orchestrator effective config"]
