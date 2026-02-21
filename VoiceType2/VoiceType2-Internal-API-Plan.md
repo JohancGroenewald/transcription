@@ -30,21 +30,21 @@ Constraints that matter for migration:
 
 ## 2) VoiceType2 objective
 
-Create a second version that keeps UX behavior and orchestration, while moving speech recognition behind an internal API contract in C#.
+Build a new standalone version of the app with the same user goals as VoiceType, while implementing everything in a clean-room C# architecture.
 
 Primary goals:
 
 - Preserve user-facing behavior (tray lifecycle, hotkeys, overlay, preview, injection, commands).
-- Replace direct OpenAI SDK calls with an internal API abstraction.
-- Keep a migration-safe compatibility path from VoiceType -> VoiceType2.
+- Put transcription behind an internal API abstraction from day one.
 - Maintain testability with injected fake transport clients.
+- Keep VoiceType2 independent from VoiceType1 runtime, startup flow, and transport implementation.
 
 ## 3) Recommended C# architecture (for `VoiceType2`)
 
 ### 3.1 Layered design
 
 - `VoiceType2.App` (WinForms host)
-  - Reuse much of existing tray/window/event pattern from `VoiceType/TrayContext.cs`.
+  - Implement independently with lessons learned from VoiceType.
   - Keep Windows-specific concerns in this layer.
 - `VoiceType2.Core`
   - Audio pipeline interfaces
@@ -59,6 +59,56 @@ Primary goals:
   - Config model extension for internal API endpoint/auth
 - `VoiceType2.Infrastructure.TestDoubles`
   - Mock/fake implementations for integration-less tests.
+
+### 3.1.1 Internal API data flow (Mermaid)
+
+```mermaid
+flowchart LR
+    subgraph "VoiceType2.App"
+        appStart["App startup and dependency wiring"]
+        hotkeys["Global hotkeys and tray actions"]
+        overlay["Overlay/popup coordinator"]
+        injector["Clipboard/text injection"]
+    end
+
+    subgraph "VoiceType2.Core"
+        capture["Audio capture service"]
+        codec["Audio buffer writer (WAV)"]
+        preview["Preview coordinator"]
+        parser["Voice command parser"]
+        sanitizer["Response sanitizer (prompt + directives)"]
+        requestModel["Transcription request model"]
+        resultModel["Transcription result model"]
+        contract["ITranscriptionProvider interface"]
+    end
+
+    subgraph "VoiceType2.Infrastructure"
+        provider["InternalApiTranscriptionProvider"]
+        auth["Auth handler (API key / bearer / mTLS)"]
+        transport["HttpClient transport"]
+        retry["Retry and timeout policy"]
+        endpoint["Internal API endpoint"]
+        testDoubles["Mock/Stub provider implementations"]
+    end
+
+    hotkeys --> capture
+    capture --> codec
+    codec --> contract
+    contract -->|"StartTranscription(correlationId, request)"| provider
+    provider --> auth
+    auth --> transport
+    transport --> retry
+    retry --> endpoint
+    endpoint -->|"Result text + metadata"| resultModel
+    resultModel --> sanitizer
+    sanitizer --> preview
+    preview --> overlay
+    preview --> injector
+    preview --> parser
+    parser --> appStart
+    testDoubles --> contract
+    requestModel --> contract
+```
 
 ### 3.2 Core interface contract
 
@@ -88,8 +138,6 @@ public sealed record TranscriptionOptions(
     int? MaxTokens = null);
 ```
 
-`VoiceType/TranscriptionService.cs` becomes a legacy implementation of `ITranscriptionProvider`, enabling phased migration.
-
 ### 3.3 Internal API implementation concept
 
 - `InternalApiTranscriptionProvider : ITranscriptionProvider`
@@ -110,29 +158,28 @@ Use retry policy (e.g. `HttpClient` + exponential backoff) and strict timeout ar
 
 Add to `AppConfig` in VoiceType2:
 
-- `TranscriptionProvider` (`"OpenAI"` | `"InternalApi"`)
+- `TranscriptionProvider` (`"InternalApi"` | `"Mock"` | `"Stub"`)
 - `InternalApiBaseUrl`
 - `InternalApiApiPath`
 - `InternalApiAuthMode` (`"apikey"` / `"bearer"` / `"none"`)
 - `InternalApiApiKeyOrToken` (stored using DPAPI semantics, same model as current `ApiKey`)
 - `InternalApiTimeoutMs`
-- `EnableInternalProviderFallback` (optional)
 
 Behavior:
 
 - If provider is `InternalApi`, instantiate `InternalApiTranscriptionProvider`.
-- Keep legacy `TranscriptionService` path as fallback mode.
+- If provider is `Mock`/`Stub`, inject test implementations from configuration.
 - Preserve existing prompt and audio normalization behavior.
 
 ## 5) Migration plan (practical 5-phase path)
 
 1. **Scaffold VoiceType2**
    - Create `VoiceType2` solution folder with `VoiceType2.Core`, `VoiceType2.App`, `VoiceType2.Infrastructure`.
-   - Copy existing project setup and shared models/logging helpers as required.
+   - Keep shared helpers only if explicitly extracted to avoid coupling to VoiceType1.
 2. **Introduce provider abstraction**
    - Implement `ITranscriptionProvider`.
-   - Move current OpenAI implementation to `LegacyOpenAiTranscriptionProvider`.
-   - Refactor `TrayContext` logic to call abstraction only.
+   - Build a fresh transcription flow around the interface.
+   - Refactor host logic to call abstraction only.
 3. **Build internal API client**
    - Add `HttpClient` typed client, options, auth handler, request/response DTOs.
    - Add retry and timeout policy.
@@ -140,15 +187,15 @@ Behavior:
 4. **Configuration + runtime behavior**
    - Add config schema + migration defaults.
    - Add provider selection startup validation.
-   - Provide runtime failover (internal API first; optional fallback to legacy path).
+   - Fail fast for unsupported provider modes, except when running in explicit test/fallback stubs.
 5. **Verification + cutover**
-   - Port existing tests and add provider tests (contract + error handling).
+   - Add VoiceType2 unit/integration tests with provider/test doubles.
    - Add end-to-end smoke checks for:
      - hotkey start/stop,
      - silence/short clip handling,
      - preview cancel/submit,
      - injection path.
-   - Run legacy behavior side-by-side for one release cycle before deprecating old path.
+   - Validate against your internal API contract before broad rollout.
 
 ## 6) Risks and controls
 
@@ -163,7 +210,7 @@ Behavior:
 By splitting VoiceType2 around `ITranscriptionProvider`, you get:
 
 - zero rewrite of UI/hotkey/overlay/paste flow,
-- a clean migration path away from vendor SDK lock-in,
-- and a controlled rollout where internal API can be replaced later without rewriting the host again.
+- a clean separation between host and transcription transport,
+- and a system that is independent of VoiceType1 design debt.
 
 The first deliverable is this design + minimal refactor pass to get abstraction points in place; productionization is then incremental.
