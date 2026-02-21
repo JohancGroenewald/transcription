@@ -220,7 +220,7 @@ public class OverlayForm : Form
         BackColor = TransparentOverlayBackgroundColor;
         TransparencyKey = TransparentOverlayBackgroundColor;
         ForeColor = DefaultTextColor;
-        Opacity = 1.0;
+        SafeSetOpacity(1.0);
         Size = new Size(620, MinOverlayHeight);
         Padding = new Padding(18, 10, 18, 10);
 
@@ -461,12 +461,15 @@ public class OverlayForm : Form
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
+        if (Disposing || IsDisposed)
+            return;
+
         if (!Visible)
         {
-            _hideTimer.Stop();
-            _fadeTimer.Stop();
-            _countdownTimer.Stop();
-            Opacity = 1.0;
+            SafeStopTimer(_hideTimer);
+            SafeStopTimer(_fadeTimer);
+            SafeStopTimer(_countdownTimer);
+            SafeSetOpacity(1.0);
             ClearMouseOverState();
             _hideTimerMessageId = 0;
             _fadeMessageId = 0;
@@ -503,6 +506,33 @@ public class OverlayForm : Form
             _showCopyTapFeedbackBorder = false;
             _activeBorderColor = BorderColor;
             ResetTapToCancel();
+        }
+    }
+
+    private static void SafeStopTimer(System.Windows.Forms.Timer timer)
+    {
+        try
+        {
+            timer.Stop();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Ignore best-effort cleanup when control is being torn down.
+        }
+    }
+
+    private void SafeSetOpacity(double opacity)
+    {
+        if (Disposing || IsDisposed)
+            return;
+
+        try
+        {
+            Opacity = opacity;
+        }
+        catch (ObjectDisposedException)
+        {
+            // Ignore best-effort cleanup when form is already disposed.
         }
     }
 
@@ -726,7 +756,7 @@ public class OverlayForm : Form
             if (autoPosition)
                 PositionOnScreen(workingArea);
 
-            Opacity = 1.0;
+            SafeSetOpacity(1.0);
             _countdownTimer.Stop();
             _hideTimer.Stop();
             _fadeTimer.Stop();
@@ -750,7 +780,7 @@ public class OverlayForm : Form
         if (!wasVisible)
         {
             // Reveal only after the new frame is painted to avoid stale-buffer flashes.
-            Opacity = 0;
+            SafeSetOpacity(0);
             Show();
         }
 
@@ -758,7 +788,7 @@ public class OverlayForm : Form
         Update();
 
         if (!wasVisible)
-            Opacity = 1.0;
+            SafeSetOpacity(1.0);
 
         // Reassert topmost without activating when newly shown.
         if (!wasVisible)
@@ -819,7 +849,7 @@ public class OverlayForm : Form
         _showOverlayBorder = showBorder;
         _overlayBackgroundMode = AppConfig.NormalizeOverlayBackgroundMode(overlayBackgroundMode);
         _baseOpacity = AppConfig.NormalizeOverlayOpacityPercent(opacityPercent) / 100.0;
-        Opacity = 1.0;
+        SafeSetOpacity(1.0);
 
         var oldFont = _label.Font;
         _label.Font = CreateOverlayFont(_overlayFontSizePt, FontStyle.Bold);
@@ -853,9 +883,9 @@ public class OverlayForm : Form
         TransparencyKey = shouldShowContrastBackground
             ? Color.Empty
             : TransparentOverlayBackgroundColor;
-        Opacity = shouldShowContrastBackground
+        SafeSetOpacity(shouldShowContrastBackground
             ? 1.0
-            : _baseOpacity;
+            : _baseOpacity);
         Invalidate();
     }
 
@@ -2338,7 +2368,7 @@ public class OverlayForm : Form
             return;
         }
 
-        Opacity = nextOpacity;
+        SafeSetOpacity(nextOpacity);
         Invalidate();
     }
 
