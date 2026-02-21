@@ -46,14 +46,14 @@ flowchart TD
 
 ## 5) Session lifecycle API (alpha)
 
-| Method | Path | Responsibility | Notes |
-| --- | --- | --- | --- |
-| `POST` | `/v1/sessions` | register orchestrator session | returns `sessionId`, `orchestratorToken` |
-| `GET` | `/v1/sessions/{sessionId}` | read current status | state + capabilities + errors |
-| `POST` | `/v1/sessions/{sessionId}/start` | begin capture + transcription | idempotent for active sessions |
-| `POST` | `/v1/sessions/{sessionId}/stop` | stop capture | returns final status |
-| `POST` | `/v1/sessions/{sessionId}/resolve` | apply user decision | actions: `submit`, `cancel`, `retry` |
-| `GET` | `/v1/sessions/{sessionId}/events` | SSE or WS stream | transcript/status/error events |
+| Method | Path                               | Responsibility                | Notes                                    |
+|--------|------------------------------------|-------------------------------|------------------------------------------|
+| `POST` | `/v1/sessions`                     | register orchestrator session | returns `sessionId`, `orchestratorToken` |
+| `GET`  | `/v1/sessions/{sessionId}`         | read current status           | state + capabilities + errors            |
+| `POST` | `/v1/sessions/{sessionId}/start`   | begin capture + transcription | idempotent for active sessions           |
+| `POST` | `/v1/sessions/{sessionId}/stop`    | stop capture                  | returns final status                     |
+| `POST` | `/v1/sessions/{sessionId}/resolve` | apply user decision           | actions: `submit`, `cancel`, `retry`     |
+| `GET`  | `/v1/sessions/{sessionId}/events`  | SSE or WS stream              | transcript/status/error events           |
 
 ### 5.1 Canonical request/response models
 
