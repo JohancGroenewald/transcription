@@ -2,16 +2,54 @@ using System.Text.Json;
 using VoiceType2.ApiHost.Services;
 using VoiceType2.Core.Contracts;
 
-var builder = WebApplication.CreateBuilder(args);
+var options = ApiHostOptions.Parse(args);
 
+if (options.ShowHelp)
+{
+    PrintUsage();
+    return;
+}
+
+if (!string.Equals(options.Mode, "service", StringComparison.OrdinalIgnoreCase))
+{
+    Console.Error.WriteLine($"Unsupported mode '{options.Mode}'. Supported mode: service.");
+    Environment.ExitCode = 1;
+    return;
+}
+
+RuntimeConfig config;
+try
+{
+    config = options.ConfigPath is null
+        ? new RuntimeConfig()
+        : RuntimeConfig.Load(options.ConfigPath);
+    if (!string.IsNullOrWhiteSpace(options.Urls))
+    {
+        config.HostBinding.Urls = options.Urls;
+    }
+
+    config.Validate();
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Failed to load runtime config: {ex.Message}");
+    Environment.ExitCode = 1;
+    return;
+}
+
+var builder = WebApplication.CreateBuilder(Array.Empty<string>());
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options =>
 {
     options.TimestampFormat = "HH:mm:ss ";
 });
 
+builder.Services.AddSingleton(config);
+builder.Services.AddSingleton(config.SessionPolicy);
 builder.Services.AddSingleton<SessionService>();
 builder.Services.AddSingleton<SessionEventBus>();
+
+builder.WebHost.UseUrls(config.HostBinding.Urls);
 
 var app = builder.Build();
 
@@ -28,34 +66,55 @@ app.MapGet("/health/ready", (SessionService sessions) => Results.Ok(new
     timestamp = DateTimeOffset.UtcNow
 }));
 
-app.MapPost("/v1/sessions", async (RegisterSessionRequest request, SessionService sessions, SessionEventBus eventBus, HttpContext context) =>
+app.MapPost("/v1/sessions", async (
+    RegisterSessionRequest request,
+    SessionService sessions,
+    SessionEventBus eventBus,
+    HttpContext context) =>
 {
+    RunHousekeeping(sessions, eventBus);
     request ??= new RegisterSessionRequest();
+    var requestCorrelationId = string.IsNullOrWhiteSpace(request.CorrelationId)
+        ? $"corr-{Guid.NewGuid():N}"
+        : request.CorrelationId;
 
-    var session = await sessions.CreateAsync(request, context.RequestAborted);
-    await eventBus.PublishAsync(session.SessionId, new SessionEventEnvelope
+    try
     {
-        EventType = "status",
-        SessionId = session.SessionId,
-        CorrelationId = session.CorrelationId,
-        State = session.State.ToString(),
-        Text = "registered"
-    }, context.RequestAborted);
+        var session = await sessions.CreateAsync(request, context.RequestAborted);
+        await eventBus.PublishAsync(session.SessionId, new SessionEventEnvelope
+        {
+            EventType = "status",
+            SessionId = session.SessionId,
+            CorrelationId = session.CorrelationId,
+            State = session.State.ToString(),
+            Text = "registered"
+        }, context.RequestAborted);
 
-    return Results.Ok(new SessionCreatedResponse
+        return Results.Ok(new SessionCreatedResponse
+        {
+            SessionId = session.SessionId,
+            OrchestratorToken = session.OrchestratorToken,
+            State = session.State.ToString(),
+            CorrelationId = session.CorrelationId
+        });
+    }
+    catch (SessionServiceException ex)
     {
-        SessionId = session.SessionId,
-        OrchestratorToken = session.OrchestratorToken,
-        State = session.State.ToString(),
-        CorrelationId = session.CorrelationId
-    });
+        return Problem(ex.StatusCode, ex.ErrorCode, ex.Detail, requestCorrelationId);
+    }
 });
 
-app.MapGet("/v1/sessions/{sessionId}", (string sessionId, SessionService sessions) =>
+app.MapGet("/v1/sessions/{sessionId}", (string sessionId, HttpContext context, SessionService sessions) =>
 {
+    RunHousekeeping(sessions, null);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
+    }
+
+    if (!IsAuthorized(context, session))
+    {
+        return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
     }
 
     return Results.Ok(new SessionStatusResponse
@@ -75,6 +134,7 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
     SessionEventBus eventBus,
     CancellationToken ct) =>
 {
+    RunHousekeeping(sessions, eventBus);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
@@ -83,6 +143,17 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
     if (!IsAuthorized(context, session))
     {
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
+    }
+
+    if (session.State is SessionState.Listening or SessionState.Running)
+    {
+        return Results.Ok(new SessionStatusResponse
+        {
+            SessionId = session.SessionId,
+            State = session.State.ToString(),
+            CorrelationId = session.CorrelationId,
+            LastEvent = "already-listening"
+        });
     }
 
     var transitioned = await sessions.TryTransitionAsync(
@@ -125,6 +196,7 @@ app.MapPost("/v1/sessions/{sessionId}/stop", async (
     SessionEventBus eventBus,
     CancellationToken ct) =>
 {
+    RunHousekeeping(sessions, eventBus);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
@@ -133,6 +205,17 @@ app.MapPost("/v1/sessions/{sessionId}/stop", async (
     if (!IsAuthorized(context, session))
     {
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
+    }
+
+    if (session.State == SessionState.Stopped)
+    {
+        return Results.Ok(new SessionStatusResponse
+        {
+            SessionId = session.SessionId,
+            State = SessionState.Stopped.ToString(),
+            CorrelationId = session.CorrelationId,
+            LastEvent = session.LastEvent
+        });
     }
 
     var transitioned = await sessions.TryTransitionAsync(
@@ -175,14 +258,7 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
     SessionEventBus eventBus,
     CancellationToken ct) =>
 {
-    request ??= new ResolveRequest();
-    var action = request.Action?.Trim().ToLowerInvariant();
-
-    if (string.IsNullOrWhiteSpace(action))
-    {
-        return Problem(400, "INVALID_RESOLVE", "Resolve action is required.");
-    }
-
+    RunHousekeeping(sessions, eventBus);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
@@ -193,7 +269,15 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
     }
 
-    SessionState finalState = action switch
+    request ??= new ResolveRequest();
+    var action = request.Action?.Trim().ToLowerInvariant();
+
+    if (string.IsNullOrWhiteSpace(action))
+    {
+        return Problem(400, "INVALID_RESOLVE", "Resolve action is required.");
+    }
+
+    var finalState = action switch
     {
         "submit" => SessionState.Completed,
         "cancel" => SessionState.Completed,
@@ -253,35 +337,16 @@ app.MapGet("/v1/sessions/{sessionId}/events", async (
     SessionEventBus eventBus,
     CancellationToken ct) =>
 {
+    RunHousekeeping(sessions, eventBus);
     if (!sessions.TryGet(sessionId, out var session))
     {
-        context.Response.StatusCode = 404;
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new ErrorEnvelope
-        {
-            Type = "about:blank",
-            Title = "SESSION_NOT_FOUND",
-            Status = 404,
-            Detail = "Session not found.",
-            ErrorCode = "SESSION_NOT_FOUND",
-            SessionId = sessionId
-        });
+        await WriteProblemResponseAsync(context, 404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
         return;
     }
 
     if (!IsAuthorized(context, session))
     {
-        context.Response.StatusCode = 401;
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new ErrorEnvelope
-        {
-            Type = "about:blank",
-            Title = "INVALID_TOKEN",
-            Status = 401,
-            Detail = "Missing or invalid orchestrator token.",
-            ErrorCode = "INVALID_TOKEN",
-            SessionId = sessionId
-        });
+        await WriteProblemResponseAsync(context, 401, "INVALID_TOKEN", "Missing or invalid orchestrator token.", sessionId);
         return;
     }
 
@@ -318,6 +383,20 @@ static bool IsAuthorized(HttpContext context, SessionRecord session)
     return string.Equals(token, session.OrchestratorToken, StringComparison.Ordinal);
 }
 
+static void RunHousekeeping(SessionService sessions, SessionEventBus? eventBus)
+{
+    var expired = sessions.CleanupExpiredSessions(DateTimeOffset.UtcNow);
+    if (eventBus is null || expired.Count == 0)
+    {
+        return;
+    }
+
+    foreach (var expiredSessionId in expired)
+    {
+        eventBus.Complete(expiredSessionId);
+    }
+}
+
 static IResult Problem(
     int status,
     string code,
@@ -333,6 +412,28 @@ static IResult Problem(
     SessionId = sessionId,
     CorrelationId = correlationId
 }, statusCode: status);
+
+static async Task WriteProblemResponseAsync(
+    HttpContext context,
+    int status,
+    string code,
+    string detail,
+    string? sessionId = null,
+    string? correlationId = null)
+{
+    context.Response.StatusCode = status;
+    context.Response.ContentType = "application/json";
+    await context.Response.WriteAsJsonAsync(new ErrorEnvelope
+    {
+        Type = "about:blank",
+        Title = code,
+        Status = status,
+        Detail = detail,
+        ErrorCode = code,
+        SessionId = sessionId,
+        CorrelationId = correlationId
+    });
+}
 
 static async Task WriteSseEventAsync(HttpContext context, SessionEventEnvelope envelope, CancellationToken ct)
 {
@@ -404,3 +505,74 @@ static async Task SimulateTranscriptionAsync(
     {
     }
 }
+
+static void PrintUsage()
+{
+    Console.WriteLine("VoiceType2 API Host (Alpha 1)");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  dotnet run --project VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service [--urls <url>] [--config <path>] [--help]");
+}
+
+public sealed class ApiHostOptions
+{
+    private ApiHostOptions(string mode, string? urls, string? configPath, bool showHelp)
+    {
+        Mode = mode;
+        Urls = urls;
+        ConfigPath = configPath;
+        ShowHelp = showHelp;
+    }
+
+    public string Mode { get; }
+    public string? Urls { get; }
+    public string? ConfigPath { get; }
+    public bool ShowHelp { get; }
+
+    public static ApiHostOptions Parse(string[] args)
+    {
+        var mode = "service";
+        string? urls = null;
+        string? configPath = null;
+        var showHelp = false;
+
+        var i = 0;
+        while (i < args.Length)
+        {
+            var current = args[i];
+            if (string.Equals(current, "--help", StringComparison.OrdinalIgnoreCase) || string.Equals(current, "-h", StringComparison.OrdinalIgnoreCase))
+            {
+                showHelp = true;
+            }
+            else if (current.Equals("--mode", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Length)
+                {
+                    mode = args[i + 1];
+                    i++;
+                }
+            }
+            else if (current.Equals("--urls", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Length)
+                {
+                    urls = args[i + 1];
+                    i++;
+                }
+            }
+            else if (current.Equals("--config", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Length)
+                {
+                    configPath = args[i + 1];
+                    i++;
+                }
+            }
+
+            i++;
+        }
+
+        return new ApiHostOptions(mode, urls, configPath, showHelp);
+    }
+}
+
+public sealed partial class Program;

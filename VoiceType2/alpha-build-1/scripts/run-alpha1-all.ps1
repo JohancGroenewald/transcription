@@ -2,7 +2,8 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Debug",
     [string]$ApiUrl = "http://127.0.0.1:5240",
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [int]$ApiTimeoutMs = 15000
 )
 
 $root = Join-Path $PSScriptRoot ".."
@@ -47,7 +48,7 @@ try
         exit 1
     }
 
-    dotnet run --project $cliProject -- run --api-url $ApiUrl --mode attach
+    dotnet run --project $cliProject -- run --api-url $ApiUrl --mode managed --api-timeout-ms $ApiTimeoutMs
 }
 finally
 {

@@ -193,6 +193,83 @@ public class ApiSessionClientTests
         Assert.False(await client.IsReadyAsync());
     }
 
+    [Fact]
+    public async Task StartAsync_sends_expected_request_and_token()
+    {
+        var calls = new List<HttpRequestMessage>();
+        using var handler = new StubHttpMessageHandler((request, ct) =>
+        {
+            calls.Add(request);
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/v1/sessions/sess-1/start", request.RequestUri!.AbsolutePath);
+            Assert.True(request.Headers.TryGetValues("x-orchestrator-token", out var values));
+            Assert.Contains("tok", values);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        });
+
+        using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240",
+            "tok",
+            new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        await client.StartAsync("sess-1");
+        Assert.Single(calls);
+    }
+
+    [Fact]
+    public async Task StopAsync_sends_expected_request_and_token()
+    {
+        var calls = new List<HttpRequestMessage>();
+        using var handler = new StubHttpMessageHandler((request, ct) =>
+        {
+            calls.Add(request);
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/v1/sessions/sess-1/stop", request.RequestUri!.AbsolutePath);
+            Assert.True(request.Headers.TryGetValues("x-orchestrator-token", out var values));
+            Assert.Contains("tok", values);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        });
+
+        using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240",
+            "tok",
+            new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        await client.StopAsync("sess-1");
+        Assert.Single(calls);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_includes_payload_and_token()
+    {
+        string? observedAction = null;
+        var calls = new List<HttpRequestMessage>();
+
+        using var handler = new StubHttpMessageHandler(async (request, ct) =>
+        {
+            calls.Add(request);
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/v1/sessions/sess-1/resolve", request.RequestUri!.AbsolutePath);
+            Assert.True(request.Headers.TryGetValues("x-orchestrator-token", out var values));
+            Assert.Contains("tok", values);
+
+            var body = await request.Content!.ReadAsStringAsync(ct);
+            var payload = JsonSerializer.Deserialize<ResolveRequest>(body, JsonDefaults.Options);
+            observedAction = payload?.Action;
+
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240",
+            "tok",
+            new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        await client.ResolveAsync("sess-1", "submit");
+        Assert.Single(calls);
+        Assert.Equal("submit", observedAction);
+    }
+
     private static OrchestratorProfile CreateProfile(string id)
         => new OrchestratorProfile
         {
