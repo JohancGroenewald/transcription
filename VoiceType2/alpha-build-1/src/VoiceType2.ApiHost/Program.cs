@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using VoiceType2.ApiHost;
 using VoiceType2.ApiHost.Services;
 using VoiceType2.Core.Contracts;
+using VoiceType2.Infrastructure.Transcription;
 
 var options = ApiHostOptions.Parse(args);
 
@@ -24,6 +26,7 @@ try
     config = options.ConfigPath is null
         ? new RuntimeConfig()
         : RuntimeConfig.Load(options.ConfigPath);
+
     if (!string.IsNullOrWhiteSpace(options.Urls))
     {
         config.HostBinding.Urls = options.Urls;
@@ -47,12 +50,16 @@ builder.Logging.AddSimpleConsole(options =>
 
 builder.Services.AddSingleton(config);
 builder.Services.AddSingleton(config.SessionPolicy);
+builder.Services.AddSingleton(config.RuntimeSecurity);
+builder.Services.AddSingleton(config.TranscriptionDefaults);
 builder.Services.AddSingleton<SessionService>();
 builder.Services.AddSingleton<SessionEventBus>();
+builder.Services.AddSingleton<ITranscriptionProvider, MockTranscriptionProvider>();
 
 builder.WebHost.UseUrls(config.HostBinding.Urls);
 
 var app = builder.Build();
+var activeWorkers = new ConcurrentDictionary<string, SessionWorkItem>();
 
 app.MapGet("/health/live", () => Results.Ok(new
 {
@@ -73,7 +80,7 @@ app.MapPost("/v1/sessions", async (
     SessionEventBus eventBus,
     HttpContext context) =>
 {
-    RunHousekeeping(sessions, eventBus);
+    RunHousekeeping(sessions, eventBus, activeWorkers);
     request ??= new RegisterSessionRequest();
     var requestCorrelationId = string.IsNullOrWhiteSpace(request.CorrelationId)
         ? $"corr-{Guid.NewGuid():N}"
@@ -105,15 +112,15 @@ app.MapPost("/v1/sessions", async (
     }
 });
 
-app.MapGet("/v1/sessions/{sessionId}", (string sessionId, HttpContext context, SessionService sessions) =>
+app.MapGet("/v1/sessions/{sessionId}", (string sessionId, HttpContext context, RuntimeConfig config, SessionService sessions) =>
 {
-    RunHousekeeping(sessions, null);
+    RunHousekeeping(sessions, null, activeWorkers);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
     }
 
-    if (!IsAuthorized(context, session))
+    if (!IsAuthorized(context, config, session))
     {
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
     }
@@ -133,15 +140,18 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
     HttpContext context,
     SessionService sessions,
     SessionEventBus eventBus,
+    RuntimeConfig config,
+    ITranscriptionProvider transcriptionProvider,
+    TranscriptionDefaultsConfig transcriptionDefaults,
     CancellationToken ct) =>
 {
-    RunHousekeeping(sessions, eventBus);
+    RunHousekeeping(sessions, eventBus, activeWorkers);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
     }
 
-    if (!IsAuthorized(context, session))
+    if (!IsAuthorized(context, config, session))
     {
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
     }
@@ -179,7 +189,7 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
         Text = "started"
     }, ct);
 
-    _ = SimulateTranscriptionAsync(sessionId, session.CorrelationId, sessions, eventBus, ct);
+    StartSessionWorkAsync(sessionId, session.CorrelationId, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
 
     return Results.Ok(new SessionStatusResponse
     {
@@ -195,15 +205,16 @@ app.MapPost("/v1/sessions/{sessionId}/stop", async (
     HttpContext context,
     SessionService sessions,
     SessionEventBus eventBus,
+    RuntimeConfig config,
     CancellationToken ct) =>
 {
-    RunHousekeeping(sessions, eventBus);
+    RunHousekeeping(sessions, eventBus, activeWorkers);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
     }
 
-    if (!IsAuthorized(context, session))
+    if (!IsAuthorized(context, config, session))
     {
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
     }
@@ -231,6 +242,8 @@ app.MapPost("/v1/sessions/{sessionId}/stop", async (
         return Problem(409, "INVALID_TRANSITION", "Stop is not valid for current state.");
     }
 
+    StopSessionWork(sessionId, activeWorkers);
+
     session = sessions.TryGet(sessionId, out var refreshed) ? refreshed : session;
     await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
     {
@@ -257,15 +270,18 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
     HttpContext context,
     SessionService sessions,
     SessionEventBus eventBus,
+    RuntimeConfig config,
+    ITranscriptionProvider transcriptionProvider,
+    TranscriptionDefaultsConfig transcriptionDefaults,
     CancellationToken ct) =>
 {
-    RunHousekeeping(sessions, eventBus);
+    RunHousekeeping(sessions, eventBus, activeWorkers);
     if (!sessions.TryGet(sessionId, out var session))
     {
         return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
     }
 
-    if (!IsAuthorized(context, session))
+    if (!IsAuthorized(context, config, session))
     {
         return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
     }
@@ -315,7 +331,7 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
 
     if (action == "retry")
     {
-        _ = SimulateTranscriptionAsync(sessionId, session.CorrelationId, sessions, eventBus, ct);
+        StartSessionWorkAsync(sessionId, session.CorrelationId, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
     }
     else
     {
@@ -336,16 +352,17 @@ app.MapGet("/v1/sessions/{sessionId}/events", async (
     HttpContext context,
     SessionService sessions,
     SessionEventBus eventBus,
+    RuntimeConfig config,
     CancellationToken ct) =>
 {
-    RunHousekeeping(sessions, eventBus);
+    RunHousekeeping(sessions, eventBus, activeWorkers);
     if (!sessions.TryGet(sessionId, out var session))
     {
         await WriteProblemResponseAsync(context, 404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
         return;
     }
 
-    if (!IsAuthorized(context, session))
+    if (!IsAuthorized(context, config, session))
     {
         await WriteProblemResponseAsync(context, 401, "INVALID_TOKEN", "Missing or invalid orchestrator token.", sessionId);
         return;
@@ -373,18 +390,26 @@ app.MapGet("/v1/sessions/{sessionId}/events", async (
 
 await app.RunAsync();
 
-static bool IsAuthorized(HttpContext context, SessionRecord session)
+static bool IsAuthorized(HttpContext context, RuntimeConfig config, SessionRecord session)
 {
-    var token = context.Request.Headers["x-orchestrator-token"].ToString();
-    if (string.IsNullOrWhiteSpace(token))
+    if (config.IsTokenAuthAllowed)
     {
-        return false;
+        var token = context.Request.Headers["x-orchestrator-token"].ToString();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return !config.IsTokenAuthRequired;
+        }
+
+        if (!string.Equals(token, session.OrchestratorToken, StringComparison.Ordinal))
+        {
+            return false;
+        }
     }
 
-    return string.Equals(token, session.OrchestratorToken, StringComparison.Ordinal);
+    return true;
 }
 
-static void RunHousekeeping(SessionService sessions, SessionEventBus? eventBus)
+static void RunHousekeeping(SessionService sessions, SessionEventBus? eventBus, ConcurrentDictionary<string, SessionWorkItem> activeWorkers)
 {
     var expired = sessions.CleanupExpiredSessions(DateTimeOffset.UtcNow);
     if (eventBus is null || expired.Count == 0)
@@ -394,7 +419,233 @@ static void RunHousekeeping(SessionService sessions, SessionEventBus? eventBus)
 
     foreach (var expiredSessionId in expired)
     {
+        StopSessionWork(expiredSessionId, activeWorkers);
         eventBus.Complete(expiredSessionId);
+    }
+}
+
+static void StopSessionWork(string sessionId, ConcurrentDictionary<string, SessionWorkItem> activeWorkers)
+{
+    if (!activeWorkers.TryGetValue(sessionId, out var workItem))
+    {
+        return;
+    }
+
+    workItem.CancellationTokenSource.Cancel();
+
+    if (!activeWorkers.TryRemove(sessionId, out _))
+    {
+        return;
+    }
+
+    if (workItem.ProcessingTask.IsCompleted)
+    {
+        workItem.CancellationTokenSource.Dispose();
+    }
+    else
+    {
+        _ = workItem.ProcessingTask.ContinueWith(
+            _ => workItem.CancellationTokenSource.Dispose(),
+            TaskScheduler.Default);
+    }
+}
+
+static void StartSessionWorkAsync(
+    string sessionId,
+    string correlationId,
+    SessionService sessions,
+    SessionEventBus eventBus,
+    ITranscriptionProvider transcriptionProvider,
+    TranscriptionDefaultsConfig transcriptionDefaults,
+    ConcurrentDictionary<string, SessionWorkItem> activeWorkers)
+{
+    if (activeWorkers.ContainsKey(sessionId))
+    {
+        return;
+    }
+
+    var workItem = new SessionWorkItem
+    {
+        CancellationTokenSource = new CancellationTokenSource()
+    };
+
+    if (!activeWorkers.TryAdd(sessionId, workItem))
+    {
+        workItem.CancellationTokenSource.Dispose();
+        return;
+    }
+
+    workItem.ProcessingTask = ProcessSessionAsync(
+        sessionId,
+        correlationId,
+        sessions,
+        eventBus,
+        transcriptionProvider,
+        transcriptionDefaults,
+        workItem.CancellationTokenSource.Token);
+
+    _ = workItem.ProcessingTask.ContinueWith(
+        _ =>
+        {
+            FinalizeSessionWork(sessionId, workItem, activeWorkers);
+        },
+        TaskScheduler.Default);
+}
+
+static void FinalizeSessionWork(
+    string sessionId,
+    SessionWorkItem workItem,
+    ConcurrentDictionary<string, SessionWorkItem> activeWorkers)
+{
+    if (!activeWorkers.TryRemove(sessionId, out var removed))
+    {
+        return;
+    }
+
+    if (!ReferenceEquals(removed, workItem))
+    {
+        return;
+    }
+
+    try
+    {
+        removed.CancellationTokenSource.Dispose();
+    }
+    catch
+    {
+    }
+}
+
+static async Task ProcessSessionAsync(
+    string sessionId,
+    string correlationId,
+    SessionService sessions,
+    SessionEventBus eventBus,
+    ITranscriptionProvider transcriptionProvider,
+    TranscriptionDefaultsConfig transcriptionDefaults,
+    CancellationToken ct)
+{
+    try
+    {
+        await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
+        {
+            EventType = "status",
+            SessionId = sessionId,
+            CorrelationId = correlationId,
+            State = SessionState.Running.ToString(),
+            Text = "transcribing"
+        }, ct);
+
+        if (!await sessions.TryTransitionAsync(
+            sessionId,
+            state => state is SessionState.Listening,
+            SessionState.Running,
+            "transcription-started",
+            ct))
+        {
+            return;
+        }
+
+        await Task.Delay(250, ct);
+
+        using var audio = new MemoryStream(Array.Empty<byte>());
+        var options = new TranscriptionOptions(
+            string.IsNullOrWhiteSpace(transcriptionDefaults.DefaultLanguage) ? null : transcriptionDefaults.DefaultLanguage,
+            string.IsNullOrWhiteSpace(transcriptionDefaults.DefaultPrompt) ? null : transcriptionDefaults.DefaultPrompt,
+            true,
+            null);
+
+        var result = await transcriptionProvider.TranscribeAsync(audio, correlationId, options, ct);
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (!result.IsSuccess)
+        {
+            var failed = await sessions.TryTransitionAsync(
+                sessionId,
+                state => state is SessionState.Running or SessionState.Listening,
+                SessionState.Failed,
+                "transcription-failed",
+                ct);
+
+            if (failed)
+            {
+                await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
+                {
+                    EventType = "error",
+                    SessionId = sessionId,
+                    CorrelationId = correlationId,
+                    ErrorCode = result.ErrorCode,
+                    ErrorMessage = result.ErrorMessage,
+                    Text = "transcription-failed"
+                }, ct);
+                eventBus.Complete(sessionId);
+            }
+
+            return;
+        }
+
+        var transitioned = await sessions.TryTransitionAsync(
+            sessionId,
+            state => state is SessionState.Running,
+            SessionState.AwaitingDecision,
+            "transcript-ready",
+            ct);
+
+        if (!transitioned)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Text))
+        {
+            await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
+            {
+                EventType = "transcript",
+                SessionId = sessionId,
+                CorrelationId = correlationId,
+                Text = result.Text
+            }, ct);
+        }
+
+        await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
+        {
+            EventType = "status",
+            SessionId = sessionId,
+            CorrelationId = correlationId,
+            State = SessionState.AwaitingDecision.ToString(),
+            Text = "awaiting-decision"
+        }, ct);
+    }
+    catch (OperationCanceledException)
+    {
+    }
+    catch
+    {
+        var failed = await sessions.TryTransitionAsync(
+            sessionId,
+            state => state is SessionState.Running or SessionState.Listening,
+            SessionState.Failed,
+            "transcription-exception",
+            CancellationToken.None);
+
+        if (failed)
+        {
+            await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
+            {
+                EventType = "error",
+                SessionId = sessionId,
+                CorrelationId = correlationId,
+                ErrorCode = "INTERNAL_ERROR",
+                ErrorMessage = "Unexpected error while processing transcription."
+            }, CancellationToken.None);
+            eventBus.Complete(sessionId);
+        }
+    }
+    finally
+    {
     }
 }
 
@@ -441,70 +692,6 @@ static async Task WriteSseEventAsync(HttpContext context, SessionEventEnvelope e
     var payload = JsonSerializer.Serialize(envelope);
     await context.Response.WriteAsync($"data: {payload}\n\n", ct);
     await context.Response.Body.FlushAsync(ct);
-}
-
-static async Task SimulateTranscriptionAsync(
-    string sessionId,
-    string correlationId,
-    SessionService sessions,
-    SessionEventBus eventBus,
-    CancellationToken ct)
-{
-    try
-    {
-        await Task.Delay(500, ct);
-        await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
-        {
-            EventType = "status",
-            SessionId = sessionId,
-            CorrelationId = correlationId,
-            State = SessionState.Running.ToString(),
-            Text = "transcribing"
-        }, ct);
-
-        await Task.Delay(900, ct);
-        if (!sessions.TryGet(sessionId, out var current))
-        {
-            return;
-        }
-
-        if (current.State != SessionState.Listening)
-        {
-            return;
-        }
-
-        await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
-        {
-            EventType = "transcript",
-            SessionId = sessionId,
-            CorrelationId = correlationId,
-            Text = "alpha transcript sample for validation"
-        }, ct);
-
-        var transitioned = await sessions.TryTransitionAsync(
-            sessionId,
-            state => state is SessionState.Listening,
-            SessionState.AwaitingDecision,
-            "transcript-ready",
-            ct);
-
-        if (!transitioned)
-        {
-            return;
-        }
-
-        await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
-        {
-            EventType = "status",
-            SessionId = sessionId,
-            CorrelationId = correlationId,
-            State = SessionState.AwaitingDecision.ToString(),
-            Text = "awaiting-decision"
-        }, ct);
-    }
-    catch (OperationCanceledException)
-    {
-    }
 }
 
 static void PrintUsage()
@@ -574,6 +761,12 @@ public sealed class ApiHostOptions
 
         return new ApiHostOptions(mode, urls, configPath, showHelp);
     }
+}
+
+internal sealed class SessionWorkItem
+{
+    public required CancellationTokenSource CancellationTokenSource { get; init; }
+    public Task ProcessingTask { get; set; } = Task.CompletedTask;
 }
 
 public sealed partial class Program;

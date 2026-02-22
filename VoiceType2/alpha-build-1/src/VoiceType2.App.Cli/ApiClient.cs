@@ -29,6 +29,11 @@ internal sealed class ApiSessionClient : IAsyncDisposable
         var normalizedBase = NormalizeBaseUrl(apiUrl);
         _ownsClient = client is null;
         _httpClient = client ?? new HttpClient { BaseAddress = new Uri(normalizedBase) };
+        if (client is null)
+        {
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        }
+
         if (!string.IsNullOrWhiteSpace(token))
         {
             _httpClient.DefaultRequestHeaders.Remove("x-orchestrator-token");

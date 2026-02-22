@@ -1,6 +1,7 @@
 using VoiceType2.ApiHost;
 using VoiceType2.ApiHost.Services;
 using VoiceType2.Core.Contracts;
+using Xunit;
 
 namespace VoiceType2.Alpha1.Tests;
 

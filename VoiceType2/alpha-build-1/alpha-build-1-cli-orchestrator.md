@@ -2,6 +2,12 @@
 
 ## 1) Objective
 
+### Alpha 1 closeout status
+
+- Managed mode now validates API readiness and attempts graceful child-process shutdown with timed fallback.
+- Command surface currently includes `run`, `status`, `stop`, `resolve`, and `api` helpers; token handling and retry/submit/cancel actions are supported in the interactive run loop.
+- Closeout verification (2026-02-22): command behavior validated through API session client integration tests and smoke checks.
+
 Build a CLI orchestrator that can:
 
 - Register a session with the API,

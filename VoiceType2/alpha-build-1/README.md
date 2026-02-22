@@ -39,3 +39,26 @@ Run CLI:
 ```
 
 Use this set as the default Alpha 1 “build pack” before adding tray/frontend orchestrators.
+
+## Alpha 1 implementation status (2026-02-22)
+
+- API host:
+  - in-memory session registry with auth-mode policy support
+  - registration/status/start/stop/resolve/session-events endpoints
+  - SSE status/transcript/error event stream
+  - provider-based transcription path (`ITranscriptionProvider`) with `MockTranscriptionProvider` wired for alpha runtime
+- CLI orchestrator:
+  - interactive run loop and top-level `status`, `stop`, `resolve`, `api` commands
+  - managed API startup mode with best-effort graceful stop fallback
+- Validation and docs:
+  - runtime config validation for URLs and auth mode
+  - closeoff tests expanded around status/authorization behavior and config validation
+
+### Closeoff checks to run
+
+- `dotnet test VoiceType2/alpha-build-1/tests/VoiceType2.Alpha1.Tests/VoiceType2.Alpha1.Tests.csproj --configuration Debug`
+- `.\scripts\test-alpha1.ps1 -Configuration Debug`
+
+### Closeoff verification status
+
+- `2026-02-22`: Unit/integration tests and smoke checks passed in `Debug`.

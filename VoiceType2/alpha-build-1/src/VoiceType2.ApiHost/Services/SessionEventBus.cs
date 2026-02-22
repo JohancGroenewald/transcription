@@ -10,8 +10,20 @@ internal sealed class SessionEventBus
 
     public async Task PublishAsync(string sessionId, SessionEventEnvelope envelope, CancellationToken cancellationToken = default)
     {
-        var channel = GetOrCreateChannel(sessionId);
-        await channel.Writer.WriteAsync(envelope, cancellationToken);
+        if (!_channels.TryGetValue(sessionId, out var channel))
+        {
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (!channel.Writer.TryWrite(envelope))
+        {
+            await channel.Writer.WriteAsync(envelope, cancellationToken);
+        }
     }
 
     public IAsyncEnumerable<SessionEventEnvelope> SubscribeAsync(string sessionId, CancellationToken cancellationToken)
@@ -30,11 +42,12 @@ internal sealed class SessionEventBus
 
     private static Channel<SessionEventEnvelope> CreateChannel()
     {
-        return Channel.CreateUnbounded<SessionEventEnvelope>(new UnboundedChannelOptions
+        return Channel.CreateBounded<SessionEventEnvelope>(new BoundedChannelOptions(128)
         {
             SingleReader = false,
             SingleWriter = false,
-            AllowSynchronousContinuations = false
+            AllowSynchronousContinuations = false,
+            FullMode = BoundedChannelFullMode.DropOldest
         });
     }
 

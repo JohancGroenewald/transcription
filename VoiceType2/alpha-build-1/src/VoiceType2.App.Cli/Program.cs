@@ -390,7 +390,12 @@ static void StopManagedApi(Process process, int timeoutMs)
     {
         if (!process.HasExited)
         {
-            process.Kill(entireProcessTree: true);
+            process.CloseMainWindow();
+            if (!process.WaitForExit(Math.Max(200, timeoutMs / 2)))
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
             process.WaitForExit(timeoutMs);
         }
     }

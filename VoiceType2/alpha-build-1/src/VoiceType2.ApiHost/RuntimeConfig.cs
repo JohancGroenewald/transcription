@@ -38,6 +38,13 @@ public sealed class RuntimeConfig
 
     public void Validate()
     {
+        if (!IsSupportedAuthMode(RuntimeSecurity.AuthMode))
+        {
+            throw new InvalidOperationException(
+                $"Unsupported RuntimeSecurity.AuthMode '{RuntimeSecurity.AuthMode}'. " +
+                "Supported values are: none, token-optional, token-required.");
+        }
+
         if (string.IsNullOrWhiteSpace(HostBinding.Urls))
         {
             throw new InvalidOperationException("HostBinding.Urls is required.");
@@ -65,6 +72,22 @@ public sealed class RuntimeConfig
         {
             throw new InvalidOperationException("SessionPolicy.SessionIdleTimeoutMs must be zero or greater.");
         }
+    }
+
+    public bool IsTokenAuthRequired =>
+        string.Equals(RuntimeSecurity.AuthMode, "token-required", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsTokenAuthOptional =>
+        string.Equals(RuntimeSecurity.AuthMode, "token-optional", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsTokenAuthAllowed =>
+        IsTokenAuthRequired || IsTokenAuthOptional;
+
+    public static bool IsSupportedAuthMode(string? authMode)
+    {
+        return string.Equals(authMode, "none", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(authMode, "token-optional", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(authMode, "token-required", StringComparison.OrdinalIgnoreCase);
     }
 
     private RuntimeConfig Normalize()
@@ -101,4 +124,3 @@ public sealed class TranscriptionDefaultsConfig
     public string DefaultPrompt { get; init; } = string.Empty;
     public int DefaultTimeoutMs { get; init; } = 120000;
 }
-

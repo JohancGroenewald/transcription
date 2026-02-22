@@ -1,5 +1,6 @@
 using System.Text.Json;
 using VoiceType2.ApiHost;
+using Xunit;
 
 namespace VoiceType2.Alpha1.Tests;
 
@@ -113,5 +114,20 @@ public class RuntimeConfigTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
         Assert.Contains("Invalid host URL", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_rejects_unsupported_auth_mode()
+    {
+        var config = new RuntimeConfig
+        {
+            RuntimeSecurity = new RuntimeSecurityConfig
+            {
+                AuthMode = "unsupported"
+            }
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+        Assert.Contains("Unsupported RuntimeSecurity.AuthMode", ex.Message, StringComparison.Ordinal);
     }
 }

@@ -23,7 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\VoiceType2.App.Cli\VoiceType2.App.Cli.csproj" />
     <ProjectReference Include="..\..\src\VoiceType2.Core\VoiceType2.Core.csproj" />
-    <ProjectReference Include="..\..\src\VoiceType2.ApiHost\VoiceType2.ApiHost.csproj" />
+    <ProjectReference Include="..\..\src\VoiceType2.ApiHost\VoiceType2.ApiHost.csproj" Aliases="ApiHost,global" />
   </ItemGroup>
 
 </Project>

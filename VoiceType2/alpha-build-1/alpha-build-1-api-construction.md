@@ -4,6 +4,17 @@
 
 Build a minimal but production-ready internal API runtime first, with clear startup, session handling, event streaming, and explicit contracts so orchestrators can be connected independently.
 
+### Alpha 1 closeout status
+
+- Current implementation now enforces token auth modes from `RuntimeConfig.RuntimeSecurity.AuthMode`:
+  - `none`
+  - `token-optional`
+  - `token-required`
+- Transcription path is provider-driven through `ITranscriptionProvider` and the alpha mock provider.
+- Background processing is decoupled from the HTTP request lifetime (session-scoped cancellation is used).
+- Event stream channels are bounded with oldest-event dropping to avoid unlimited memory growth.
+- Closeout verification (2026-02-22): implemented behaviors are covered by `dotnet test` + `scripts/test-alpha1.ps1` smoke checks.
+
 ## 2) Project layout for day one
 
 ```text

@@ -46,7 +46,7 @@ public class ApiSessionClientTests
             return JsonResponse(HttpStatusCode.OK, observedResponse);
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             client: new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
 
@@ -86,7 +86,7 @@ public class ApiSessionClientTests
                 }));
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             "tok",
             new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
@@ -130,7 +130,7 @@ public class ApiSessionClientTests
             });
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             "tok",
             new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
@@ -165,7 +165,7 @@ public class ApiSessionClientTests
                 }));
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             "tok",
             new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
@@ -185,7 +185,7 @@ public class ApiSessionClientTests
             return Task.FromResult(new HttpResponseMessage(calls % 2 == 1 ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable));
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             client: new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
 
@@ -207,7 +207,7 @@ public class ApiSessionClientTests
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             "tok",
             new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
@@ -230,7 +230,7 @@ public class ApiSessionClientTests
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             "tok",
             new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
@@ -260,7 +260,7 @@ public class ApiSessionClientTests
             return new HttpResponseMessage(HttpStatusCode.OK);
         });
 
-        using var client = new ApiSessionClient(
+        await using var client = new ApiSessionClient(
             "http://127.0.0.1:5240",
             "tok",
             new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });

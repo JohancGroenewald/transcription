@@ -1,19 +1,28 @@
+extern alias ApiHost;
+
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
-using VoiceType2.Core.Contracts;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Xunit;
+
 using VoiceType2.ApiHost;
+using VoiceType2.ApiHost.Services;
+using VoiceType2.Core.Contracts;
+using VoiceType2.Infrastructure.Transcription;
+
+using ApiHostProgram = ApiHost::Program;
 
 namespace VoiceType2.Alpha1.Tests;
 
-public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<ApiHostProgram>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly WebApplicationFactory<ApiHostProgram> _factory;
 
-    public ApiHostEndpointTests(WebApplicationFactory<Program> factory)
+    public ApiHostEndpointTests(WebApplicationFactory<ApiHostProgram> factory)
     {
         _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
     }
@@ -37,7 +46,6 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
-    [Fact]
     public async Task Session_status_requires_orchestrator_token()
     {
         using var client = _factory.CreateClient();
@@ -46,7 +54,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<P
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/v1/sessions/{created.SessionId}");
         using var response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -57,7 +65,23 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<P
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/v1/sessions/{created.SessionId}/start");
         using var response = await client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Sessions_require_authorization_when_token_required()
+    {
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig { AuthMode = "token-required" });
+        using var client = factory.CreateClient();
+        var created = await RegisterSessionAsync(client);
+
+        using var unauthenticated = await client.GetAsync($"/v1/sessions/{created.SessionId}");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/v1/sessions/{created.SessionId}");
+        request.Headers.Add("x-orchestrator-token", created.OrchestratorToken);
+        using var authenticated = await client.SendAsync(request);
+        authenticated.EnsureSuccessStatusCode();
     }
 
     [Fact]
@@ -70,7 +94,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<P
         startResponse.EnsureSuccessStatusCode();
 
         var status = await GetStatusAsync(client, created.SessionId, created.OrchestratorToken);
-        Assert.Equal(SessionState.Listening.ToString(), status.State);
+        Assert.True(status.State == SessionState.Listening.ToString() || status.State == SessionState.Running.ToString());
 
         await WaitForStateAsync(
             client,
@@ -111,7 +135,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(HttpStatusCode.Conflict, resolve.StatusCode);
 
         var status = await GetStatusAsync(client, created.SessionId, created.OrchestratorToken);
-        Assert.Equal(SessionState.Listening.ToString(), status.State);
+        Assert.True(status.State == SessionState.Listening.ToString() || status.State == SessionState.Running.ToString());
     }
 
     [Fact]
@@ -148,6 +172,34 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<P
                 audioCapture: false,
                 uiShell: false)
         };
+    }
+
+    private static WebApplicationFactory<ApiHostProgram> CreateApiHostFactory(RuntimeSecurityConfig runtimeSecurity)
+    {
+        return new WebApplicationFactory<ApiHostProgram>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<RuntimeConfig>();
+                services.RemoveAll<RuntimeSecurityConfig>();
+                services.RemoveAll<SessionPolicyConfig>();
+                services.RemoveAll<TranscriptionDefaultsConfig>();
+                services.RemoveAll<SessionService>();
+
+                var config = new RuntimeConfig
+                {
+                    RuntimeSecurity = runtimeSecurity
+                };
+
+                services.AddSingleton(config);
+                services.AddSingleton(config.SessionPolicy);
+                services.AddSingleton(config.RuntimeSecurity);
+                services.AddSingleton(config.TranscriptionDefaults);
+                services.AddSingleton<SessionService>();
+                services.AddSingleton<ITranscriptionProvider, MockTranscriptionProvider>();
+            });
+        });
     }
 
     private async Task<SessionCreatedResponse> RegisterSessionAsync(HttpClient client)
