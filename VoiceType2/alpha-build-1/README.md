@@ -62,3 +62,19 @@ Use this set as the default Alpha 1 “build pack” before adding tray/frontend
 ### Closeoff verification status
 
 - `2026-02-22`: Unit/integration tests and smoke checks passed in `Debug`.
+
+## Documentation (local readthedocs-style)
+
+From `VoiceType2` root:
+
+```powershell
+.\scripts\run-readthedocs.ps1
+```
+
+Then open `http://localhost:8000`.
+
+Primary pages:
+
+- `VoiceType2/docs/user/cli-reference.md`
+- `VoiceType2/docs/user/api-host-reference.md`
+- `VoiceType2/docs/development/current-status.md`
