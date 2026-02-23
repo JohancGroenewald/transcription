@@ -15,6 +15,16 @@ has_markdown_file_changes() {
   git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qiE '\.md$'
 }
 
+has_json_file_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qiE '\.json$'
+}
+
+has_yaml_file_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qiE '\.(ya?ml)$'
+}
+
 run_markdown_lint() {
   local markdown_files
   markdown_files="$(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -iE '\.md$' || true)"
@@ -47,12 +57,80 @@ run_markdown_lint() {
   fi
 }
 
+run_json_lint() {
+  local json_files
+  json_files="$(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -iE '\.json$' || true)"
+  if [ -z "$json_files" ]; then
+    return 0
+  fi
+
+  if ! command -v python >/dev/null 2>&1; then
+    echo "[pre-commit] python not found. Install Python to validate staged JSON files."
+    return 1
+  fi
+
+  echo "[pre-commit] Running JSON lint on staged json files."
+  local exit_code=0
+  while IFS= read -r json_file; do
+    [ -z "$json_file" ] && continue
+    if ! python -m json.tool "$json_file" >/dev/null; then
+      echo "[pre-commit] JSON lint failed for: $json_file"
+      exit_code=1
+    fi
+  done <<< "$json_files"
+
+  return "$exit_code"
+}
+
+run_yaml_lint() {
+  local yaml_files
+  yaml_files="$(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -iE '\.(ya?ml)$' || true)"
+  if [ -z "$yaml_files" ]; then
+    return 0
+  fi
+
+  echo "[pre-commit] Running YAML lint on staged YAML files."
+
+  if command -v yamllint >/dev/null 2>&1; then
+    while IFS= read -r yaml_file; do
+      [ -z "$yaml_file" ] && continue
+      if ! yamllint "$yaml_file"; then
+        echo "[pre-commit] YAML lint failed for: $yaml_file"
+        return 1
+      fi
+    done <<< "$yaml_files"
+    return 0
+  fi
+
+  if ! command -v python >/dev/null 2>&1; then
+    echo "[pre-commit] yamllint not found and python not available. Install yamllint or Python to validate staged YAML files."
+    return 1
+  fi
+
+  if ! python -c "import yaml" ; then
+    echo "[pre-commit] Python YAML parser not available (PyYAML missing). Install yamllint or run: pip install pyyaml"
+    return 1
+  fi
+
+  while IFS= read -r yaml_file; do
+    [ -z "$yaml_file" ] && continue
+    if ! python -c "import sys, yaml; yaml.safe_load(open(sys.argv[1], encoding='utf-8'))" "$yaml_file"; then
+      echo "[pre-commit] YAML lint failed for: $yaml_file"
+      return 1
+    fi
+  done <<< "$yaml_files"
+
+  return 0
+}
+
 if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
   exit 0
 fi
 
 HAS_APP_CHANGES=$(has_app_file_changes; echo $?)
 HAS_MARKDOWN_CHANGES=$(has_markdown_file_changes; echo $?)
+HAS_JSON_CHANGES=$(has_json_file_changes; echo $?)
+HAS_YAML_CHANGES=$(has_yaml_file_changes; echo $?)
 
 if [ "$HAS_MARKDOWN_CHANGES" -eq 0 ]; then
   if ! run_markdown_lint; then
@@ -61,6 +139,24 @@ if [ "$HAS_MARKDOWN_CHANGES" -eq 0 ]; then
   fi
 else
   echo "[pre-commit] No staged markdown files to lint."
+fi
+
+if [ "$HAS_JSON_CHANGES" -eq 0 ]; then
+  if ! run_json_lint; then
+    echo "[pre-commit] JSON lint failed. Please fix JSON issues before committing."
+    exit 1
+  fi
+else
+  echo "[pre-commit] No staged JSON files to lint."
+fi
+
+if [ "$HAS_YAML_CHANGES" -eq 0 ]; then
+  if ! run_yaml_lint; then
+    echo "[pre-commit] YAML lint failed. Please fix YAML issues before committing."
+    exit 1
+  fi
+else
+  echo "[pre-commit] No staged YAML files to lint."
 fi
 
 if [ "$HAS_APP_CHANGES" -eq 0 ]; then
