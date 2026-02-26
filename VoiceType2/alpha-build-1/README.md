@@ -17,7 +17,34 @@ cd .\scripts
 
 ## Start modes (copy/paste)
 
+## Service vs Attach (copy/paste)
+
+Service mode:
+Start the API host process only.
+Attach separately with the CLI.
+
+```powershell
+.\scripts\run-alpha1-api.cmd -ApiUrl "http://127.0.0.1:5240"
+```
+
+```powershell
+.\src\VoiceType2.ApiHost\publish\win-x64\VoiceType2.ApiHost.exe --mode service --urls "http://127.0.0.1:5240"
+```
+
+Attach mode:
+Tell the CLI to connect to an already-running API host.
+If the host is not running, attach mode exits with a connection error.
+
+```powershell
+.\scripts\run-alpha1-cli.cmd -ApiUrl "http://127.0.0.1:5240" -Mode attach
+```
+
+```powershell
+.\src\VoiceType2.App.Cli\publish\win-x64\VoiceType2.App.Cli.exe run --mode attach --api-url "http://127.0.0.1:5240"
+```
+
 Auto mode (managed startup):
+Let CLI launch the API host for you (if not already running).
 
 ```powershell
 .\scripts\run-alpha1-cli.cmd -Mode managed -ApiUrl "http://127.0.0.1:5240"
@@ -25,24 +52,6 @@ Auto mode (managed startup):
 
 ```powershell
 .\scripts\run-alpha1-all.cmd -Configuration Debug
-```
-
-Self-contained mode (publish + launch standalone binaries):
-
-```powershell
-dotnet publish src\VoiceType2.ApiHost\VoiceType2.ApiHost.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o src\VoiceType2.ApiHost\publish\win-x64
-```
-
-```powershell
-dotnet publish src\VoiceType2.App.Cli\VoiceType2.App.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o src\VoiceType2.App.Cli\publish\win-x64
-```
-
-```powershell
-.\src\VoiceType2.ApiHost\publish\win-x64\VoiceType2.ApiHost.exe --mode service --urls "http://127.0.0.1:5240"
-```
-
-```powershell
-.\src\VoiceType2.App.Cli\publish\win-x64\VoiceType2.App.Cli.exe run --mode attach --api-url "http://127.0.0.1:5240"
 ```
 
 If you prefer PowerShell directly, keep the existing calls:
@@ -65,6 +74,21 @@ Run host and CLI in managed mode with wrappers:
 
 ```powershell
 .\run-alpha1-cli.cmd -ApiUrl "http://127.0.0.1:5240" -Mode attach
+```
+
+Recommended defaults:
+
+Use service mode when you want explicit control over host lifetime:
+
+```powershell
+.\scripts\run-alpha1-api.cmd -ApiUrl "http://127.0.0.1:5240"
+.\scripts\run-alpha1-cli.cmd -ApiUrl "http://127.0.0.1:5240" -Mode attach
+```
+
+Use managed auto mode for quick local iteration:
+
+```powershell
+.\scripts\run-alpha1-all.cmd -Configuration Debug
 ```
 
 Run unit + integration-style smoke tests:
