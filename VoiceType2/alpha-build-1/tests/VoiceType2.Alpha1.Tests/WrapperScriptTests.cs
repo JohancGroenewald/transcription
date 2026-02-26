@@ -40,6 +40,14 @@ public sealed class WrapperScriptTests
         Assert.Contains(@"Start-Process -FilePath ""dotnet""", allTuiScript);
         Assert.Contains(@"Stop-Process", allScript);
         Assert.Contains(@"Stop-Process", allTuiScript);
+        Assert.Contains("[string]$RecordingDeviceId = \"\"", cliScript);
+        Assert.Contains("[string]$RecordingDeviceId = \"\"", tuiScript);
+        Assert.Contains("[string]$RecordingDeviceId = \"\"", allScript);
+        Assert.Contains("[string]$RecordingDeviceId = \"\"", allTuiScript);
+        Assert.Contains("[string]$PlaybackDeviceId = \"\"", cliScript);
+        Assert.Contains("[string]$PlaybackDeviceId = \"\"", tuiScript);
+        Assert.Contains("[string]$PlaybackDeviceId = \"\"", allScript);
+        Assert.Contains("[string]$PlaybackDeviceId = \"\"", allTuiScript);
     }
 
     [Fact]
@@ -61,10 +69,14 @@ public sealed class WrapperScriptTests
         Assert.Contains(@"""--managed-start""", tuiScript);
         Assert.Contains(@"""--mode""", allScript);
         Assert.Contains(@"--api-timeout-ms", allScript);
+        Assert.Contains(@"""--recording-device-id""", allScript);
+        Assert.Contains(@"""--playback-device-id""", allScript);
         Assert.Contains(@"""--mode""", allTuiScript);
         Assert.Contains(@"""--urls""", allScript);
         Assert.Contains(@"""--urls""", allTuiScript);
         Assert.Contains(@"""--api-timeout-ms""", allTuiScript);
+        Assert.Contains(@"""--recording-device-id""", allTuiScript);
+        Assert.Contains(@"""--playback-device-id""", allTuiScript);
     }
 
     [Fact]

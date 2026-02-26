@@ -43,6 +43,8 @@ When loading a config file, these defaults are expected:
 - `POST /v1/sessions/{sessionId}/start`
 - `POST /v1/sessions/{sessionId}/stop`
 - `POST /v1/sessions/{sessionId}/resolve`
+- `GET /v1/devices`
+- `POST /v1/sessions/{sessionId}/devices`
 - `GET /v1/sessions/{sessionId}/events` (SSE)
 
 `RuntimeSecurity.AuthMode` controls token usage:

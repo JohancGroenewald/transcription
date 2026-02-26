@@ -57,6 +57,7 @@ builder.Services.AddSingleton(config.TranscriptionDefaults);
 builder.Services.AddSingleton<SessionService>();
 builder.Services.AddSingleton<SessionEventBus>();
 builder.Services.AddSingleton<ITranscriptionProvider, MockTranscriptionProvider>();
+builder.Services.AddSingleton<IHostAudioBootstrapper, HostAudioBootstrapper>();
 
 builder.WebHost.UseUrls(config.HostBinding.Urls);
 
@@ -219,6 +220,7 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
     RuntimeConfig config,
     ITranscriptionProvider transcriptionProvider,
     TranscriptionDefaultsConfig transcriptionDefaults,
+    IHostAudioBootstrapper audioBootstrapper,
     CancellationToken ct) =>
 {
     RunHousekeeping(sessions, eventBus, activeWorkers);
@@ -266,7 +268,16 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
         Text = "started"
     }, ct);
 
-    StartSessionWorkAsync(sessionId, session.CorrelationId, session.AudioDevices, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
+    StartSessionWorkAsync(
+        sessionId,
+        session.CorrelationId,
+        session.AudioDevices,
+        sessions,
+        eventBus,
+        transcriptionProvider,
+        transcriptionDefaults,
+        audioBootstrapper,
+        activeWorkers);
 
     return Results.Ok(new SessionStatusResponse
     {
@@ -353,6 +364,7 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
     RuntimeConfig config,
     ITranscriptionProvider transcriptionProvider,
     TranscriptionDefaultsConfig transcriptionDefaults,
+    IHostAudioBootstrapper audioBootstrapper,
     CancellationToken ct) =>
 {
     RunHousekeeping(sessions, eventBus, activeWorkers);
@@ -411,7 +423,16 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
 
     if (action == "retry")
     {
-        StartSessionWorkAsync(sessionId, session.CorrelationId, session.AudioDevices, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
+        StartSessionWorkAsync(
+            sessionId,
+            session.CorrelationId,
+            session.AudioDevices,
+            sessions,
+            eventBus,
+            transcriptionProvider,
+            transcriptionDefaults,
+            audioBootstrapper,
+            activeWorkers);
     }
     else
     {
@@ -825,6 +846,7 @@ static void StartSessionWorkAsync(
     SessionEventBus eventBus,
     ITranscriptionProvider transcriptionProvider,
     TranscriptionDefaultsConfig transcriptionDefaults,
+    IHostAudioBootstrapper audioBootstrapper,
     ConcurrentDictionary<string, SessionWorkItem> activeWorkers)
 {
     if (activeWorkers.ContainsKey(sessionId))
@@ -851,6 +873,7 @@ static void StartSessionWorkAsync(
         eventBus,
         transcriptionProvider,
         transcriptionDefaults,
+        audioBootstrapper,
         workItem.CancellationTokenSource.Token);
 
     _ = workItem.ProcessingTask.ContinueWith(
@@ -893,6 +916,7 @@ static async Task ProcessSessionAsync(
     SessionEventBus eventBus,
     ITranscriptionProvider transcriptionProvider,
     TranscriptionDefaultsConfig transcriptionDefaults,
+    IHostAudioBootstrapper audioBootstrapper,
     CancellationToken ct)
 {
     try
@@ -917,6 +941,16 @@ static async Task ProcessSessionAsync(
         }
 
         await Task.Delay(250, ct);
+        using var recordingCapture = await audioBootstrapper.InitializeRecordingCaptureAsync(
+            audioDevices,
+            sessionId,
+            correlationId,
+            ct);
+        await audioBootstrapper.InitializePlaybackAsync(
+            audioDevices,
+            sessionId,
+            correlationId,
+            ct);
 
         using var audio = new MemoryStream(Array.Empty<byte>());
         var options = new TranscriptionOptions(

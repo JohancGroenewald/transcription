@@ -143,6 +143,22 @@ Equivalent direct PowerShell commands:
 & .\test-alpha1.ps1 -Configuration Debug
 ```
 
+Run with explicit device selection in launch scripts:
+
+```powershell
+.\scripts\run-alpha1-cli.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode managed -RecordingDeviceId "rec:0" -PlaybackDeviceId "play:0"
+.\scripts\run-alpha1-tui.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode managed -RecordingDeviceId "rec:0" -PlaybackDeviceId "play:0"
+.\scripts\run-alpha1-all.ps1 -ApiUrl "http://127.0.0.1:5240" -RecordingDeviceId "rec:0" -PlaybackDeviceId "play:0"
+```
+
+Equivalent `.cmd` wrappers:
+
+```cmd
+.\run-alpha1-cli.cmd -ApiUrl "http://127.0.0.1:5240" -Mode managed -RecordingDeviceId rec:0 -PlaybackDeviceId play:0
+.\run-alpha1-tui.cmd -ApiUrl "http://127.0.0.1:5240" -Mode managed -RecordingDeviceId rec:0 -PlaybackDeviceId play:0
+.\run-alpha1-all.cmd -ApiUrl "http://127.0.0.1:5240" -RecordingDeviceId rec:0 -PlaybackDeviceId play:0
+```
+
 Use this set as the default Alpha 1 “build pack” before adding tray/frontend orchestrators.
 
 ## Alpha 1 implementation status (2026-02-26)
@@ -188,7 +204,7 @@ Not started yet:
 
 - [ ] Real transcription provider (currently mock only; returns fixed text).
 - [ ] Tray app / desktop orchestrator integration.
-- [ ] Audio capture and playback pipeline.
+- [x] Audio capture and playback pipeline scaffolding (host-device bootstrap + playback probe plumbing; recorder still mocked for transcript output).
 - [ ] Persistent sessions or cross-restart durability.
 - [ ] `vt2 api` management verbs beyond `status`.
 - [ ] API key/credential integration for external providers.

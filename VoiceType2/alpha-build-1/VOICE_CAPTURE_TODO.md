@@ -22,10 +22,10 @@ Add real voice capture with explicit device selection flow across CLI and API ru
 - [x] Expose discovered devices in API `/v1/devices`.
 - [x] Add API validation for invalid device IDs using host-discovered IDs (when discoverable).
 - [x] Integrate selected `playback` and `recording` device values into transcription provider call surface.
-- [ ] Add full device command acceptance tests for run-mode and TUI mode.
-- [ ] Add docs for hardware setup and examples for device selection in CLI reference and launch scripts.
+- [x] Add full device command acceptance tests for run-mode and TUI mode.
+- [x] Add docs for hardware setup and examples for device selection in CLI reference and launch scripts.
 - [x] Execute hardware-device discovery + menu sync in a single source path: have CLI fetch `/v1/devices` for both run and tui menus, and fallback to local detection when API is unavailable.
-- [ ] Add `ITranscriptionProvider` host capture wiring so selected devices flow into live capture/recording initialization.
-- [ ] Add playback device plumbing (e.g., optional TTS validation/replay for confirmation) after capture path exists.
-- [ ] Add integration test that list-device output reflects `/v1/devices` payload shape.
-- [ ] Add user-facing checklist for required permissions (mic/camera/speaker) per OS.
+- [x] Add `ITranscriptionProvider` host capture wiring so selected devices flow into live capture/recording initialization.
+- [x] Add playback device plumbing (e.g., optional TTS validation/replay for confirmation) after capture path exists.
+- [x] Add integration test that list-device output reflects `/v1/devices` payload shape.
+- [x] Add user-facing checklist for required permissions (mic/camera/speaker) per OS.

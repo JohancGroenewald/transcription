@@ -176,7 +176,74 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         using var stream = await response.Content.ReadAsStreamAsync();
         using var json = await JsonDocument.ParseAsync(stream);
         Assert.True(json.RootElement.TryGetProperty("recordingDevices", out _));
-        Assert.True(json.RootElement.TryGetProperty("playbackDevices", out _));
+        Assert.True(json.RootElement.TryGetProperty("playbackDevices", out var playbackElement));
+        Assert.Equal(JsonValueKind.Array, playbackElement.ValueKind);
+        Assert.Equal(
+            JsonValueKind.Array,
+            json.RootElement.GetProperty("recordingDevices").ValueKind);
+    }
+
+    [Fact]
+    public async Task Start_uses_session_selected_audio_devices_in_transcription()
+    {
+        var provider = new CapturingTranscriptionProvider();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:1"
+            });
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        Assert.NotNull(provider.CapturedSelection);
+        Assert.Equal("rec:0", provider.CapturedSelection!.RecordingDeviceId);
+        Assert.Equal("play:1", provider.CapturedSelection.PlaybackDeviceId);
+    }
+
+    [Fact]
+    public async Task Start_initializes_host_audio_pipeline_with_session_device_selection()
+    {
+        var provider = new CapturingTranscriptionProvider();
+        var bootstrapper = new TrackingAudioBootstrapper();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:1"
+            });
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        Assert.True(bootstrapper.RecordingCaptureInitialized);
+        Assert.True(bootstrapper.PlaybackInitialized);
+        Assert.NotNull(bootstrapper.InitializedAudioDevices);
+        Assert.Equal("rec:0", bootstrapper.InitializedAudioDevices!.RecordingDeviceId);
+        Assert.Equal("play:1", bootstrapper.InitializedAudioDevices!.PlaybackDeviceId);
     }
 
     [Fact]
@@ -243,7 +310,10 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         };
     }
 
-    private static WebApplicationFactory<ApiHostProgram> CreateApiHostFactory(RuntimeSecurityConfig runtimeSecurity)
+    private static WebApplicationFactory<ApiHostProgram> CreateApiHostFactory(
+        RuntimeSecurityConfig runtimeSecurity,
+        ITranscriptionProvider? transcriptionProvider = null,
+        IHostAudioBootstrapper? audioBootstrapper = null)
     {
         return new WebApplicationFactory<ApiHostProgram>().WithWebHostBuilder(builder =>
         {
@@ -254,6 +324,8 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
                 services.RemoveAll<RuntimeSecurityConfig>();
                 services.RemoveAll<SessionPolicyConfig>();
                 services.RemoveAll<TranscriptionDefaultsConfig>();
+                services.RemoveAll<ITranscriptionProvider>();
+                services.RemoveAll<IHostAudioBootstrapper>();
                 services.RemoveAll<SessionService>();
 
                 var config = new RuntimeConfig
@@ -271,7 +343,17 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
                 services.AddSingleton(config.RuntimeSecurity);
                 services.AddSingleton(config.TranscriptionDefaults);
                 services.AddSingleton<SessionService>();
-                services.AddSingleton<ITranscriptionProvider, MockTranscriptionProvider>();
+                if (transcriptionProvider is null)
+                {
+                    services.AddSingleton<ITranscriptionProvider, MockTranscriptionProvider>();
+                }
+                else
+                {
+                    services.AddSingleton(transcriptionProvider);
+                }
+
+                services.AddSingleton(
+                    audioBootstrapper ?? new HostAudioBootstrapper());
             });
         });
     }
@@ -356,5 +438,65 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         }
 
         throw new TimeoutException($"Expected state '{expectedState}' was not reached before timeout.");
+    }
+
+    private sealed class CapturingTranscriptionProvider : ITranscriptionProvider
+    {
+        public AudioDeviceSelection? CapturedSelection { get; private set; }
+
+        public Task<TranscriptionResult> TranscribeAsync(
+            Stream audioWav,
+            string correlationId,
+            TranscriptionOptions? options = null,
+            AudioDeviceSelection? audioDevices = null,
+            CancellationToken cancellationToken = default)
+        {
+            CapturedSelection = audioDevices;
+            var result = new TranscriptionResult(
+                "mock transcript text",
+                "mock-provider",
+                TimeSpan.Zero,
+                true,
+                null,
+                null,
+                null);
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class TrackingAudioBootstrapper : IHostAudioBootstrapper
+    {
+        public AudioDeviceSelection? InitializedAudioDevices { get; private set; }
+        public bool RecordingCaptureInitialized { get; private set; }
+        public bool PlaybackInitialized { get; private set; }
+
+        public Task<IDisposable?> InitializeRecordingCaptureAsync(
+            AudioDeviceSelection? audioDevices,
+            string sessionId,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            _ = sessionId;
+            _ = correlationId;
+            _ = cancellationToken;
+            InitializedAudioDevices = audioDevices;
+            RecordingCaptureInitialized = true;
+
+            return Task.FromResult<IDisposable?>(null);
+        }
+
+        public Task InitializePlaybackAsync(
+            AudioDeviceSelection? audioDevices,
+            string sessionId,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            _ = sessionId;
+            _ = correlationId;
+            _ = cancellationToken;
+            InitializedAudioDevices = audioDevices;
+            PlaybackInitialized = true;
+            return Task.CompletedTask;
+        }
     }
 }

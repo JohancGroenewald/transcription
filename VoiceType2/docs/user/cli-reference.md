@@ -59,6 +59,24 @@ vt2 resolve retry --session-id <session-id>
 vt2 resolve cancel --session-id <session-id>
 ```
 
+List and select recording/playback devices:
+
+```powershell
+vt2 run --recording-device-id rec:0 --playback-device-id play:0 --mode managed --managed-start true
+```
+
+```powershell
+.\scripts\run-alpha1-cli.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode managed -RecordingDeviceId "rec:0" -PlaybackDeviceId "play:0"
+```
+
+During a run session, use:
+
+```text
+recording-device rec:1
+playback-device play:1
+devices
+```
+
 Auto mode (managed start) and self-contained launch examples:
 
 ```powershell
@@ -76,7 +94,7 @@ dotnet publish VoiceType2\alpha-build-1\src\VoiceType2.App.Cli\VoiceType2.App.Cl
 ## `vt2 run`
 
 ```text
-vt2 run [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]
+vt2 run [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--recording-device-id <id>] [--playback-device-id <id>] [--api-config <path>]
 ```
 
 Defaults:
@@ -104,6 +122,9 @@ controls:
 - `r` / `retry` — retry transcription
 - `status` — print current session status
 - `q` / `quit` / `exit` — stop session and exit
+- `recording-device <index|id>` — set recording device for the active session
+- `playback-device <index|id>` — set playback device for the active session
+- `devices` / `list-devices` — list host-discovered devices
 
 A visible command menu is printed at startup and after `help`/`menu`.
 
@@ -149,7 +170,19 @@ vt2 api [status]
 ## `vt2 tui`
 
 ```text
-vt2 tui [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]
+vt2 tui [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--recording-device-id <id>] [--playback-device-id <id>] [--api-config <path>]
 ```
 
 Launches the Spectre.Console TUI with a menu driven action loop for a dictation session.
+
+## Device permissions checklist
+
+- Windows:
+  - Settings → Privacy & security → Microphone, and allow Terminal / CLI host access.
+  - Settings → Privacy & security → Speaker / Sound (if available), and ensure playback output is permitted.
+- macOS:
+  - Settings → Privacy & Security → Microphone / Sound Recording permissions for your terminal host.
+  - If output is muted by policy, grant Terminal permission to output audio.
+- Linux:
+  - Ensure your audio stack is running (`pulseaudio` or `pipewire`) and your user is in the active audio session group.
+  - Verify device access with `arecord -l` and `aplay -l` before selecting custom IDs.

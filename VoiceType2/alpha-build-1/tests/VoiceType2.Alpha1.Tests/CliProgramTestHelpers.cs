@@ -12,6 +12,7 @@ internal static class CliProgramTestHelpers
     private static readonly Type _runContextType = ResolveRunContextType();
 
     internal static readonly Type ProgramType = ResolveProgramType();
+    internal static readonly Type AudioDeviceSelectionStateType = ResolveAudioDeviceSelectionStateType();
 
     internal static MethodInfo FindMethod(
         Type type,
@@ -83,12 +84,51 @@ internal static class CliProgramTestHelpers
         return normalizedResult;
     }
 
+    internal static object CreateAudioDeviceSelectionState(string? recordingDeviceId = null, string? playbackDeviceId = null)
+    {
+        return Activator.CreateInstance(AudioDeviceSelectionStateType, recordingDeviceId, playbackDeviceId)
+            ?? throw new InvalidOperationException("Unable to instantiate audio device selection state.");
+    }
+
+    internal static void SetAudioDevice(object selectionState, string propertyName, string? value)
+    {
+        var property = AudioDeviceSelectionStateType.GetProperty(
+            propertyName,
+            StaticMethods | InstanceMethods | BindingFlags.Public | BindingFlags.NonPublic);
+        if (property is null || !property.CanWrite)
+        {
+            throw new InvalidOperationException($"Audio device property '{propertyName}' is not available.");
+        }
+
+        property.SetValue(selectionState, value);
+    }
+
+    internal static string? GetAudioDevice(object selectionState, string propertyName)
+    {
+        var property = AudioDeviceSelectionStateType.GetProperty(
+            propertyName,
+            StaticMethods | InstanceMethods | BindingFlags.Public | BindingFlags.NonPublic);
+        if (property is null || !property.CanRead)
+        {
+            throw new InvalidOperationException($"Audio device property '{propertyName}' is not available.");
+        }
+
+        return (string?)property.GetValue(selectionState);
+    }
+
     private static Type ResolveProgramType()
     {
         var assembly = typeof(ClientConfigLoader).Assembly;
 
         return assembly.GetType("VoiceType2.App.Cli.Program")
             ?? assembly.GetTypes().Single(type => type.Name == "Program");
+    }
+
+    private static Type ResolveAudioDeviceSelectionStateType()
+    {
+        var assembly = ResolveProgramType().Assembly;
+        return assembly.GetType("VoiceType2.App.Cli.AudioDeviceSelectionState")
+            ?? throw new InvalidOperationException("Unable to locate AudioDeviceSelectionState.");
     }
 
     private static Type ResolveRunContextType()
