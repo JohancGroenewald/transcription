@@ -168,4 +168,6 @@ public sealed class ClientConfig
     public bool ManagedStart { get; init; }
     public int ApiTimeoutMs { get; init; }
     public int ShutdownTimeoutMs { get; init; }
+    public string? DefaultRecordingDeviceId { get; init; }
+    public string? DefaultPlaybackDeviceId { get; init; }
 }

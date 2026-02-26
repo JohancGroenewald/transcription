@@ -123,6 +123,63 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
     }
 
     [Fact]
+    public async Task Session_status_contains_audio_device_selection()
+    {
+        using var client = _factory.CreateClient();
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:0"
+            });
+
+        var status = await GetStatusAsync(client, created.SessionId, created.OrchestratorToken);
+        Assert.NotNull(status.AudioDevices);
+        Assert.Equal("rec:0", status.AudioDevices!.RecordingDeviceId);
+        Assert.Equal("play:0", status.AudioDevices.PlaybackDeviceId);
+    }
+
+    [Fact]
+    public async Task Session_device_update_endpoint_updates_session_selection()
+    {
+        using var client = _factory.CreateClient();
+        var created = await RegisterSessionAsync(client);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/v1/sessions/{created.SessionId}/devices");
+        request.Headers.Add("x-orchestrator-token", created.OrchestratorToken);
+        request.Content = JsonContent.Create(new AudioDeviceSelection
+        {
+            RecordingDeviceId = "rec:1",
+            PlaybackDeviceId = "play:2"
+        });
+
+        using var update = await client.SendAsync(request);
+        update.EnsureSuccessStatusCode();
+
+        var status = await GetStatusAsync(client, created.SessionId, created.OrchestratorToken);
+        Assert.NotNull(status.AudioDevices);
+        Assert.Equal("rec:1", status.AudioDevices!.RecordingDeviceId);
+        Assert.Equal("play:2", status.AudioDevices.PlaybackDeviceId);
+    }
+
+    [Fact]
+    public async Task Device_endpoint_returns_available_devices_shape()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/v1/devices");
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync();
+        using var json = await JsonDocument.ParseAsync(stream);
+        Assert.True(json.RootElement.TryGetProperty("recordingDevices", out _));
+        Assert.True(json.RootElement.TryGetProperty("playbackDevices", out _));
+    }
+
+    [Fact]
     public async Task Stop_is_idempotent_in_terminal_transition()
     {
         using var client = _factory.CreateClient();
@@ -219,13 +276,17 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         });
     }
 
-    private async Task<SessionCreatedResponse> RegisterSessionAsync(HttpClient client, string sessionMode = "dictate")
+    private async Task<SessionCreatedResponse> RegisterSessionAsync(
+        HttpClient client,
+        string sessionMode = "dictate",
+        AudioDeviceSelection? audioDevices = null)
     {
         var payload = new
         {
             sessionMode,
             correlationId = "alpha1-test-correlation",
-            profile = CreateProfile()
+            profile = CreateProfile(),
+            audioDevices
         };
 
         using var response = await client.PostAsJsonAsync("/v1/sessions", payload);

@@ -1,0 +1,22 @@
+{
+  "HostBinding": {
+    "Urls": "http://127.0.0.1:5240",
+    "UseHttps": false
+  },
+  "SessionPolicy": {
+    "MaxConcurrentSessions": 4,
+    "DefaultSessionTimeoutMs": 300000,
+    "SessionIdleTimeoutMs": 120000
+  },
+  "RuntimeSecurity": {
+    "AuthMode": "token-optional",
+    "EnableCorrelationIds": true,
+    "StructuredErrorEnvelope": true
+  },
+  "TranscriptionDefaults": {
+    "Provider": "mock",
+    "DefaultLanguage": "en-US",
+    "DefaultPrompt": "",
+    "DefaultTimeoutMs": 120000
+  }
+}

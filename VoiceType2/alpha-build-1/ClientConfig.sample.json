@@ -4,5 +4,7 @@
   "SessionMode": "dictate",
   "ManagedStart": true,
   "ApiTimeoutMs": 15000,
-  "ShutdownTimeoutMs": 10000
+  "ShutdownTimeoutMs": 10000,
+  "DefaultRecordingDeviceId": "",
+  "DefaultPlaybackDeviceId": ""
 }

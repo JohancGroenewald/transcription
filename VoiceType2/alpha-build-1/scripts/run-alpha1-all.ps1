@@ -4,7 +4,9 @@ param(
     [string]$ApiUrl = "",
     [switch]$NoBuild,
     [int]$ApiTimeoutMs = 0,
-    [string]$ClientConfig = ""
+    [string]$ClientConfig = "",
+    [string]$RecordingDeviceId = "",
+    [string]$PlaybackDeviceId = ""
 )
 
 function Resolve-ConfigFilePath
@@ -174,6 +176,18 @@ try
         $cliArguments += $ApiTimeoutMs
     }
 
+    if (-not [string]::IsNullOrWhiteSpace($RecordingDeviceId))
+    {
+        $cliArguments += "--recording-device-id"
+        $cliArguments += $RecordingDeviceId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($PlaybackDeviceId))
+    {
+        $cliArguments += "--playback-device-id"
+        $cliArguments += $PlaybackDeviceId
+    }
+
     dotnet @cliArguments
 }
 finally
@@ -183,4 +197,3 @@ finally
         Stop-Process -Id $apiProcess.Id -ErrorAction SilentlyContinue
     }
 }
-

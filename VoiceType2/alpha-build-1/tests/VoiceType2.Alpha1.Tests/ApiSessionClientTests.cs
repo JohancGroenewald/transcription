@@ -62,6 +62,47 @@ public class ApiSessionClientTests
     }
 
     [Fact]
+    public async Task RegisterAsync_includes_audio_device_selection()
+    {
+        AudioDeviceSelection? observedSelection = null;
+
+        using var handler = new StubHttpMessageHandler(async (request, ct) =>
+        {
+            var body = await request.Content!.ReadAsStringAsync(ct);
+            var requestPayload = JsonSerializer.Deserialize<RegisterSessionRequest>(body, JsonDefaults.Options);
+            observedSelection = requestPayload?.AudioDevices;
+
+            var response = new SessionCreatedResponse
+            {
+                SessionId = "sess-2",
+                OrchestratorToken = "token-2",
+                State = SessionState.Listening.ToString(),
+                CorrelationId = "corr-2"
+            };
+
+            return JsonResponse(HttpStatusCode.OK, response);
+        });
+
+        await using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240",
+            client: new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        var created = await client.RegisterAsync(
+            CreateProfile("unit-cli"),
+            "dictate",
+            new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:0"
+            });
+
+        Assert.Equal("sess-2", created.SessionId);
+        Assert.NotNull(observedSelection);
+        Assert.Equal("rec:0", observedSelection!.RecordingDeviceId);
+        Assert.Equal("play:0", observedSelection!.PlaybackDeviceId);
+    }
+
+    [Fact]
     public void Constructor_throws_when_api_url_is_missing()
     {
         Assert.Throws<ArgumentException>(() =>
@@ -129,6 +170,39 @@ public class ApiSessionClientTests
         Assert.Equal("started", status.LastEvent);
         Assert.Equal(7, status.Revision);
         Assert.Single(calls);
+    }
+
+    [Fact]
+    public async Task GetDevicesAsync_uses_expected_request_shape()
+    {
+        var calls = new List<HttpRequestMessage>();
+
+        using var handler = new StubHttpMessageHandler((request, ct) =>
+        {
+            calls.Add(request);
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("/v1/devices", request.RequestUri!.AbsolutePath);
+
+            var response = new HostDevicesResponse
+            {
+                RecordingDevices = [new HostAudioDevice { DeviceId = "rec:0", Name = "Mic" }],
+                PlaybackDevices = [new HostAudioDevice { DeviceId = "play:0", Name = "Speaker" }]
+            };
+
+            return Task.FromResult(JsonResponse(HttpStatusCode.OK, response));
+        });
+
+        await using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240",
+            "tok",
+            new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        var devices = await client.GetDevicesAsync();
+        Assert.Single(calls);
+        Assert.Single(devices.RecordingDevices);
+        Assert.Equal("rec:0", devices.RecordingDevices[0].DeviceId);
+        Assert.Single(devices.PlaybackDevices);
+        Assert.Equal("play:0", devices.PlaybackDevices[0].DeviceId);
     }
 
     [Fact]
@@ -301,6 +375,47 @@ public class ApiSessionClientTests
         await client.ResolveAsync("sess-1", "submit");
         Assert.Single(calls);
         Assert.Equal("submit", observedAction);
+    }
+
+    [Fact]
+    public async Task UpdateDevicesAsync_sends_expected_request_and_token()
+    {
+        string? observedRecordingId = null;
+        string? observedPlaybackId = null;
+        var calls = new List<HttpRequestMessage>();
+
+        using var handler = new StubHttpMessageHandler(async (request, ct) =>
+        {
+            calls.Add(request);
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/v1/sessions/sess-1/devices", request.RequestUri!.AbsolutePath);
+            Assert.True(request.Headers.TryGetValues("x-orchestrator-token", out var values));
+            Assert.Contains("tok", values);
+
+            var body = await request.Content!.ReadAsStringAsync(ct);
+            var payload = JsonSerializer.Deserialize<AudioDeviceSelection>(body, JsonDefaults.Options);
+            observedRecordingId = payload?.RecordingDeviceId;
+            observedPlaybackId = payload?.PlaybackDeviceId;
+
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        await using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240",
+            "tok",
+            new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        await client.UpdateDevicesAsync(
+            "sess-1",
+            new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:9",
+                PlaybackDeviceId = "play:2"
+            });
+
+        Assert.Single(calls);
+        Assert.Equal("rec:9", observedRecordingId);
+        Assert.Equal("play:2", observedPlaybackId);
     }
 
     private static OrchestratorProfile CreateProfile(string id)

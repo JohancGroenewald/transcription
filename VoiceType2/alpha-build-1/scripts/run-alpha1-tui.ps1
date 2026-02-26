@@ -6,7 +6,9 @@ param(
     [int]$ShutdownTimeoutMs = 0,
     [string]$ManagedStart = "",
     [string]$SessionMode = "",
-    [string]$ClientConfig = ""
+    [string]$ClientConfig = "",
+    [string]$RecordingDeviceId = "",
+    [string]$PlaybackDeviceId = ""
 )
 
 Set-Location -Path (Join-Path $PSScriptRoot "..")
@@ -35,6 +37,18 @@ if (-not [string]::IsNullOrWhiteSpace($SessionMode))
 {
     $arguments += "--session-mode"
     $arguments += $SessionMode
+}
+
+if (-not [string]::IsNullOrWhiteSpace($RecordingDeviceId))
+{
+    $arguments += "--recording-device-id"
+    $arguments += $RecordingDeviceId
+}
+
+if (-not [string]::IsNullOrWhiteSpace($PlaybackDeviceId))
+{
+    $arguments += "--playback-device-id"
+    $arguments += $PlaybackDeviceId
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ClientConfig))

@@ -1,4 +1,8 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using VoiceType2.ApiHost;
 using VoiceType2.ApiHost.Services;
@@ -86,6 +90,12 @@ app.MapPost("/v1/sessions", async (
 
     try
     {
+        var audioValidationResult = ValidateAudioDeviceSelection(request.AudioDevices, requestCorrelationId);
+        if (audioValidationResult is not null)
+        {
+            return audioValidationResult;
+        }
+
         var session = await sessions.CreateAsync(request, context.RequestAborted);
         await eventBus.PublishAsync(session.SessionId, new SessionEventEnvelope
         {
@@ -129,7 +139,75 @@ app.MapGet("/v1/sessions/{sessionId}", (string sessionId, HttpContext context, R
         State = session.State.ToString(),
         CorrelationId = session.CorrelationId,
         LastEvent = session.LastEvent,
-        Revision = session.Revision
+        Revision = session.Revision,
+        AudioDevices = session.AudioDevices
+    });
+});
+
+app.MapGet("/v1/devices", () =>
+{
+    return Results.Ok(new HostDevicesResponse
+    {
+        RecordingDevices = GetHostRecordingDevices(),
+        PlaybackDevices = GetHostPlaybackDevices()
+    });
+});
+
+app.MapPost("/v1/sessions/{sessionId}/devices", async (
+    string sessionId,
+    AudioDeviceSelection? request,
+    HttpContext context,
+    SessionService sessions,
+    SessionEventBus eventBus,
+    RuntimeConfig config,
+    CancellationToken ct) =>
+{
+    RunHousekeeping(sessions, eventBus, activeWorkers);
+
+    if (!sessions.TryGet(sessionId, out var session))
+    {
+        return Problem(404, "SESSION_NOT_FOUND", "Session not found.", sessionId);
+    }
+
+    if (!IsAuthorized(context, config, session))
+    {
+        return Problem(401, "INVALID_TOKEN", "Missing or invalid orchestrator token.");
+    }
+
+    var validationResult = ValidateAudioDeviceSelection(request, session.CorrelationId);
+    if (validationResult is not null)
+    {
+        return validationResult;
+    }
+
+    var updated = await sessions.TryUpdateAudioDevicesAsync(
+        sessionId,
+        request,
+        "audio-devices-updated",
+        ct);
+    if (!updated)
+    {
+        return Problem(409, "INVALID_TRANSITION", "Audio device update is only valid for non-terminal sessions.");
+    }
+
+    session = sessions.TryGet(sessionId, out var refreshed) ? refreshed : session;
+    await eventBus.PublishAsync(sessionId, new SessionEventEnvelope
+    {
+        EventType = "status",
+        SessionId = sessionId,
+        CorrelationId = session.CorrelationId,
+        State = session.State.ToString(),
+        Text = "audio-devices-updated"
+    }, ct);
+
+    return Results.Ok(new SessionStatusResponse
+    {
+        SessionId = session.SessionId,
+        State = session.State.ToString(),
+        CorrelationId = session.CorrelationId,
+        LastEvent = "audio-devices-updated",
+        Revision = session.Revision,
+        AudioDevices = session.AudioDevices
     });
 });
 
@@ -161,7 +239,8 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
             SessionId = session.SessionId,
             State = session.State.ToString(),
             CorrelationId = session.CorrelationId,
-            LastEvent = "already-listening"
+            LastEvent = "already-listening",
+            AudioDevices = session.AudioDevices
         });
     }
 
@@ -187,14 +266,15 @@ app.MapPost("/v1/sessions/{sessionId}/start", async (
         Text = "started"
     }, ct);
 
-    StartSessionWorkAsync(sessionId, session.CorrelationId, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
+    StartSessionWorkAsync(sessionId, session.CorrelationId, session.AudioDevices, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
 
     return Results.Ok(new SessionStatusResponse
     {
         SessionId = sessionId,
         State = SessionState.Listening.ToString(),
         CorrelationId = session.CorrelationId,
-        LastEvent = "started"
+        LastEvent = "started",
+        AudioDevices = session.AudioDevices
     });
 });
 
@@ -224,7 +304,8 @@ app.MapPost("/v1/sessions/{sessionId}/stop", async (
             SessionId = session.SessionId,
             State = SessionState.Stopped.ToString(),
             CorrelationId = session.CorrelationId,
-            LastEvent = session.LastEvent
+            LastEvent = session.LastEvent,
+            AudioDevices = session.AudioDevices
         });
     }
 
@@ -258,7 +339,8 @@ app.MapPost("/v1/sessions/{sessionId}/stop", async (
         SessionId = sessionId,
         State = SessionState.Stopped.ToString(),
         CorrelationId = session.CorrelationId,
-        LastEvent = "stopped"
+        LastEvent = "stopped",
+        AudioDevices = session.AudioDevices
     });
 });
 
@@ -329,7 +411,7 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
 
     if (action == "retry")
     {
-        StartSessionWorkAsync(sessionId, session.CorrelationId, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
+        StartSessionWorkAsync(sessionId, session.CorrelationId, session.AudioDevices, sessions, eventBus, transcriptionProvider, transcriptionDefaults, activeWorkers);
     }
     else
     {
@@ -341,7 +423,8 @@ app.MapPost("/v1/sessions/{sessionId}/resolve", async (
         SessionId = sessionId,
         State = session.State.ToString(),
         CorrelationId = session.CorrelationId,
-        LastEvent = $"resolve:{action}"
+        LastEvent = $"resolve:{action}",
+        AudioDevices = session.AudioDevices
     });
 });
 
@@ -387,6 +470,292 @@ app.MapGet("/v1/sessions/{sessionId}/events", async (
 });
 
 await app.RunAsync();
+
+static IResult? ValidateAudioDeviceSelection(AudioDeviceSelection? audioDevices, string requestCorrelationId)
+{
+    if (audioDevices is null)
+    {
+        return null;
+    }
+
+    var recordingCandidates = GetHostRecordingDevices();
+    var playbackCandidates = GetHostPlaybackDevices();
+
+    if (!string.IsNullOrWhiteSpace(audioDevices.RecordingDeviceId)
+        && !ContainsAudioDevice(recordingCandidates, audioDevices.RecordingDeviceId))
+    {
+        return Problem(
+            400,
+            "INVALID_RECORDING_DEVICE",
+            $"Unknown recording device id '{audioDevices.RecordingDeviceId}'.",
+            correlationId: requestCorrelationId);
+    }
+
+    if (!string.IsNullOrWhiteSpace(audioDevices.PlaybackDeviceId)
+        && !ContainsAudioDevice(playbackCandidates, audioDevices.PlaybackDeviceId))
+    {
+        return Problem(
+            400,
+            "INVALID_PLAYBACK_DEVICE",
+            $"Unknown playback device id '{audioDevices.PlaybackDeviceId}'.",
+            correlationId: requestCorrelationId);
+    }
+
+    return null;
+}
+
+static bool ContainsAudioDevice(IReadOnlyList<HostAudioDevice> devices, string? deviceId)
+{
+    if (string.IsNullOrWhiteSpace(deviceId))
+    {
+        return false;
+    }
+
+    if (devices.Count == 0)
+    {
+        return true;
+    }
+
+    foreach (var device in devices)
+    {
+        if (string.Equals(device.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static IReadOnlyList<HostAudioDevice> GetHostRecordingDevices()
+{
+    if (OperatingSystem.IsWindows())
+    {
+        return GetHostWaveDevices("NAudio.Wave.WaveIn", "rec");
+    }
+
+    if (OperatingSystem.IsLinux())
+    {
+        return ParseHostAlsaDevices("arecord -l", "rec");
+    }
+
+    if (OperatingSystem.IsMacOS())
+    {
+        return ParseHostMacDevices(true);
+    }
+
+    return [];
+}
+
+static IReadOnlyList<HostAudioDevice> GetHostPlaybackDevices()
+{
+    if (OperatingSystem.IsWindows())
+    {
+        return GetHostWaveDevices("NAudio.Wave.WaveOut", "play");
+    }
+
+    if (OperatingSystem.IsLinux())
+    {
+        return ParseHostAlsaDevices("aplay -l", "play");
+    }
+
+    if (OperatingSystem.IsMacOS())
+    {
+        return ParseHostMacDevices(false);
+    }
+
+    return [];
+}
+
+static IReadOnlyList<HostAudioDevice> GetHostWaveDevices(string typeName, string prefix)
+{
+    try
+    {
+        var type = Type.GetType($"{typeName}, NAudio");
+        if (type is null)
+        {
+            return [];
+        }
+
+        var deviceCountProperty = type.GetProperty(
+            "DeviceCount",
+            BindingFlags.Public | BindingFlags.Static);
+        if (deviceCountProperty is null)
+        {
+            return [];
+        }
+
+        var getCapabilitiesMethod = type.GetMethod(
+            "GetCapabilities",
+            BindingFlags.Public | BindingFlags.Static);
+        if (getCapabilitiesMethod is null)
+        {
+            return [];
+        }
+
+        var count = (int)(deviceCountProperty.GetValue(null) ?? 0);
+        var devices = new List<HostAudioDevice>();
+
+        for (var index = 0; index < count; index++)
+        {
+            var capabilities = getCapabilitiesMethod.Invoke(null, [index]);
+            if (capabilities is null)
+            {
+                continue;
+            }
+
+            var nameProperty = capabilities.GetType().GetProperty("ProductName");
+            var name = nameProperty?.GetValue(capabilities) as string;
+
+            devices.Add(new HostAudioDevice
+            {
+                DeviceId = $"{prefix}:{index}",
+                Name = string.IsNullOrWhiteSpace(name) ? $"{typeName} {index}" : name
+            });
+        }
+
+        return devices;
+    }
+    catch
+    {
+    }
+
+    return [];
+}
+
+static IReadOnlyList<HostAudioDevice> ParseHostAlsaDevices(string command, string prefix)
+{
+    var output = RunHostCommand(command);
+    if (string.IsNullOrWhiteSpace(output))
+    {
+        return [];
+    }
+
+    var lines = output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+    var devices = new List<HostAudioDevice>();
+    var regex = new Regex(@"card\s+(\d+):\s+([^:\[\n\r]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    foreach (var line in lines)
+    {
+        var match = regex.Match(line);
+        if (!match.Success)
+        {
+            continue;
+        }
+
+        var cardId = match.Groups[1].Value.Trim();
+        var name = match.Groups[2].Value.Trim();
+        if (string.IsNullOrWhiteSpace(cardId) || string.IsNullOrWhiteSpace(name))
+        {
+            continue;
+        }
+
+        devices.Add(new HostAudioDevice
+        {
+            DeviceId = $"{prefix}:{cardId}",
+            Name = name
+        });
+    }
+
+    return devices;
+}
+
+static IReadOnlyList<HostAudioDevice> ParseHostMacDevices(bool isRecording)
+{
+    var output = RunHostCommand("system_profiler SPAudioDataType");
+    if (string.IsNullOrWhiteSpace(output))
+    {
+        return [];
+    }
+
+    var lines = output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+    var devices = new List<HostAudioDevice>();
+    var section = string.Empty;
+    var sectionId = isRecording ? "Input" : "Output";
+    var regex = new Regex(@"^\s{12}(.+?):$", RegexOptions.Compiled);
+    var count = 1;
+
+    foreach (var line in lines)
+    {
+        if (line.Contains("Input Devices:", StringComparison.Ordinal))
+        {
+            section = "Input";
+            continue;
+        }
+
+        if (line.Contains("Output Devices:", StringComparison.Ordinal))
+        {
+            section = "Output";
+            continue;
+        }
+
+        if (!string.Equals(section, sectionId, StringComparison.Ordinal))
+        {
+            continue;
+        }
+
+        var match = regex.Match(line);
+        if (!match.Success)
+        {
+            continue;
+        }
+
+        var name = match.Groups[1].Value.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            continue;
+        }
+
+        var prefix = isRecording ? "rec" : "play";
+        devices.Add(new HostAudioDevice
+        {
+            DeviceId = $"{prefix}:{count}",
+            Name = name
+        });
+        count++;
+    }
+
+    return devices;
+}
+
+static string RunHostCommand(string commandLine)
+{
+    if (string.IsNullOrWhiteSpace(commandLine))
+    {
+        return string.Empty;
+    }
+
+    var splitIndex = commandLine.IndexOf(' ');
+    var file = splitIndex >= 0 ? commandLine[..splitIndex] : commandLine;
+    var args = splitIndex >= 0 ? commandLine[(splitIndex + 1)..] : string.Empty;
+
+    try
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = file,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        var output = new StringBuilder();
+        process.Start();
+        output.Append(process.StandardOutput.ReadToEnd());
+        process.WaitForExit(500);
+
+        return output.ToString();
+    }
+    catch
+    {
+        return string.Empty;
+    }
+}
 
 static bool IsAuthorized(HttpContext context, RuntimeConfig config, SessionRecord session)
 {
@@ -451,6 +820,7 @@ static void StopSessionWork(string sessionId, ConcurrentDictionary<string, Sessi
 static void StartSessionWorkAsync(
     string sessionId,
     string correlationId,
+    AudioDeviceSelection? audioDevices,
     SessionService sessions,
     SessionEventBus eventBus,
     ITranscriptionProvider transcriptionProvider,
@@ -476,6 +846,7 @@ static void StartSessionWorkAsync(
     workItem.ProcessingTask = ProcessSessionAsync(
         sessionId,
         correlationId,
+        audioDevices,
         sessions,
         eventBus,
         transcriptionProvider,
@@ -517,6 +888,7 @@ static void FinalizeSessionWork(
 static async Task ProcessSessionAsync(
     string sessionId,
     string correlationId,
+    AudioDeviceSelection? audioDevices,
     SessionService sessions,
     SessionEventBus eventBus,
     ITranscriptionProvider transcriptionProvider,
@@ -553,7 +925,12 @@ static async Task ProcessSessionAsync(
             true,
             null);
 
-        var result = await transcriptionProvider.TranscribeAsync(audio, correlationId, options, ct);
+        var result = await transcriptionProvider.TranscribeAsync(
+            audio,
+            correlationId,
+            options,
+            audioDevices,
+            ct);
         if (ct.IsCancellationRequested)
         {
             return;
@@ -698,73 +1075,3 @@ static void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  dotnet run --project VoiceType2.ApiHost/VoiceType2.ApiHost.csproj -- --mode service [--urls <url>] [--config <path>] [--help]");
 }
-
-public sealed class ApiHostOptions
-{
-    private ApiHostOptions(string mode, string? urls, string? configPath, bool showHelp)
-    {
-        Mode = mode;
-        Urls = urls;
-        ConfigPath = configPath;
-        ShowHelp = showHelp;
-    }
-
-    public string Mode { get; }
-    public string? Urls { get; }
-    public string? ConfigPath { get; }
-    public bool ShowHelp { get; }
-
-    public static ApiHostOptions Parse(string[] args)
-    {
-        var mode = "service";
-        string? urls = null;
-        string? configPath = null;
-        var showHelp = false;
-
-        var i = 0;
-        while (i < args.Length)
-        {
-            var current = args[i];
-            if (string.Equals(current, "--help", StringComparison.OrdinalIgnoreCase) || string.Equals(current, "-h", StringComparison.OrdinalIgnoreCase))
-            {
-                showHelp = true;
-            }
-            else if (current.Equals("--mode", StringComparison.OrdinalIgnoreCase))
-            {
-                if (i + 1 < args.Length)
-                {
-                    mode = args[i + 1];
-                    i++;
-                }
-            }
-            else if (current.Equals("--urls", StringComparison.OrdinalIgnoreCase))
-            {
-                if (i + 1 < args.Length)
-                {
-                    urls = args[i + 1];
-                    i++;
-                }
-            }
-            else if (current.Equals("--config", StringComparison.OrdinalIgnoreCase))
-            {
-                if (i + 1 < args.Length)
-                {
-                    configPath = args[i + 1];
-                    i++;
-                }
-            }
-
-            i++;
-        }
-
-        return new ApiHostOptions(mode, urls, configPath, showHelp);
-    }
-}
-
-internal sealed class SessionWorkItem
-{
-    public required CancellationTokenSource CancellationTokenSource { get; init; }
-    public Task ProcessingTask { get; set; } = Task.CompletedTask;
-}
-
-public sealed partial class Program;

@@ -13,7 +13,7 @@ public sealed class CliStartupAndInteractionTests
         var method = CliProgramTestHelpers.RunAsyncMethod;
         var context = CliProgramTestHelpers.CreateRunContext("dictate");
         object? managedApiConfig = null;
-        var args = new object[] { UnreachableApiUrl, "attach", false, managedApiConfig, 250, 1000 };
+        var args = new object[] { UnreachableApiUrl, "attach", false, managedApiConfig, 250, 1000, null, null };
 
         var result = await (Task<int>)method.Invoke(context, args)!;
 
@@ -26,7 +26,7 @@ public sealed class CliStartupAndInteractionTests
         var method = CliProgramTestHelpers.RunAsyncMethod;
         var context = CliProgramTestHelpers.CreateRunContext("command");
         object? managedApiConfig = null;
-        var args = new object[] { UnreachableApiUrl, "managed", false, managedApiConfig, 250, 1000 };
+        var args = new object[] { UnreachableApiUrl, "managed", false, managedApiConfig, 250, 1000, null, null };
 
         var result = await (Task<int>)method.Invoke(context, args)!;
 
@@ -39,7 +39,7 @@ public sealed class CliStartupAndInteractionTests
         var method = CliProgramTestHelpers.TuiAsyncMethod;
         var context = CliProgramTestHelpers.CreateRunContext("dictate");
         object? managedApiConfig = null;
-        var args = new object[] { UnreachableApiUrl, "managed", false, managedApiConfig, 250, 1000 };
+        var args = new object[] { UnreachableApiUrl, "managed", false, managedApiConfig, 250, 1000, null, null };
 
         var result = await (Task<int>)method.Invoke(context, args)!;
 

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
     <ProjectReference Include="..\VoiceType2.Core\VoiceType2.Core.csproj" />
     <ProjectReference Include="..\VoiceType2.Infrastructure\VoiceType2.Infrastructure.csproj" />
   </ItemGroup>

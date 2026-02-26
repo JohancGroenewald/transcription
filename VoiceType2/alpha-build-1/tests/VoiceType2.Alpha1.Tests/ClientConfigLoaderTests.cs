@@ -20,7 +20,9 @@ public sealed class ClientConfigLoaderTests
             SessionMode = "command",
             ManagedStart = false,
             ApiTimeoutMs = 12345,
-            ShutdownTimeoutMs = 4321
+            ShutdownTimeoutMs = 4321,
+            DefaultRecordingDeviceId = "rec:1",
+            DefaultPlaybackDeviceId = "play:2"
         }));
 
         try
@@ -33,6 +35,8 @@ public sealed class ClientConfigLoaderTests
             Assert.False(config.ManagedStart);
             Assert.Equal(12345, config.ApiTimeoutMs);
             Assert.Equal(4321, config.ShutdownTimeoutMs);
+            Assert.Equal("rec:1", config.DefaultRecordingDeviceId);
+            Assert.Equal("play:2", config.DefaultPlaybackDeviceId);
         }
         finally
         {

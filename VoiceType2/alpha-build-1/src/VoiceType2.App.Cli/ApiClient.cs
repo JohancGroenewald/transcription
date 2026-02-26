@@ -43,12 +43,17 @@ internal sealed class ApiSessionClient : IAsyncDisposable
         _jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     }
 
-    public Task<SessionCreatedResponse> RegisterAsync(OrchestratorProfile profile, string sessionMode, CancellationToken ct = default)
+    public Task<SessionCreatedResponse> RegisterAsync(
+        OrchestratorProfile profile,
+        string sessionMode,
+        AudioDeviceSelection? audioDevices = null,
+        CancellationToken ct = default)
     {
         var request = new RegisterSessionRequest
         {
             SessionMode = sessionMode,
-            Profile = profile
+            Profile = profile,
+            AudioDevices = audioDevices
         };
 
         return SendAsync<SessionCreatedResponse>(HttpMethod.Post, "v1/sessions", request, ct);
@@ -57,6 +62,11 @@ internal sealed class ApiSessionClient : IAsyncDisposable
     public Task<SessionStatusResponse> GetStatusAsync(string sessionId, CancellationToken ct = default)
     {
         return SendAsync<SessionStatusResponse>(HttpMethod.Get, $"v1/sessions/{sessionId}", null, ct);
+    }
+
+    public Task<HostDevicesResponse> GetDevicesAsync(CancellationToken ct = default)
+    {
+        return SendAsync<HostDevicesResponse>(HttpMethod.Get, "v1/devices", null, ct);
     }
 
     public Task StartAsync(string sessionId, CancellationToken ct = default)
@@ -73,6 +83,11 @@ internal sealed class ApiSessionClient : IAsyncDisposable
     {
         var request = new ResolveRequest { Action = action };
         return SendNoResponseAsync(HttpMethod.Post, $"v1/sessions/{sessionId}/resolve", request, ct);
+    }
+
+    public Task UpdateDevicesAsync(string sessionId, AudioDeviceSelection? audioDevices, CancellationToken ct = default)
+    {
+        return SendNoResponseAsync(HttpMethod.Post, $"v1/sessions/{sessionId}/devices", audioDevices, ct);
     }
 
     public Task<bool> IsReadyAsync(CancellationToken ct = default)

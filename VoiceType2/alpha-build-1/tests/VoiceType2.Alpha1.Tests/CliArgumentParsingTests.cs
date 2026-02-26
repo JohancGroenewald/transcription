@@ -55,6 +55,23 @@ public sealed class CliArgumentParsingTests
     }
 
     [Fact]
+    public void ParseArguments_parses_device_ids()
+    {
+        var parsed = InvokeParseArguments(new[]
+        {
+            "run",
+            "--recording-device-id",
+            "rec:0",
+            "--playback-device-id",
+            "play:0"
+        });
+
+        Assert.Equal("run", GetCommand(parsed));
+        Assert.Equal("rec:0", GetFlagValue(parsed, "--recording-device-id"));
+        Assert.Equal("play:0", GetFlagValue(parsed, "--playback-device-id"));
+    }
+
+    [Fact]
     public void ParseBool_parses_expected_inputs_and_defaults()
     {
         Assert.True(InvokeParseBool("true", false));

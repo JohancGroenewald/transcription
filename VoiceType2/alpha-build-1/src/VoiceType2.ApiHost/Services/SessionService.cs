@@ -44,6 +44,7 @@ public sealed class SessionService
             SessionId = Guid.NewGuid().ToString("N"),
             OrchestratorToken = CreateToken(),
             Profile = profile,
+            AudioDevices = request.AudioDevices,
             CorrelationId = correlationId,
             State = SessionState.Registered,
             LastEvent = "created",
@@ -66,6 +67,21 @@ public sealed class SessionService
 
         session = null;
         return false;
+    }
+
+    public Task<bool> TryUpdateAudioDevicesAsync(
+        string sessionId,
+        AudioDeviceSelection? audioDevices,
+        string lastEvent,
+        CancellationToken cancellationToken)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return Task.FromResult(false);
+        }
+
+        var lockObject = _locks.GetOrAdd(sessionId, _ => new SemaphoreSlim(1, 1));
+        return UpdateAudioDevicesInternalAsync(session, lockObject, audioDevices, lastEvent, cancellationToken);
     }
 
     public Task<bool> TryTransitionAsync(
@@ -129,6 +145,34 @@ public sealed class SessionService
             }
 
             session.State = nextState;
+            session.Revision++;
+            session.LastEvent = lastEvent;
+            session.LastUpdatedUtc = DateTimeOffset.UtcNow;
+            return true;
+        }
+        finally
+        {
+            lockObject.Release();
+        }
+    }
+
+    private static async Task<bool> UpdateAudioDevicesInternalAsync(
+        SessionRecord session,
+        SemaphoreSlim lockObject,
+        AudioDeviceSelection? audioDevices,
+        string lastEvent,
+        CancellationToken cancellationToken)
+    {
+        await lockObject.WaitAsync(cancellationToken);
+
+        try
+        {
+            if (IsTerminal(session.State))
+            {
+                return false;
+            }
+
+            session.AudioDevices = audioDevices;
             session.Revision++;
             session.LastEvent = lastEvent;
             session.LastUpdatedUtc = DateTimeOffset.UtcNow;

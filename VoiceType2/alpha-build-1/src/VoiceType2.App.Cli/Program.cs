@@ -1,8 +1,12 @@
 using System.Diagnostics;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using Spectre.Console;
-using VoiceType2.Core.Contracts;
 using VoiceType2.App.Cli;
+using VoiceType2.Core.Contracts;
+
 
 var input = ParseArguments(args);
 var command = input.Command;
@@ -16,6 +20,8 @@ var apiTimeoutMs = ParseInt(input.GetFlagValue("--api-timeout-ms"), defaults.Api
 var shutdownTimeoutMs = ParseInt(input.GetFlagValue("--shutdown-timeout-ms"), defaults.ShutdownTimeoutMs);
 var managedStart = ParseBool(input.GetFlagValue("--managed-start"), defaults.ManagedStart);
 var sessionMode = input.GetFlagValue("--session-mode") ?? defaults.SessionMode;
+var recordingDeviceId = input.GetFlagValue("--recording-device-id") ?? defaults.DefaultRecordingDeviceId;
+var playbackDeviceId = input.GetFlagValue("--playback-device-id") ?? defaults.DefaultPlaybackDeviceId;
 
 var showHelp = input.Flags.ContainsKey("--help") || input.Flags.ContainsKey("-h");
 
@@ -32,8 +38,24 @@ if (command == "run" && input.Flags.ContainsKey("--tui"))
 
 var exitCode = command switch
 {
-    "run" => await RunAsync(apiUrl, mode, managedStart, managedApiConfig, apiTimeoutMs, shutdownTimeoutMs),
-    "tui" => await TuiAsync(apiUrl, mode, managedStart, managedApiConfig, apiTimeoutMs, shutdownTimeoutMs),
+    "run" => await RunAsync(
+        apiUrl,
+        mode,
+        managedStart,
+        managedApiConfig,
+        apiTimeoutMs,
+        shutdownTimeoutMs,
+        recordingDeviceId,
+        playbackDeviceId),
+    "tui" => await TuiAsync(
+        apiUrl,
+        mode,
+        managedStart,
+        managedApiConfig,
+        apiTimeoutMs,
+        shutdownTimeoutMs,
+        recordingDeviceId,
+        playbackDeviceId),
     "status" => await StatusAsync(apiUrl, sessionId, apiToken),
     "stop" => await StopAsync(apiUrl, sessionId, apiToken),
     "resolve" => await ResolveAsync(apiUrl, sessionId, input.PositionalArgs, apiToken),
@@ -51,7 +73,9 @@ async Task<int> RunAsync(
     bool managedStart,
     string? managedApiConfig,
     int apiTimeoutMs,
-    int shutdownTimeoutMs)
+    int shutdownTimeoutMs,
+    string? recordingDeviceId,
+    string? playbackDeviceId)
 {
     Process? managedProcess = null;
     try
@@ -84,12 +108,25 @@ async Task<int> RunAsync(
         }
 
         await using var bootstrapClient = new ApiSessionClient(apiUrl);
+        var selectedDevices = new AudioDeviceSelectionState(
+            string.IsNullOrWhiteSpace(recordingDeviceId) ? null : recordingDeviceId,
+            string.IsNullOrWhiteSpace(playbackDeviceId) ? null : playbackDeviceId);
+
         var profile = CreateProfile();
-        var created = await bootstrapClient.RegisterAsync(profile, sessionMode);
+        var created = await bootstrapClient.RegisterAsync(
+            profile,
+            sessionMode,
+            CreateAudioDeviceSelection(selectedDevices));
         await using var sessionClient = new ApiSessionClient(apiUrl, created.OrchestratorToken);
 
         await sessionClient.StartAsync(created.SessionId);
-        PrintSessionStartedHeader(created.SessionId, created.State, created.CorrelationId, apiUrl, mode);
+        PrintSessionStartedHeader(
+            created.SessionId,
+            created.State,
+            created.CorrelationId,
+            apiUrl,
+            mode,
+            selectedDevices);
         PrintRunMenu();
 
         using var eventCts = new CancellationTokenSource();
@@ -103,41 +140,63 @@ async Task<int> RunAsync(
                 continue;
             }
 
-            var normalized = line.Trim().ToLowerInvariant();
-            if (normalized is "q" or "quit" or "exit")
+            var tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0)
+            {
+                continue;
+            }
+
+            var command = tokens[0].Trim().ToLowerInvariant();
+            var argument = tokens.Length > 1 ? string.Join(" ", tokens.Skip(1)) : null;
+
+            if (command is "status" or "devices" or "recording-device" or "playback-device" or "set-recording-device" or "set-playback-device")
+            {
+                if (await HandleRunDeviceCommandsAsync(
+                        command,
+                        argument,
+                        selectedDevices,
+                        created.SessionId,
+                        sessionClient))
+                {
+                    PrintRunMenu();
+                    continue;
+                }
+            }
+
+            if (command is "q" or "quit" or "exit")
             {
                 Console.WriteLine("Stopping session and exiting...");
                 break;
             }
 
-            if (normalized is "s" or "submit")
+            if (command is "s" or "submit")
             {
                 await sessionClient.ResolveAsync(created.SessionId, "submit");
                 Console.WriteLine("Action sent: submit");
                 continue;
             }
 
-            if (normalized is "c" or "cancel")
+            if (command is "c" or "cancel")
             {
                 await sessionClient.ResolveAsync(created.SessionId, "cancel");
                 Console.WriteLine("Action sent: cancel");
                 continue;
             }
 
-            if (normalized is "r" or "retry")
+            if (command is "r" or "retry")
             {
                 await sessionClient.ResolveAsync(created.SessionId, "retry");
                 Console.WriteLine("Action sent: retry");
                 continue;
             }
 
-            if (normalized == "status")
+            if (command is "status")
             {
                 await PrintSessionStatusAsync(sessionClient, created.SessionId);
                 continue;
             }
 
-            if (normalized is "h" or "help" or "menu")
+            if (command is "h" or "help" or "menu")
             {
                 PrintRunMenu();
                 continue;
@@ -173,7 +232,9 @@ async Task<int> TuiAsync(
     bool managedStart,
     string? managedApiConfig,
     int apiTimeoutMs,
-    int shutdownTimeoutMs)
+    int shutdownTimeoutMs,
+    string? recordingDeviceId,
+    string? playbackDeviceId)
 {
     Process? managedProcess = null;
     try
@@ -206,8 +267,14 @@ async Task<int> TuiAsync(
         }
 
         await using var bootstrapClient = new ApiSessionClient(apiUrl);
+        var selectedDevices = new AudioDeviceSelectionState(
+            string.IsNullOrWhiteSpace(recordingDeviceId) ? null : recordingDeviceId,
+            string.IsNullOrWhiteSpace(playbackDeviceId) ? null : playbackDeviceId);
         var profile = CreateProfile();
-        var created = await bootstrapClient.RegisterAsync(profile, sessionMode);
+        var created = await bootstrapClient.RegisterAsync(
+            profile,
+            sessionMode,
+            CreateAudioDeviceSelection(selectedDevices));
         await using var sessionClient = new ApiSessionClient(apiUrl, created.OrchestratorToken);
 
         await sessionClient.StartAsync(created.SessionId);
@@ -236,7 +303,16 @@ async Task<int> TuiAsync(
             var selected = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("Choose an action")
-                    .AddChoices("submit", "cancel", "retry", "status", "help", "quit"));
+                    .AddChoices(
+                        "submit",
+                        "cancel",
+                        "retry",
+                        "set recording device",
+                        "set playback device",
+                        "show devices",
+                        "status",
+                        "help",
+                        "quit"));
 
             if (selected is "quit")
             {
@@ -246,6 +322,24 @@ async Task<int> TuiAsync(
             if (selected is "help")
             {
                 PrintTuiMenu();
+                continue;
+            }
+
+            if (selected is "show devices")
+            {
+                await PrintAvailableDevicesAsync(selectedDevices, sessionClient);
+                continue;
+            }
+
+            if (selected is "set recording device")
+            {
+                await SelectRecordingDeviceAsync(selectedDevices, created.SessionId, sessionClient);
+                continue;
+            }
+
+            if (selected is "set playback device")
+            {
+                await SelectPlaybackDeviceAsync(selectedDevices, created.SessionId, sessionClient);
                 continue;
             }
 
@@ -400,8 +494,21 @@ async Task PrintTuiEventsAsync(ApiSessionClient client, string sessionId, Cancel
     }
 }
 
-void PrintSessionStartedHeader(string sessionId, string state, string correlationId, string apiUrl, string mode)
+void PrintSessionStartedHeader(
+    string sessionId,
+    string state,
+    string correlationId,
+    string apiUrl,
+    string mode,
+    AudioDeviceSelectionState selectedDevices)
 {
+    var playbackSelection = string.IsNullOrWhiteSpace(selectedDevices.PlaybackDeviceId)
+        ? "<auto>"
+        : selectedDevices.PlaybackDeviceId;
+    var recordingSelection = string.IsNullOrWhiteSpace(selectedDevices.RecordingDeviceId)
+        ? "<auto>"
+        : selectedDevices.RecordingDeviceId;
+
     Console.WriteLine();
     Console.WriteLine("=== VoiceType2 Dictation Session ===");
     Console.WriteLine($"Mode:        {mode}");
@@ -409,24 +516,53 @@ void PrintSessionStartedHeader(string sessionId, string state, string correlatio
     Console.WriteLine($"Session ID:  {sessionId}");
     Console.WriteLine($"State:       {state}");
     Console.WriteLine($"Correlation: {correlationId}");
+    Console.WriteLine($"Recording:   {recordingSelection}");
+    Console.WriteLine($"Playback:    {playbackSelection}");
     Console.WriteLine("=================================");
     Console.WriteLine();
 }
 
 void PrintRunMenu()
 {
+    PrintRunMenuForSelection(new AudioDeviceSelectionState(null, null));
+}
+
+void PrintRunMenuForSelection(AudioDeviceSelectionState selectedDevices)
+{
+    var playbackSelection = string.IsNullOrWhiteSpace(selectedDevices.PlaybackDeviceId)
+        ? "<auto>"
+        : selectedDevices.PlaybackDeviceId;
+    var recordingSelection = string.IsNullOrWhiteSpace(selectedDevices.RecordingDeviceId)
+        ? "<auto>"
+        : selectedDevices.RecordingDeviceId;
+
     Console.WriteLine("Session menu (enter a command and press Enter):");
     Console.WriteLine("  1) submit  (s)  - Accept transcript and complete");
     Console.WriteLine("  2) cancel  (c)  - Cancel current transcript");
     Console.WriteLine("  3) retry   (r)  - Retry transcription");
-    Console.WriteLine("  4) status       - Show current status");
-    Console.WriteLine("  5) quit    (q)  - Stop session and exit");
-    Console.WriteLine("  6) help    (h)  - Show this menu again");
+    Console.WriteLine($"  4) recording-device <id|index> ({recordingSelection}) - Select recording device");
+    Console.WriteLine($"  5) playback-device  <id|index> ({playbackSelection}) - Select playback device");
+    Console.WriteLine("  6) list-devices               - List available devices");
+    Console.WriteLine("  7) status                    - Show current status");
+    Console.WriteLine("  8) quit    (q)               - Stop session and exit");
+    Console.WriteLine("  9) help    (h)               - Show this menu again");
     Console.WriteLine("=================================");
 }
 
 void PrintTuiMenu()
 {
+    PrintTuiMenuForSelection(new AudioDeviceSelectionState(null, null));
+}
+
+void PrintTuiMenuForSelection(AudioDeviceSelectionState selectedDevices)
+{
+    var playbackSelection = string.IsNullOrWhiteSpace(selectedDevices.PlaybackDeviceId)
+        ? "<auto>"
+        : selectedDevices.PlaybackDeviceId;
+    var recordingSelection = string.IsNullOrWhiteSpace(selectedDevices.RecordingDeviceId)
+        ? "<auto>"
+        : selectedDevices.RecordingDeviceId;
+
     AnsiConsole.Write(
         new Table
         {
@@ -438,6 +574,9 @@ void PrintTuiMenu()
         .AddRow("[green]submit[/]", "Accept transcript and complete")
         .AddRow("[green]cancel[/]", "Cancel current transcript")
         .AddRow("[green]retry[/]", "Retry transcription")
+        .AddRow("[green]set recording device[/]", $"Set recording device ({recordingSelection})")
+        .AddRow("[green]set playback device[/]", $"Set playback device ({playbackSelection})")
+        .AddRow("[green]show devices[/]", "Show available recording and playback devices")
         .AddRow("[green]status[/]", "Show current status")
         .AddRow("[green]help[/]", "Show this menu")
         .AddRow("[green]quit[/]", "Stop session and exit"));
@@ -531,6 +670,540 @@ void PrintSessionEventForTui(SessionEventEnvelope evt)
     else
     {
         AnsiConsole.MarkupLine($"[{color}][{evt.EventType}][/]: {Markup.Escape(string.Join(" | ", details))}");
+    }
+}
+
+async Task<bool> HandleRunDeviceCommandsAsync(
+    string command,
+    string? argument,
+    AudioDeviceSelectionState selections,
+    string sessionId,
+    ApiSessionClient sessionClient)
+{
+    if (command is "devices" or "list-devices")
+    {
+        await PrintAvailableDevicesAsync(selections, sessionClient);
+        return true;
+    }
+
+    if (command is "status")
+    {
+        await PrintSessionStatusAsync(sessionClient, sessionId);
+        return true;
+    }
+
+    if (await TrySetDeviceFromCommandAsync(command, argument, selections, sessionClient, sessionId))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+async Task<bool> TrySetDeviceFromCommandAsync(
+    string command,
+    string? argument,
+    AudioDeviceSelectionState selections,
+    ApiSessionClient sessionClient,
+    string sessionId)
+{
+    var previousRecordingId = selections.RecordingDeviceId;
+    var previousPlaybackId = selections.PlaybackDeviceId;
+
+    if (string.IsNullOrWhiteSpace(argument))
+    {
+        Console.WriteLine($"Missing argument for '{command}'.");
+        return false;
+    }
+
+    var commandIsRecording = command is "recording-device" or "set-recording-device";
+    var commandIsPlayback = command is "playback-device" or "set-playback-device";
+
+    if (!commandIsRecording && !commandIsPlayback)
+    {
+        return false;
+    }
+
+    var devices = commandIsRecording
+        ? await GetRecordingDevicesAsync(sessionClient)
+        : await GetPlaybackDevicesAsync(sessionClient);
+
+    if (devices.Count == 0)
+    {
+        Console.WriteLine("No audio devices found for this category.");
+        return false;
+    }
+
+    if (TryResolveDeviceSelection(devices, argument, out var selected))
+    {
+        if (commandIsRecording)
+        {
+            selections.RecordingDeviceId = selected;
+            Console.WriteLine($"Recording device set to: {DescribeDevice(devices, selected)}");
+        }
+        else
+        {
+            selections.PlaybackDeviceId = selected;
+            Console.WriteLine($"Playback device set to: {DescribeDevice(devices, selected)}");
+        }
+
+        if (await SyncSessionAudioSelectionAsync(sessionClient, sessionId, selections))
+        {
+            return true;
+        }
+
+        selections.RecordingDeviceId = previousRecordingId;
+        selections.PlaybackDeviceId = previousPlaybackId;
+        Console.WriteLine("Unable to persist audio device selection to API session.");
+        return false;
+    }
+
+    Console.WriteLine("Unable to match a device by that index or id.");
+    return false;
+}
+
+async Task<bool> SyncSessionAudioSelectionAsync(
+    ApiSessionClient sessionClient,
+    string sessionId,
+    AudioDeviceSelectionState selections)
+{
+    try
+    {
+        await sessionClient.UpdateDevicesAsync(
+            sessionId,
+            new AudioDeviceSelection
+            {
+                RecordingDeviceId = selections.RecordingDeviceId,
+                PlaybackDeviceId = selections.PlaybackDeviceId
+            });
+        return true;
+    }
+    catch (ApiHostException ex)
+    {
+        Console.WriteLine($"Unable to persist audio device selection: {ex.Message}");
+        return false;
+    }
+}
+
+void PrintAvailableDeviceHeader(string heading, string currentSelection)
+{
+    Console.WriteLine();
+    Console.WriteLine(heading);
+    Console.WriteLine($"Current: {(string.IsNullOrWhiteSpace(currentSelection) ? "<auto>" : currentSelection)}");
+}
+
+void PrintDeviceList(string header, IReadOnlyList<HostAudioDevice> devices, string currentSelection)
+{
+    if (devices.Count == 0)
+    {
+        PrintAvailableDeviceHeader(header, currentSelection);
+        Console.WriteLine("  (none discovered)");
+        return;
+    }
+
+    PrintAvailableDeviceHeader(header, currentSelection);
+    for (var index = 0; index < devices.Count; index++)
+    {
+        var device = devices[index];
+        var marker = string.Equals(device.DeviceId, currentSelection, StringComparison.Ordinal)
+            ? " [selected]"
+            : string.Empty;
+        Console.WriteLine($"  {index + 1,2}. {device.Name} ({device.DeviceId}){marker}");
+    }
+
+    Console.WriteLine();
+}
+
+async Task PrintAvailableDevicesAsync(AudioDeviceSelectionState selections, ApiSessionClient sessionClient)
+{
+    var recorders = await GetRecordingDevicesAsync(sessionClient);
+    var players = await GetPlaybackDevicesAsync(sessionClient);
+
+    PrintDeviceList("Recording devices:", recorders, selections.RecordingDeviceId ?? string.Empty);
+    PrintDeviceList("Playback devices:", players, selections.PlaybackDeviceId ?? string.Empty);
+}
+
+async Task SelectRecordingDeviceAsync(
+    AudioDeviceSelectionState selections,
+    string sessionId,
+    ApiSessionClient sessionClient)
+{
+    var devices = await GetRecordingDevicesAsync(sessionClient);
+    if (devices.Count == 0)
+    {
+        Console.WriteLine("No recording devices discovered.");
+        return;
+    }
+
+    var choices = new List<string> { "(auto)" };
+    choices.AddRange(devices.Select(d => $"{d.DeviceId}|{d.Name}"));
+    var selected = AnsiConsole.Prompt(
+        new SelectionPrompt<string>()
+            .Title("Select recording device")
+            .AddChoices(choices));
+
+    if (selected is "(auto)")
+    {
+        selections.RecordingDeviceId = null;
+        await SyncSessionAudioSelectionAsync(sessionClient, sessionId, selections);
+        return;
+    }
+
+    selections.RecordingDeviceId = selected.Split('|')[0];
+    await SyncSessionAudioSelectionAsync(sessionClient, sessionId, selections);
+}
+
+async Task SelectPlaybackDeviceAsync(
+    AudioDeviceSelectionState selections,
+    string sessionId,
+    ApiSessionClient sessionClient)
+{
+    var devices = await GetPlaybackDevicesAsync(sessionClient);
+    if (devices.Count == 0)
+    {
+        Console.WriteLine("No playback devices discovered.");
+        return;
+    }
+
+    var choices = new List<string> { "(auto)" };
+    choices.AddRange(devices.Select(d => $"{d.DeviceId}|{d.Name}"));
+    var selected = AnsiConsole.Prompt(
+        new SelectionPrompt<string>()
+            .Title("Select playback device")
+            .AddChoices(choices));
+
+    if (selected is "(auto)")
+    {
+        selections.PlaybackDeviceId = null;
+        await SyncSessionAudioSelectionAsync(sessionClient, sessionId, selections);
+        return;
+    }
+
+    selections.PlaybackDeviceId = selected.Split('|')[0];
+    await SyncSessionAudioSelectionAsync(sessionClient, sessionId, selections);
+}
+
+AudioDeviceSelection? CreateAudioDeviceSelection(AudioDeviceSelectionState selections)
+{
+    if (string.IsNullOrWhiteSpace(selections.RecordingDeviceId) && string.IsNullOrWhiteSpace(selections.PlaybackDeviceId))
+    {
+        return null;
+    }
+
+    return new AudioDeviceSelection
+    {
+        RecordingDeviceId = selections.RecordingDeviceId,
+        PlaybackDeviceId = selections.PlaybackDeviceId
+    };
+}
+
+string DescribeDevice(IReadOnlyList<HostAudioDevice> devices, string selectedDeviceId)
+{
+    foreach (var device in devices)
+    {
+        if (string.Equals(device.DeviceId, selectedDeviceId, StringComparison.Ordinal))
+        {
+            return device.Name;
+        }
+    }
+
+    return selectedDeviceId;
+}
+
+bool TryResolveDeviceSelection(IReadOnlyList<HostAudioDevice> devices, string input, out string selectedId)
+{
+    selectedId = input.Trim();
+
+    if (int.TryParse(selectedId, out var index) && index > 0 && index <= devices.Count)
+    {
+        selectedId = devices[index - 1].DeviceId;
+        return true;
+    }
+
+    foreach (var device in devices)
+    {
+        if (string.Equals(device.DeviceId, selectedId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    selectedId = string.Empty;
+    return false;
+}
+
+async Task<IReadOnlyList<HostAudioDevice>> GetRecordingDevicesAsync(ApiSessionClient sessionClient, CancellationToken ct = default)
+{
+    var discovered = await GetHostDiscoveredDevicesAsync(sessionClient, ct);
+    return discovered.RecordingDevices.Count > 0
+        ? discovered.RecordingDevices
+        : GetLocalRecordingDevices();
+}
+
+async Task<IReadOnlyList<HostAudioDevice>> GetPlaybackDevicesAsync(ApiSessionClient sessionClient, CancellationToken ct = default)
+{
+    var discovered = await GetHostDiscoveredDevicesAsync(sessionClient, ct);
+    return discovered.PlaybackDevices.Count > 0
+        ? discovered.PlaybackDevices
+        : GetLocalPlaybackDevices();
+}
+
+async Task<(IReadOnlyList<HostAudioDevice> RecordingDevices, IReadOnlyList<HostAudioDevice> PlaybackDevices)> GetHostDiscoveredDevicesAsync(
+    ApiSessionClient sessionClient,
+    CancellationToken ct = default)
+{
+    try
+    {
+        var hostDevices = await sessionClient.GetDevicesAsync(ct);
+        return (hostDevices.RecordingDevices, hostDevices.PlaybackDevices);
+    }
+    catch
+    {
+        return (Array.Empty<HostAudioDevice>(), Array.Empty<HostAudioDevice>());
+    }
+}
+
+IReadOnlyList<HostAudioDevice> GetLocalRecordingDevices()
+{
+    var devices = new List<HostAudioDevice>();
+
+    if (OperatingSystem.IsWindows())
+    {
+        return GetWindowsRecordingDevices();
+    }
+
+    if (OperatingSystem.IsLinux())
+    {
+        return GetLinuxDevices("arecord -l", "rec");
+    }
+
+    if (OperatingSystem.IsMacOS())
+    {
+        return GetMacDevices(true);
+    }
+
+    return devices;
+}
+
+IReadOnlyList<HostAudioDevice> GetLocalPlaybackDevices()
+{
+    var devices = new List<HostAudioDevice>();
+
+    if (OperatingSystem.IsWindows())
+    {
+        return GetWindowsPlaybackDevices();
+    }
+
+    if (OperatingSystem.IsLinux())
+    {
+        return GetLinuxDevices("aplay -l", "play");
+    }
+
+    if (OperatingSystem.IsMacOS())
+    {
+        return GetMacDevices(false);
+    }
+
+    return devices;
+}
+
+IReadOnlyList<HostAudioDevice> GetWindowsRecordingDevices()
+{
+    return GetWindowsWaveDevices("NAudio.Wave.WaveIn", "rec");
+}
+
+IReadOnlyList<HostAudioDevice> GetWindowsPlaybackDevices()
+{
+    return GetWindowsWaveDevices("NAudio.Wave.WaveOut", "play");
+}
+
+IReadOnlyList<HostAudioDevice> GetWindowsWaveDevices(string typeName, string prefix)
+{
+    try
+    {
+        var type = Type.GetType($"{typeName}, NAudio");
+        if (type is null)
+        {
+            return new List<HostAudioDevice>();
+        }
+
+        var deviceCountProperty = type.GetProperty(
+            "DeviceCount",
+            BindingFlags.Public | BindingFlags.Static);
+        if (deviceCountProperty is null)
+        {
+            return new List<HostAudioDevice>();
+        }
+
+        var getCapabilitiesMethod = type.GetMethod(
+            "GetCapabilities",
+            BindingFlags.Public | BindingFlags.Static);
+        if (getCapabilitiesMethod is null)
+        {
+            return new List<HostAudioDevice>();
+        }
+
+        var count = (int)(deviceCountProperty.GetValue(null) ?? 0);
+        var devices = new List<HostAudioDevice>();
+        for (var index = 0; index < count; index++)
+        {
+            var capabilities = getCapabilitiesMethod.Invoke(null, new object[] { index });
+            if (capabilities is null)
+            {
+                continue;
+            }
+
+            var name = capabilities.GetType()
+                .GetProperty("ProductName")
+                ?.GetValue(capabilities) as string;
+
+            devices.Add(new HostAudioDevice
+            {
+                DeviceId = $"{prefix}:{index}",
+                Name = string.IsNullOrWhiteSpace(name) ? $"{typeName} {index}" : name
+            });
+        }
+
+        return devices;
+    }
+    catch
+    {
+    }
+
+    return new List<HostAudioDevice>();
+}
+
+IReadOnlyList<HostAudioDevice> GetLinuxDevices(string command, string prefix)
+{
+    var output = RunCommand(command);
+    if (string.IsNullOrWhiteSpace(output))
+    {
+        return new List<HostAudioDevice>();
+    }
+
+    var lines = output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+    var devices = new List<HostAudioDevice>();
+    var regex = new Regex(@"card\s+(\d+):\s+([^:\[\n\r]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    foreach (var line in lines)
+    {
+        var match = regex.Match(line);
+        if (!match.Success)
+        {
+            continue;
+        }
+
+        var cardId = match.Groups[1].Value.Trim();
+        var name = match.Groups[2].Value.Trim();
+        if (string.IsNullOrWhiteSpace(cardId) || string.IsNullOrWhiteSpace(name))
+        {
+            continue;
+        }
+
+        devices.Add(new HostAudioDevice
+        {
+            DeviceId = $"{prefix}:{cardId}",
+            Name = name
+        });
+    }
+
+    return devices;
+}
+
+IReadOnlyList<HostAudioDevice> GetMacDevices(bool isRecording)
+{
+    var output = RunCommand("system_profiler SPAudioDataType");
+    if (string.IsNullOrWhiteSpace(output))
+    {
+        return new List<HostAudioDevice>();
+    }
+
+    var lines = output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+    var devices = new List<HostAudioDevice>();
+    var section = string.Empty;
+    var sectionId = isRecording ? "Input" : "Output";
+    var regex = new Regex(@"^\s{12}(.+?):$", RegexOptions.Compiled);
+    var count = 1;
+
+    foreach (var line in lines)
+    {
+        if (line.Contains("Input Devices:", StringComparison.Ordinal))
+        {
+            section = "Input";
+            continue;
+        }
+
+        if (line.Contains("Output Devices:", StringComparison.Ordinal))
+        {
+            section = "Output";
+            continue;
+        }
+
+        if (!section.Equals(sectionId, StringComparison.Ordinal))
+        {
+            continue;
+        }
+
+        var match = regex.Match(line);
+        if (!match.Success)
+        {
+            continue;
+        }
+
+        var name = match.Groups[1].Value.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            continue;
+        }
+
+        var prefix = isRecording ? "rec" : "play";
+        devices.Add(new HostAudioDevice
+        {
+            DeviceId = $"{prefix}:{count}",
+            Name = name
+        });
+        count++;
+    }
+
+    return devices;
+}
+
+string RunCommand(string commandLine)
+{
+    if (string.IsNullOrWhiteSpace(commandLine))
+    {
+        return string.Empty;
+    }
+
+    var splitIndex = commandLine.IndexOf(' ');
+    var file = splitIndex >= 0 ? commandLine[..splitIndex] : commandLine;
+    var args = splitIndex >= 0 ? commandLine[(splitIndex + 1)..] : string.Empty;
+
+    try
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = file,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        var output = new StringBuilder();
+        process.Start();
+
+        output.Append(process.StandardOutput.ReadToEnd());
+        process.WaitForExit(1000);
+
+        return output.ToString();
+    }
+    catch
+    {
+        return string.Empty;
     }
 }
 
@@ -747,9 +1420,9 @@ int PrintUsage()
 {
     Console.WriteLine("VoiceType2 CLI (Alpha 1)");
     Console.WriteLine("Usage:");
-    Console.WriteLine("  vt2 run [--api-url <url>] [--mode attach|managed] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>] [--client-config <path>]");
-    Console.WriteLine("  vt2 tui [--api-url <url>] [--mode attach|managed] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>] [--client-config <path>]");
-    Console.WriteLine("  vt2 --tui [--mode attach|managed] [--api-url <url>] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>] [--client-config <path>]");
+    Console.WriteLine("  vt2 run [--api-url <url>] [--mode attach|managed] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--recording-device-id <id>] [--playback-device-id <id>] [--api-config <path>] [--client-config <path>]");
+    Console.WriteLine("  vt2 tui [--api-url <url>] [--mode attach|managed] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--recording-device-id <id>] [--playback-device-id <id>] [--api-config <path>] [--client-config <path>]");
+    Console.WriteLine("  vt2 --tui [--mode attach|managed] [--api-url <url>] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--recording-device-id <id>] [--playback-device-id <id>] [--api-config <path>] [--client-config <path>]");
     Console.WriteLine("  vt2 status --session-id <id> [--api-url <url>] [--api-token <token>]");
     Console.WriteLine("  vt2 stop --session-id <id> [--api-url <url>] [--api-token <token>]");
     Console.WriteLine("  vt2 resolve <submit|cancel|retry> --session-id <id> [--api-url <url>] [--api-token <token>]");
@@ -802,12 +1475,4 @@ ParsedArguments ParseArguments(string[] args)
         (firstNonFlag ?? "run").ToLowerInvariant(),
         positional.ToArray(),
         flags);
-}
-
-internal sealed record ParsedArguments(string Command, string[] PositionalArgs, Dictionary<string, string> Flags)
-{
-    public string? GetFlagValue(string key)
-    {
-        return Flags.TryGetValue(key, out var value) ? value : null;
-    }
 }

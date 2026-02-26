@@ -52,6 +52,25 @@ public sealed class RegisterSessionRequest
     public string? CorrelationId { get; init; }
     public string ContractVersion { get; init; } = "v1";
     public OrchestratorProfile? Profile { get; init; }
+    public AudioDeviceSelection? AudioDevices { get; init; }
+}
+
+public sealed class AudioDeviceSelection
+{
+    public string? RecordingDeviceId { get; init; }
+    public string? PlaybackDeviceId { get; init; }
+}
+
+public sealed class HostAudioDevice
+{
+    public string DeviceId { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+}
+
+public sealed class HostDevicesResponse
+{
+    public IReadOnlyList<HostAudioDevice> RecordingDevices { get; init; } = [];
+    public IReadOnlyList<HostAudioDevice> PlaybackDevices { get; init; } = [];
 }
 
 public sealed class SessionCreatedResponse
@@ -67,6 +86,7 @@ public sealed class SessionStatusResponse
     public string SessionId { get; init; } = string.Empty;
     public string State { get; init; } = SessionState.Uninitialized.ToString();
     public string? CorrelationId { get; init; }
+    public AudioDeviceSelection? AudioDevices { get; init; }
     public string? LastEvent { get; init; }
     public string? ErrorCode { get; init; }
     public string? ErrorMessage { get; init; }
@@ -123,6 +143,7 @@ public interface ITranscriptionProvider
         Stream audioWav,
         string correlationId,
         TranscriptionOptions? options = null,
+        AudioDeviceSelection? audioDevices = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -137,6 +158,7 @@ public sealed class SessionRecord
     public int Revision { get; set; } = 1;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastUpdatedUtc { get; set; } = DateTimeOffset.UtcNow;
+    public AudioDeviceSelection? AudioDevices { get; set; }
 
     public SessionRecord Clone()
     {
@@ -150,7 +172,8 @@ public sealed class SessionRecord
             LastEvent = LastEvent,
             Revision = Revision,
             CreatedAt = CreatedAt,
-            LastUpdatedUtc = LastUpdatedUtc
+            LastUpdatedUtc = LastUpdatedUtc,
+            AudioDevices = AudioDevices
         };
     }
 }

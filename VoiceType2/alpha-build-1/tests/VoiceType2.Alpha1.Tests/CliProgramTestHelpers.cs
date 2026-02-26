@@ -50,7 +50,7 @@ internal static class CliProgramTestHelpers
             return FindMethod(
                 _runContextType,
                 "RunAsync",
-                parameterCount: 6,
+                parameterCount: 8,
                 returnType: typeof(Task<int>),
                 requireInstance: true);
         }
@@ -63,7 +63,7 @@ internal static class CliProgramTestHelpers
             return FindMethod(
                 _runContextType,
                 "TuiAsync",
-                parameterCount: 6,
+                parameterCount: 8,
                 returnType: typeof(Task<int>),
                 requireInstance: true);
         }

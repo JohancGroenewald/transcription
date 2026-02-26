@@ -8,6 +8,7 @@ public sealed class MockTranscriptionProvider : ITranscriptionProvider
         Stream audioWav,
         string correlationId,
         TranscriptionOptions? options = null,
+        AudioDeviceSelection? audioDevices = null,
         CancellationToken cancellationToken = default)
     {
         var result = new TranscriptionResult(
