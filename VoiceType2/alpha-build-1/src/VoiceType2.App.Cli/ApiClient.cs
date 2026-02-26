@@ -180,8 +180,13 @@ internal sealed class ApiSessionClient : IAsyncDisposable
 
     private static string NormalizeBaseUrl(string apiUrl)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(apiUrl) ? "http://127.0.0.1:5240" : apiUrl.TrimEnd('/');
-        return baseUrl.EndsWith("/") ? baseUrl : $"{baseUrl}/";
+        if (string.IsNullOrWhiteSpace(apiUrl))
+        {
+            throw new ArgumentException("API URL cannot be empty. Configure it with --api-url or client config.");
+        }
+
+        var baseUrl = apiUrl.TrimEnd('/');
+        return $"{baseUrl}/";
     }
 
     public async ValueTask DisposeAsync()

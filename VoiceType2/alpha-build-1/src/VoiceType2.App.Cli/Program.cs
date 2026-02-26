@@ -1,20 +1,21 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Spectre.Console;
-using VoiceType2.App.Cli;
 using VoiceType2.Core.Contracts;
 
 var input = ParseArguments(args);
 var command = input.Command;
-
-var apiUrl = input.GetFlagValue("--api-url") ?? "http://127.0.0.1:5240";
+var defaults = ClientConfigLoader.Load(input.GetFlagValue("--client-config"));
+var apiUrl = input.GetFlagValue("--api-url") ?? defaults.ApiUrl;
 var apiToken = input.GetFlagValue("--api-token");
 var sessionId = input.GetFlagValue("--session-id");
-var mode = input.GetFlagValue("--mode") ?? "attach";
+var mode = input.GetFlagValue("--mode") ?? defaults.Mode;
 var managedApiConfig = input.GetFlagValue("--api-config");
-var apiTimeoutMs = ParseInt(input.GetFlagValue("--api-timeout-ms"), 15000);
-var shutdownTimeoutMs = ParseInt(input.GetFlagValue("--shutdown-timeout-ms"), 10000);
-var managedStart = ParseBool(input.GetFlagValue("--managed-start"), true);
+var apiTimeoutMs = ParseInt(input.GetFlagValue("--api-timeout-ms"), defaults.ApiTimeoutMs);
+var shutdownTimeoutMs = ParseInt(input.GetFlagValue("--shutdown-timeout-ms"), defaults.ShutdownTimeoutMs);
+var managedStart = ParseBool(input.GetFlagValue("--managed-start"), defaults.ManagedStart);
+var sessionMode = input.GetFlagValue("--session-mode") ?? defaults.SessionMode;
+
 var showHelp = input.Flags.ContainsKey("--help") || input.Flags.ContainsKey("-h");
 
 if (showHelp)
@@ -36,7 +37,7 @@ var exitCode = command switch
     "stop" => await StopAsync(apiUrl, sessionId, apiToken),
     "resolve" => await ResolveAsync(apiUrl, sessionId, input.PositionalArgs, apiToken),
     "api" => await ApiAsync(apiUrl, input.PositionalArgs),
-    _ => PrintUsage(),
+        _ => PrintUsage(),
 };
 
 Environment.ExitCode = exitCode;
@@ -83,7 +84,7 @@ static async Task<int> RunAsync(
 
         await using var bootstrapClient = new ApiSessionClient(apiUrl);
         var profile = CreateProfile();
-        var created = await bootstrapClient.RegisterAsync(profile, "dictate");
+        var created = await bootstrapClient.RegisterAsync(profile, sessionMode);
         await using var sessionClient = new ApiSessionClient(apiUrl, created.OrchestratorToken);
 
         await sessionClient.StartAsync(created.SessionId);
@@ -205,7 +206,7 @@ static async Task<int> TuiAsync(
 
         await using var bootstrapClient = new ApiSessionClient(apiUrl);
         var profile = CreateProfile();
-        var created = await bootstrapClient.RegisterAsync(profile, "dictate");
+        var created = await bootstrapClient.RegisterAsync(profile, sessionMode);
         await using var sessionClient = new ApiSessionClient(apiUrl, created.OrchestratorToken);
 
         await sessionClient.StartAsync(created.SessionId);
@@ -745,9 +746,9 @@ static int PrintUsage()
 {
     Console.WriteLine("VoiceType2 CLI (Alpha 1)");
     Console.WriteLine("Usage:");
-    Console.WriteLine("  vt2 run [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]");
-    Console.WriteLine("  vt2 tui [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]");
-    Console.WriteLine("  vt2 --tui [--mode attach|managed] [--api-url <url>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]");
+    Console.WriteLine("  vt2 run [--api-url <url>] [--mode attach|managed] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>] [--client-config <path>]");
+    Console.WriteLine("  vt2 tui [--api-url <url>] [--mode attach|managed] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>] [--client-config <path>]");
+    Console.WriteLine("  vt2 --tui [--mode attach|managed] [--api-url <url>] [--session-mode <mode>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>] [--client-config <path>]");
     Console.WriteLine("  vt2 status --session-id <id> [--api-url <url>] [--api-token <token>]");
     Console.WriteLine("  vt2 stop --session-id <id> [--api-url <url>] [--api-token <token>]");
     Console.WriteLine("  vt2 resolve <submit|cancel|retry> --session-id <id> [--api-url <url>] [--api-token <token>]");

@@ -1,0 +1,8 @@
+{
+  "ApiUrl": "http://127.0.0.1:5240",
+  "Mode": "attach",
+  "SessionMode": "dictate",
+  "ManagedStart": true,
+  "ApiTimeoutMs": 15000,
+  "ShutdownTimeoutMs": 10000
+}
