@@ -10,12 +10,15 @@ namespace VoiceType2.Alpha1.Tests;
 
 public class ApiSessionClientTests
 {
-    [Fact]
-    public async Task RegisterAsync_sends_request_and_returns_session()
+    [Theory]
+    [InlineData("dictate")]
+    [InlineData("command")]
+    public async Task RegisterAsync_sends_request_and_returns_session(string sessionMode)
     {
         var profile = CreateProfile("unit-cli");
         SessionCreatedResponse? observedResponse = null;
         var calls = new List<HttpRequestMessage>();
+        string? observedMode = null;
 
         using var handler = new StubHttpMessageHandler(async (request, ct) =>
         {
@@ -32,7 +35,7 @@ public class ApiSessionClientTests
 
             var body = await request.Content!.ReadAsStringAsync(ct);
             var requestPayload = JsonSerializer.Deserialize<RegisterSessionRequest>(body, JsonDefaults.Options);
-            Assert.Equal("dictate", requestPayload!.SessionMode);
+            observedMode = requestPayload!.SessionMode;
             Assert.Equal(profile.OrchestratorId, requestPayload.Profile!.OrchestratorId);
 
             observedResponse = new SessionCreatedResponse
@@ -50,11 +53,41 @@ public class ApiSessionClientTests
             "http://127.0.0.1:5240",
             client: new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
 
-        var created = await client.RegisterAsync(profile, "dictate");
+        var created = await client.RegisterAsync(profile, sessionMode);
         Assert.Equal("sess-1", created.SessionId);
         Assert.Equal("token-1", created.OrchestratorToken);
         Assert.Equal("corr-1", created.CorrelationId);
         Assert.Single(calls);
+        Assert.Equal(sessionMode, observedMode);
+    }
+
+    [Fact]
+    public void Constructor_throws_when_api_url_is_missing()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new ApiSessionClient(
+                " ",
+                client: new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5240/") }));
+    }
+
+    [Fact]
+    public async Task IsReadyAsync_normalizes_api_url_without_trailing_slash()
+    {
+        var calls = new List<HttpRequestMessage>();
+        using var handler = new StubHttpMessageHandler((request, ct) =>
+        {
+            calls.Add(request);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        });
+
+        await using var client = new ApiSessionClient(
+            "http://127.0.0.1:5240///",
+            client: new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5240/") });
+
+        var ready = await client.IsReadyAsync();
+        Assert.False(ready);
+        Assert.Single(calls);
+        Assert.Equal("/health/ready", calls[0].RequestUri?.AbsolutePath);
     }
 
     [Fact]

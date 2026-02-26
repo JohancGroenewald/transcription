@@ -110,6 +110,18 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         Assert.Equal(SessionState.Completed.ToString(), status.State);
     }
 
+    [Theory]
+    [InlineData("dictate")]
+    [InlineData("command")]
+    public async Task Register_accepts_custom_session_mode(string sessionMode)
+    {
+        using var client = _factory.CreateClient();
+        var created = await RegisterSessionAsync(client, sessionMode);
+
+        var status = await GetStatusAsync(client, created.SessionId, created.OrchestratorToken);
+        Assert.Equal(SessionState.Registered.ToString(), status.State);
+    }
+
     [Fact]
     public async Task Stop_is_idempotent_in_terminal_transition()
     {
@@ -207,11 +219,11 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         });
     }
 
-    private async Task<SessionCreatedResponse> RegisterSessionAsync(HttpClient client)
+    private async Task<SessionCreatedResponse> RegisterSessionAsync(HttpClient client, string sessionMode = "dictate")
     {
         var payload = new
         {
-            sessionMode = "dictate",
+            sessionMode,
             correlationId = "alpha1-test-correlation",
             profile = CreateProfile()
         };
