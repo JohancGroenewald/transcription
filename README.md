@@ -71,6 +71,38 @@ Run automated tests:
 dotnet test VoiceType.Tests/VoiceType.Tests.csproj
 ```
 
+## Docs Build and Local Preview (Run the docs helper via UV)
+
+Use the `run-readthedocs` scripts in `VoiceType2/scripts` to build and serve docs locally.
+
+PowerShell (one-off, no policy change required):
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\VoiceType2\scripts\run-readthedocs.ps1
+```
+
+Bypass-policy launcher (recommended for repeat use):
+
+```powershell
+cd .\VoiceType2\scripts
+.\run-readthedocs.cmd
+```
+
+Common workflows (copy/paste):
+
+```powershell
+.\VoiceType2\scripts\run-readthedocs.cmd -ReinstallDeps
+.\VoiceType2\scripts\run-readthedocs.cmd -ReinstallDeps -Clean -Port 8999
+.\VoiceType2\scripts\run-readthedocs.cmd -Clean
+```
+
+The first run usually needs:
+
+```powershell
+uv --version
+.\VoiceType2\scripts\run-readthedocs.cmd -ReinstallDeps
+```
+
 Collect local coverage:
 
 ```powershell
