@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Linq;
 using VoiceType2.App.Cli;
 using Xunit;
@@ -7,23 +6,7 @@ namespace VoiceType2.Alpha1.Tests;
 
 public sealed class CliArgumentParsingTests
 {
-    private static readonly Type ProgramType = GetProgramType();
-
-    private static Type GetProgramType()
-    {
-        var assembly = typeof(ClientConfigLoader).Assembly;
-        var namedType = assembly.GetType("VoiceType2.App.Cli.Program");
-        if (namedType is not null)
-        {
-            return namedType;
-        }
-
-        return assembly.GetTypes()
-            .Single(type => string.Equals(type.Name, "Program", StringComparison.Ordinal)
-                && type.Namespace is "VoiceType2.App.Cli"
-                && type.GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
-                    .Any(method => method.Name == "ParseArguments"));
-    }
+    private static readonly Type ProgramType = CliProgramTestHelpers.ProgramType;
 
     [Fact]
     public void ParseArguments_defaults_to_run_command()
@@ -94,34 +77,30 @@ public sealed class CliArgumentParsingTests
 
     private static object InvokeParseArguments(string[] args)
     {
-        var method = ProgramType.GetMethod("ParseArguments", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
-        if (method is null)
-        {
-            throw new InvalidOperationException("Could not locate ParseArguments method.");
-        }
-
+        var method = CliProgramTestHelpers.FindMethod(
+            ProgramType,
+            "ParseArguments",
+            parameterCount: 1);
         return method.Invoke(null, [args])!;
     }
 
     private static bool InvokeParseBool(string value, bool defaultValue)
     {
-        var method = ProgramType.GetMethod("ParseBool", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
-        if (method is null)
-        {
-            throw new InvalidOperationException("Could not locate ParseBool method.");
-        }
-
+        var method = CliProgramTestHelpers.FindMethod(
+            ProgramType,
+            "ParseBool",
+            parameterCount: 2,
+            returnType: typeof(bool));
         return (bool)(method.Invoke(null, [value, defaultValue])!);
     }
 
     private static int InvokeParseInt(string value, int defaultValue)
     {
-        var method = ProgramType.GetMethod("ParseInt", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
-        if (method is null)
-        {
-            throw new InvalidOperationException("Could not locate ParseInt method.");
-        }
-
+        var method = CliProgramTestHelpers.FindMethod(
+            ProgramType,
+            "ParseInt",
+            parameterCount: 2,
+            returnType: typeof(int));
         return (int)(method.Invoke(null, [value, defaultValue])!);
     }
 
