@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Spectre.Console;
 using VoiceType2.App.Cli;
 using VoiceType2.Core.Contracts;
 
@@ -22,9 +23,15 @@ if (showHelp)
     return;
 }
 
+if (command == "run" && input.Flags.ContainsKey("--tui"))
+{
+    command = "tui";
+}
+
 var exitCode = command switch
 {
     "run" => await RunAsync(apiUrl, mode, managedStart, managedApiConfig, apiTimeoutMs, shutdownTimeoutMs),
+    "tui" => await TuiAsync(apiUrl, mode, managedStart, managedApiConfig, apiTimeoutMs, shutdownTimeoutMs),
     "status" => await StatusAsync(apiUrl, sessionId, apiToken),
     "stop" => await StopAsync(apiUrl, sessionId, apiToken),
     "resolve" => await ResolveAsync(apiUrl, sessionId, input.PositionalArgs, apiToken),
@@ -158,6 +165,132 @@ static async Task<int> RunAsync(
     }
 }
 
+static async Task<int> TuiAsync(
+    string apiUrl,
+    string mode,
+    bool managedStart,
+    string? managedApiConfig,
+    int apiTimeoutMs,
+    int shutdownTimeoutMs)
+{
+    Process? managedProcess = null;
+    try
+    {
+        if (!await EnsureApiReadyAsync(apiUrl, apiTimeoutMs))
+        {
+            if (!string.Equals(mode, "managed", StringComparison.OrdinalIgnoreCase))
+            {
+                AnsiConsole.MarkupLine("[red]API host is not reachable. Use --mode managed to auto-start it.[/]");
+                return 1;
+            }
+
+            if (!managedStart)
+            {
+                AnsiConsole.MarkupLine("[red]Managed start is disabled. Cannot start API host.[/]");
+                return 1;
+            }
+
+            managedProcess = StartManagedApi(apiUrl, managedApiConfig);
+            if (managedProcess is null)
+            {
+                return 1;
+            }
+
+            if (!await EnsureApiReadyAsync(apiUrl, apiTimeoutMs))
+            {
+                AnsiConsole.MarkupLine("[red]Managed API host did not become ready.[/]");
+                return 1;
+            }
+        }
+
+        await using var bootstrapClient = new ApiSessionClient(apiUrl);
+        var profile = CreateProfile();
+        var created = await bootstrapClient.RegisterAsync(profile, "dictate");
+        await using var sessionClient = new ApiSessionClient(apiUrl, created.OrchestratorToken);
+
+        await sessionClient.StartAsync(created.SessionId);
+
+        AnsiConsole.Clear();
+        AnsiConsole.Write(
+            new FigletText("VoiceType2")
+                .Centered()
+                .Color(Color.DeepSkyBlue3));
+
+        AnsiConsole.Write(
+            new Panel(
+                $"Session: [yellow]{created.SessionId}[/]\nMode: [green]{mode}[/]\nState: [blue]{created.State}[/]\nCorrelation: [grey]{created.CorrelationId}[/]\nAPI: [blue]{apiUrl}[/]")
+            {
+                Header = new PanelHeader("TUI Session")
+            });
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[yellow]Session event stream will appear below.[/]");
+
+        using var eventCts = new CancellationTokenSource();
+        _ = PrintTuiEventsAsync(sessionClient, created.SessionId, eventCts.Token);
+
+        while (true)
+        {
+            var selected = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("Choose an action")
+                    .AddChoices("submit", "cancel", "retry", "status", "help", "quit"));
+
+            if (selected is "quit")
+            {
+                break;
+            }
+
+            if (selected is "help")
+            {
+                PrintTuiMenu();
+                continue;
+            }
+
+            if (selected is "status")
+            {
+                await PrintSessionStatusAsync(sessionClient, created.SessionId);
+                continue;
+            }
+
+            var normalized = selected switch
+            {
+                "submit" => "submit",
+                "cancel" => "cancel",
+                "retry" => "retry",
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                AnsiConsole.MarkupLine("[red]Unknown action.[/]");
+                continue;
+            }
+
+            await sessionClient.ResolveAsync(created.SessionId, normalized);
+            AnsiConsole.MarkupLine($"[green]Sent action:[/] {normalized}");
+        }
+
+        eventCts.Cancel();
+        try
+        {
+            await sessionClient.StopAsync(created.SessionId);
+        }
+        catch (ApiHostException ex) when (ex.StatusCode is 409 or 404)
+        {
+        }
+
+        return 0;
+    }
+    finally
+    {
+        if (managedProcess is not null && !managedProcess.HasExited)
+        {
+            StopManagedApi(managedProcess, shutdownTimeoutMs);
+        }
+    }
+}
+
 static async Task<int> StatusAsync(string apiUrl, string? sessionId, string? apiToken)
 {
     if (string.IsNullOrWhiteSpace(sessionId))
@@ -251,6 +384,20 @@ static async Task PrintEventsAsync(ApiSessionClient client, string sessionId, Ca
     }
 }
 
+static async Task PrintTuiEventsAsync(ApiSessionClient client, string sessionId, CancellationToken ct)
+{
+    try
+    {
+        await foreach (var evt in client.StreamEventsAsync(sessionId, ct))
+        {
+            PrintSessionEventForTui(evt);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+    }
+}
+
 static void PrintSessionStartedHeader(string sessionId, string state, string correlationId, string apiUrl, string mode)
 {
     Console.WriteLine();
@@ -274,6 +421,24 @@ static void PrintRunMenu()
     Console.WriteLine("  5) quit    (q)  - Stop session and exit");
     Console.WriteLine("  6) help    (h)  - Show this menu again");
     Console.WriteLine("=================================");
+}
+
+static void PrintTuiMenu()
+{
+    AnsiConsole.Write(
+        new Table
+        {
+            Border = TableBorder.Rounded,
+            Width = 48
+        }
+        .AddColumn("Command")
+        .AddColumn("Description")
+        .AddRow("[green]submit[/]", "Accept transcript and complete")
+        .AddRow("[green]cancel[/]", "Cancel current transcript")
+        .AddRow("[green]retry[/]", "Retry transcription")
+        .AddRow("[green]status[/]", "Show current status")
+        .AddRow("[green]help[/]", "Show this menu")
+        .AddRow("[green]quit[/]", "Stop session and exit"));
 }
 
 static async Task PrintSessionStatusAsync(ApiSessionClient client, string sessionId)
@@ -323,6 +488,48 @@ static void PrintSessionEvent(SessionEventEnvelope evt)
     }
 
     Console.WriteLine($"{category} {string.Join(" | ", details)}");
+}
+
+static void PrintSessionEventForTui(SessionEventEnvelope evt)
+{
+    var color = evt.EventType switch
+    {
+        "status" => "blue",
+        "transcript" => "green",
+        "command" => "yellow",
+        "error" => "red",
+        _ => "grey"
+    };
+
+    var details = new List<string>();
+    if (!string.IsNullOrWhiteSpace(evt.State))
+    {
+        details.Add($"state={evt.State}");
+    }
+
+    if (!string.IsNullOrWhiteSpace(evt.Text))
+    {
+        details.Add($"text={evt.Text}");
+    }
+
+    if (!string.IsNullOrWhiteSpace(evt.ErrorCode))
+    {
+        details.Add($"code={evt.ErrorCode}");
+    }
+
+    if (!string.IsNullOrWhiteSpace(evt.ErrorMessage))
+    {
+        details.Add($"error={evt.ErrorMessage}");
+    }
+
+    if (details.Count == 0)
+    {
+        AnsiConsole.MarkupLine($"[{color}][{evt.EventType}][/]: correlationId={evt.CorrelationId}");
+    }
+    else
+    {
+        AnsiConsole.MarkupLine($"[{color}][{evt.EventType}][/]: {Markup.Escape(string.Join(" | ", details))}");
+    }
 }
 
 static OrchestratorProfile CreateProfile()
@@ -539,6 +746,8 @@ static int PrintUsage()
     Console.WriteLine("VoiceType2 CLI (Alpha 1)");
     Console.WriteLine("Usage:");
     Console.WriteLine("  vt2 run [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]");
+    Console.WriteLine("  vt2 tui [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]");
+    Console.WriteLine("  vt2 --tui [--mode attach|managed] [--api-url <url>] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]");
     Console.WriteLine("  vt2 status --session-id <id> [--api-url <url>] [--api-token <token>]");
     Console.WriteLine("  vt2 stop --session-id <id> [--api-url <url>] [--api-token <token>]");
     Console.WriteLine("  vt2 resolve <submit|cancel|retry> --session-id <id> [--api-url <url>] [--api-token <token>]");

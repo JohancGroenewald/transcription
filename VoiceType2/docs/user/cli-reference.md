@@ -41,6 +41,7 @@ Use the installed CLI (`vt2`) if available on PATH:
 ```powershell
 vt2 run --managed-start true
 vt2 run --mode attach --api-url http://127.0.0.1:5240
+vt2 --tui --mode managed
 ```
 
 Check status and stop a live session:
@@ -144,3 +145,11 @@ vt2 api [status]
 
 - `0`: ready
 - `1`: not ready or unreachable
+
+## `vt2 tui`
+
+```text
+vt2 tui [--api-url <url>] [--mode attach|managed] [--api-token <token>] [--api-timeout-ms <ms>] [--shutdown-timeout-ms <ms>] [--managed-start true|false] [--api-config <path>]
+```
+
+Launches the Spectre.Console TUI with a menu driven action loop for a dictation session.
