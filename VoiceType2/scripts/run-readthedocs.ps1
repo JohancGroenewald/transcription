@@ -18,7 +18,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 if (-not (Test-Path $venvPython)) {
-    & uv venv $venvPath
+    & uv venv --seed $venvPath
 }
 
 function Invoke-UvCommand {
@@ -30,7 +30,10 @@ function Invoke-UvCommand {
 }
 
 if ($ReinstallDeps) {
-    Invoke-UvCommand python -m pip install -r $requirements
+    & uv pip install --python $venvPython -r $requirements
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 }
 
 if ($Clean -and (Test-Path (Join-Path $docsDir "_build"))) {
