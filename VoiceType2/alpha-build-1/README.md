@@ -130,6 +130,31 @@ Use this set as the default Alpha 1 “build pack” before adding tray/frontend
   - runtime config validation for URLs and auth mode
   - closeoff tests expanded around status/authorization behavior and config validation
 
+## Alpha 1 feature checklist
+
+Implemented:
+
+- [x] API host startup mode: `service` only.
+- [x] CLI run modes: `attach`, `managed`.
+- [x] API bootstrapping scripts and .cmd launchers.
+- [x] Session lifecycle endpoints (`POST /v1/sessions`, start/stop/resolve/get events).
+- [x] SSE session event stream for status/transcript/error updates.
+- [x] Runtime config parsing + validation (`RuntimeConfig`).
+- [x] Auth mode handling (`none`, `token-optional`, `token-required`).
+- [x] Top-level CLI commands: `run`, `status`, `stop`, `resolve`, `api`.
+- [x] Interactive run controls: `submit`, `cancel`, `retry`, `status`, `quit`.
+- [x] In-memory auth token generation and session registry.
+- [x] Cleanup of stale/expired sessions.
+
+Not started yet:
+
+- [ ] Real transcription provider (currently mock only; returns fixed text).
+- [ ] Tray app / desktop orchestrator integration.
+- [ ] Audio capture and playback pipeline.
+- [ ] Persistent sessions or cross-restart durability.
+- [ ] `vt2 api` management verbs beyond `status`.
+- [ ] API key/credential integration for external providers.
+
 ### Closeoff checks to run
 
 - `dotnet test VoiceType2/alpha-build-1/tests/VoiceType2.Alpha1.Tests/VoiceType2.Alpha1.Tests.csproj --configuration Debug`
