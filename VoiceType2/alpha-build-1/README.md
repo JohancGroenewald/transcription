@@ -17,11 +17,22 @@ cd .\scripts
 
 ## Start modes (copy/paste)
 
-## Service vs Attach (copy/paste)
+## All startup modes
 
-Service mode:
-Start the API host process only.
-Attach separately with the CLI.
+Start the app in one of these modes:
+
+- `service` (API host mode): API host only.
+- `attach` (CLI mode): CLI connects to an existing API host.
+- `managed` (CLI mode): CLI starts API host for you if needed.
+- `all` (bootstrap mode): Start API host and CLI in one command.
+
+`service` is an API-host only mode and uses `--mode service`.
+
+`attach` and `managed` are CLI `run` modes and use `--mode attach` or `--mode managed`.
+
+`all` is not a CLI mode flag; it is the `run-alpha1-all` bootstrap script.
+
+Service mode examples:
 
 ```powershell
 .\scripts\run-alpha1-api.cmd -ApiUrl "http://127.0.0.1:5240"
@@ -31,9 +42,7 @@ Attach separately with the CLI.
 .\src\VoiceType2.ApiHost\publish\win-x64\VoiceType2.ApiHost.exe --mode service --urls "http://127.0.0.1:5240"
 ```
 
-Attach mode:
-Tell the CLI to connect to an already-running API host.
-If the host is not running, attach mode exits with a connection error.
+Attach mode examples:
 
 ```powershell
 .\scripts\run-alpha1-cli.cmd -ApiUrl "http://127.0.0.1:5240" -Mode attach
@@ -43,8 +52,7 @@ If the host is not running, attach mode exits with a connection error.
 .\src\VoiceType2.App.Cli\publish\win-x64\VoiceType2.App.Cli.exe run --mode attach --api-url "http://127.0.0.1:5240"
 ```
 
-Auto mode (managed startup):
-Let CLI launch the API host for you (if not already running).
+Managed mode examples:
 
 ```powershell
 .\scripts\run-alpha1-cli.cmd -Mode managed -ApiUrl "http://127.0.0.1:5240"
