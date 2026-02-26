@@ -23,9 +23,7 @@ if (!string.Equals(options.Mode, "service", StringComparison.OrdinalIgnoreCase))
 RuntimeConfig config;
 try
 {
-    config = options.ConfigPath is null
-        ? new RuntimeConfig()
-        : RuntimeConfig.Load(options.ConfigPath);
+    config = RuntimeConfig.Load(options.ConfigPath);
 
     if (!string.IsNullOrWhiteSpace(options.Urls))
     {

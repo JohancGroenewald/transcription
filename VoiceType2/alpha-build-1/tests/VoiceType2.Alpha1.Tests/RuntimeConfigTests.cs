@@ -106,6 +106,8 @@ public class RuntimeConfigTests
     {
         var config = new RuntimeConfig
         {
+            HostBinding = new HostBindingConfig { Urls = "http://127.0.0.1:5240" },
+            RuntimeSecurity = new RuntimeSecurityConfig { AuthMode = "none" },
             SessionPolicy = new SessionPolicyConfig { MaxConcurrentSessions = 0 }
         };
 
@@ -116,8 +118,12 @@ public class RuntimeConfigTests
     [Fact]
     public void Validate_rejects_invalid_urls()
     {
-        var config = new RuntimeConfig();
-        config.HostBinding.Urls = "not-a-url";
+        var config = new RuntimeConfig
+        {
+            HostBinding = new HostBindingConfig { Urls = "not-a-url" },
+            RuntimeSecurity = new RuntimeSecurityConfig { AuthMode = "none" },
+            SessionPolicy = new SessionPolicyConfig { MaxConcurrentSessions = 1 }
+        };
 
         var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
         Assert.Contains("Invalid host URL", ex.Message, StringComparison.Ordinal);

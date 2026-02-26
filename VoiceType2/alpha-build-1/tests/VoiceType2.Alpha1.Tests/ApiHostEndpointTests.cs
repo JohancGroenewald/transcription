@@ -189,7 +189,12 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
 
                 var config = new RuntimeConfig
                 {
-                    RuntimeSecurity = runtimeSecurity
+                    RuntimeSecurity = runtimeSecurity,
+                    SessionPolicy = new SessionPolicyConfig
+                    {
+                        MaxConcurrentSessions = 2,
+                        DefaultSessionTimeoutMs = 300000
+                    }
                 };
 
                 services.AddSingleton(config);

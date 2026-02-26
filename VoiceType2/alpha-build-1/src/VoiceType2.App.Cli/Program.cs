@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Spectre.Console;
 using VoiceType2.Core.Contracts;
+using VoiceType2.App.Cli;
 
 var input = ParseArguments(args);
 var command = input.Command;
@@ -44,7 +45,7 @@ Environment.ExitCode = exitCode;
 
 return;
 
-static async Task<int> RunAsync(
+async Task<int> RunAsync(
     string apiUrl,
     string mode,
     bool managedStart,
@@ -166,7 +167,7 @@ static async Task<int> RunAsync(
     }
 }
 
-static async Task<int> TuiAsync(
+async Task<int> TuiAsync(
     string apiUrl,
     string mode,
     bool managedStart,
@@ -292,7 +293,7 @@ static async Task<int> TuiAsync(
     }
 }
 
-static async Task<int> StatusAsync(string apiUrl, string? sessionId, string? apiToken)
+async Task<int> StatusAsync(string apiUrl, string? sessionId, string? apiToken)
 {
     if (string.IsNullOrWhiteSpace(sessionId))
     {
@@ -306,7 +307,7 @@ static async Task<int> StatusAsync(string apiUrl, string? sessionId, string? api
     return 0;
 }
 
-static async Task<int> StopAsync(string apiUrl, string? sessionId, string? apiToken)
+async Task<int> StopAsync(string apiUrl, string? sessionId, string? apiToken)
 {
     if (string.IsNullOrWhiteSpace(sessionId))
     {
@@ -320,7 +321,7 @@ static async Task<int> StopAsync(string apiUrl, string? sessionId, string? apiTo
     return 0;
 }
 
-static async Task<int> ResolveAsync(string apiUrl, string? sessionId, string[] positionalArgs, string? apiToken)
+async Task<int> ResolveAsync(string apiUrl, string? sessionId, string[] positionalArgs, string? apiToken)
 {
     var action = positionalArgs.FirstOrDefault()?.ToLowerInvariant();
     if (string.IsNullOrWhiteSpace(action) || string.IsNullOrWhiteSpace(sessionId))
@@ -350,7 +351,7 @@ static async Task<int> ResolveAsync(string apiUrl, string? sessionId, string[] p
     return 0;
 }
 
-static async Task<int> ApiAsync(string apiUrl, string[] positionalArgs)
+async Task<int> ApiAsync(string apiUrl, string[] positionalArgs)
 {
     var subcommand = positionalArgs.FirstOrDefault()?.ToLowerInvariant();
     if (subcommand is "status" or null or "")
@@ -371,7 +372,7 @@ static async Task<int> ApiAsync(string apiUrl, string[] positionalArgs)
     return 1;
 }
 
-static async Task PrintEventsAsync(ApiSessionClient client, string sessionId, CancellationToken ct)
+async Task PrintEventsAsync(ApiSessionClient client, string sessionId, CancellationToken ct)
 {
     try
     {
@@ -385,7 +386,7 @@ static async Task PrintEventsAsync(ApiSessionClient client, string sessionId, Ca
     }
 }
 
-static async Task PrintTuiEventsAsync(ApiSessionClient client, string sessionId, CancellationToken ct)
+async Task PrintTuiEventsAsync(ApiSessionClient client, string sessionId, CancellationToken ct)
 {
     try
     {
@@ -399,7 +400,7 @@ static async Task PrintTuiEventsAsync(ApiSessionClient client, string sessionId,
     }
 }
 
-static void PrintSessionStartedHeader(string sessionId, string state, string correlationId, string apiUrl, string mode)
+void PrintSessionStartedHeader(string sessionId, string state, string correlationId, string apiUrl, string mode)
 {
     Console.WriteLine();
     Console.WriteLine("=== VoiceType2 Dictation Session ===");
@@ -412,7 +413,7 @@ static void PrintSessionStartedHeader(string sessionId, string state, string cor
     Console.WriteLine();
 }
 
-static void PrintRunMenu()
+void PrintRunMenu()
 {
     Console.WriteLine("Session menu (enter a command and press Enter):");
     Console.WriteLine("  1) submit  (s)  - Accept transcript and complete");
@@ -424,7 +425,7 @@ static void PrintRunMenu()
     Console.WriteLine("=================================");
 }
 
-static void PrintTuiMenu()
+void PrintTuiMenu()
 {
     AnsiConsole.Write(
         new Table
@@ -442,7 +443,7 @@ static void PrintTuiMenu()
         .AddRow("[green]quit[/]", "Stop session and exit"));
 }
 
-static async Task PrintSessionStatusAsync(ApiSessionClient client, string sessionId)
+async Task PrintSessionStatusAsync(ApiSessionClient client, string sessionId)
 {
     var status = await client.GetStatusAsync(sessionId);
     Console.WriteLine(
@@ -450,7 +451,7 @@ static async Task PrintSessionStatusAsync(ApiSessionClient client, string sessio
         $"lastEvent={status.LastEvent} correlationId={status.CorrelationId} revision={status.Revision}");
 }
 
-static void PrintSessionEvent(SessionEventEnvelope evt)
+void PrintSessionEvent(SessionEventEnvelope evt)
 {
     var category = evt.EventType switch
     {
@@ -491,7 +492,7 @@ static void PrintSessionEvent(SessionEventEnvelope evt)
     Console.WriteLine($"{category} {string.Join(" | ", details)}");
 }
 
-static void PrintSessionEventForTui(SessionEventEnvelope evt)
+void PrintSessionEventForTui(SessionEventEnvelope evt)
 {
     var color = evt.EventType switch
     {
@@ -533,7 +534,7 @@ static void PrintSessionEventForTui(SessionEventEnvelope evt)
     }
 }
 
-static OrchestratorProfile CreateProfile()
+OrchestratorProfile CreateProfile()
 {
     var platform = OperatingSystem.IsWindows()
         ? "windows"
@@ -555,7 +556,7 @@ static OrchestratorProfile CreateProfile()
     };
 }
 
-static bool TryNormalizeAction(string action, out string normalized)
+bool TryNormalizeAction(string action, out string normalized)
 {
     normalized = action.Trim().ToLowerInvariant() switch
     {
@@ -571,7 +572,7 @@ static bool TryNormalizeAction(string action, out string normalized)
     return !string.IsNullOrWhiteSpace(normalized);
 }
 
-static async Task<bool> EnsureApiReadyAsync(string apiUrl, int timeoutMs)
+async Task<bool> EnsureApiReadyAsync(string apiUrl, int timeoutMs)
 {
     await using var client = new ApiSessionClient(apiUrl);
     try
@@ -601,7 +602,7 @@ static async Task<bool> EnsureApiReadyAsync(string apiUrl, int timeoutMs)
     return false;
 }
 
-static Process? StartManagedApi(string apiUrl, string? configPath)
+Process? StartManagedApi(string apiUrl, string? configPath)
 {
     try
     {
@@ -655,7 +656,7 @@ static Process? StartManagedApi(string apiUrl, string? configPath)
     }
 }
 
-static void StopManagedApi(Process process, int timeoutMs)
+void StopManagedApi(Process process, int timeoutMs)
 {
     try
     {
@@ -679,7 +680,7 @@ static void StopManagedApi(Process process, int timeoutMs)
     }
 }
 
-static string FindApiHostProjectPath()
+string FindApiHostProjectPath()
 {
     var target = Path.Combine("VoiceType2", "alpha-build-1", "src", "VoiceType2.ApiHost", "VoiceType2.ApiHost.csproj");
     var candidateRoots = new List<string>
@@ -710,12 +711,12 @@ static string FindApiHostProjectPath()
     throw new FileNotFoundException("Could not resolve VoiceType2.ApiHost project path.");
 }
 
-static string Quote(string value)
+string Quote(string value)
 {
     return $"\"{value}\"";
 }
 
-static bool ParseBool(string? value, bool defaultValue)
+bool ParseBool(string? value, bool defaultValue)
 {
     if (string.IsNullOrWhiteSpace(value))
     {
@@ -730,7 +731,7 @@ static bool ParseBool(string? value, bool defaultValue)
     };
 }
 
-static int ParseInt(string? value, int defaultValue)
+int ParseInt(string? value, int defaultValue)
 {
     if (string.IsNullOrWhiteSpace(value))
     {
@@ -742,7 +743,7 @@ static int ParseInt(string? value, int defaultValue)
         : defaultValue;
 }
 
-static int PrintUsage()
+int PrintUsage()
 {
     Console.WriteLine("VoiceType2 CLI (Alpha 1)");
     Console.WriteLine("Usage:");
@@ -756,7 +757,7 @@ static int PrintUsage()
     return 1;
 }
 
-static ParsedArguments ParseArguments(string[] args)
+ParsedArguments ParseArguments(string[] args)
 {
     var flags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     var positional = new List<string>();
