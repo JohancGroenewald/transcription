@@ -98,11 +98,13 @@ Defaults:
 When connected, the CLI starts one dictation session and opens interactive session
 controls:
 
-- `s` / `submit`
-- `c` / `cancel`
-- `r` / `retry`
-- `status`
-- `q` / `quit`
+- `s` / `submit` — accept transcript and complete
+- `c` / `cancel` — cancel current transcript
+- `r` / `retry` — retry transcription
+- `status` — print current session status
+- `q` / `quit` / `exit` — stop session and exit
+
+A visible command menu is printed at startup and after `help`/`menu`.
 
 ## `vt2 status`
 

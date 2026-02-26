@@ -80,9 +80,8 @@ static async Task<int> RunAsync(
         await using var sessionClient = new ApiSessionClient(apiUrl, created.OrchestratorToken);
 
         await sessionClient.StartAsync(created.SessionId);
-        Console.WriteLine($"Session started: {created.SessionId}");
-        Console.WriteLine($"sessionId={created.SessionId} state={created.State} correlationId={created.CorrelationId}");
-        Console.WriteLine("Controls: [s]ubmit, [c]ancel, [r]etry, [q]uit, status, resolve <action>");
+        PrintSessionStartedHeader(created.SessionId, created.State, created.CorrelationId, apiUrl, mode);
+        PrintRunMenu();
 
         using var eventCts = new CancellationTokenSource();
         var eventLoop = PrintEventsAsync(sessionClient, created.SessionId, eventCts.Token);
@@ -98,41 +97,44 @@ static async Task<int> RunAsync(
             var normalized = line.Trim().ToLowerInvariant();
             if (normalized is "q" or "quit" or "exit")
             {
+                Console.WriteLine("Stopping session and exiting...");
                 break;
             }
 
             if (normalized is "s" or "submit")
             {
                 await sessionClient.ResolveAsync(created.SessionId, "submit");
+                Console.WriteLine("Action sent: submit");
                 continue;
             }
 
             if (normalized is "c" or "cancel")
             {
                 await sessionClient.ResolveAsync(created.SessionId, "cancel");
+                Console.WriteLine("Action sent: cancel");
                 continue;
             }
 
             if (normalized is "r" or "retry")
             {
                 await sessionClient.ResolveAsync(created.SessionId, "retry");
+                Console.WriteLine("Action sent: retry");
                 continue;
             }
 
             if (normalized == "status")
             {
-                var status = await sessionClient.GetStatusAsync(created.SessionId);
-                Console.WriteLine($"sessionId={status.SessionId} state={status.State} lastEvent={status.LastEvent} correlationId={status.CorrelationId}");
+                await PrintSessionStatusAsync(sessionClient, created.SessionId);
                 continue;
             }
 
-            if (normalized is "h" or "help")
+            if (normalized is "h" or "help" or "menu")
             {
-                Console.WriteLine("Enter s/submit, c/cancel, r/retry, status, q/quit.");
+                PrintRunMenu();
                 continue;
             }
 
-            Console.WriteLine("Unknown command. Type 'help'.");
+            Console.WriteLine("Unknown command. Type 'help' or 'menu'.");
         }
 
         eventCts.Cancel();
@@ -241,25 +243,86 @@ static async Task PrintEventsAsync(ApiSessionClient client, string sessionId, Ca
     {
         await foreach (var evt in client.StreamEventsAsync(sessionId, ct))
         {
-            var text = evt.Text;
-            var state = evt.State;
-            var line = evt.EventType;
-            if (!string.IsNullOrWhiteSpace(state))
-            {
-                line += $": {state}";
-            }
-
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                line += $" - {text}";
-            }
-
-            Console.WriteLine(line);
+            PrintSessionEvent(evt);
         }
     }
     catch (OperationCanceledException)
     {
     }
+}
+
+static void PrintSessionStartedHeader(string sessionId, string state, string correlationId, string apiUrl, string mode)
+{
+    Console.WriteLine();
+    Console.WriteLine("=== VoiceType2 Dictation Session ===");
+    Console.WriteLine($"Mode:        {mode}");
+    Console.WriteLine($"API URL:     {apiUrl}");
+    Console.WriteLine($"Session ID:  {sessionId}");
+    Console.WriteLine($"State:       {state}");
+    Console.WriteLine($"Correlation: {correlationId}");
+    Console.WriteLine("=================================");
+    Console.WriteLine();
+}
+
+static void PrintRunMenu()
+{
+    Console.WriteLine("Session menu (enter a command and press Enter):");
+    Console.WriteLine("  1) submit  (s)  - Accept transcript and complete");
+    Console.WriteLine("  2) cancel  (c)  - Cancel current transcript");
+    Console.WriteLine("  3) retry   (r)  - Retry transcription");
+    Console.WriteLine("  4) status       - Show current status");
+    Console.WriteLine("  5) quit    (q)  - Stop session and exit");
+    Console.WriteLine("  6) help    (h)  - Show this menu again");
+    Console.WriteLine("=================================");
+}
+
+static async Task PrintSessionStatusAsync(ApiSessionClient client, string sessionId)
+{
+    var status = await client.GetStatusAsync(sessionId);
+    Console.WriteLine(
+        $"sessionId={status.SessionId} state={status.State} " +
+        $"lastEvent={status.LastEvent} correlationId={status.CorrelationId} revision={status.Revision}");
+}
+
+static void PrintSessionEvent(SessionEventEnvelope evt)
+{
+    var category = evt.EventType switch
+    {
+        "status" => "[STATUS]",
+        "transcript" => "[TRANSCRIPT]",
+        "command" => "[COMMAND]",
+        "error" => "[ERROR]",
+        _ => "[EVENT]"
+    };
+
+    var details = new List<string>();
+    if (!string.IsNullOrWhiteSpace(evt.State))
+    {
+        details.Add($"state={evt.State}");
+    }
+
+    if (!string.IsNullOrWhiteSpace(evt.Text))
+    {
+        details.Add($"text={evt.Text}");
+    }
+
+    if (!string.IsNullOrWhiteSpace(evt.ErrorCode))
+    {
+        details.Add($"code={evt.ErrorCode}");
+    }
+
+    if (!string.IsNullOrWhiteSpace(evt.ErrorMessage))
+    {
+        details.Add($"error={evt.ErrorMessage}");
+    }
+
+    if (details.Count == 0)
+    {
+        Console.WriteLine($"{category} correlationId={evt.CorrelationId}");
+        return;
+    }
+
+    Console.WriteLine($"{category} {string.Join(" | ", details)}");
 }
 
 static OrchestratorProfile CreateProfile()
