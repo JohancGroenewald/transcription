@@ -62,6 +62,16 @@ Managed mode examples:
 .\scripts\run-alpha1-all.cmd -Configuration Debug
 ```
 
+TUI mode examples:
+
+```powershell
+.\scripts\run-alpha1-tui.cmd -Mode managed -ApiUrl "http://127.0.0.1:5240"
+```
+
+```powershell
+.\scripts\run-alpha1-tui.cmd -Mode attach -ApiUrl "http://127.0.0.1:5240"
+```
+
 If you prefer PowerShell directly, keep the existing calls:
 
 ```powershell
@@ -111,6 +121,7 @@ Equivalent direct PowerShell commands:
 & .\run-alpha1-all.ps1 -Configuration Debug
 & .\run-alpha1-api.ps1 -ApiUrl "http://127.0.0.1:5240"
 & .\run-alpha1-cli.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode attach
+& .\run-alpha1-tui.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode managed
 & .\test-alpha1.ps1 -Configuration Debug
 ```
 
