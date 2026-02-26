@@ -8,34 +8,48 @@ This folder now contains the Alpha 1 implementation kickoff package:
 - `alpha-build-1-cli-orchestrator.md`: CLI orchestrator design and command contract for Alpha 1
 - `RuntimeConfig.sample.json`: runtime defaults starter for future host config
 
-Quick build (one shot):
+Use wrappers to avoid PowerShell execution policy issues:
 
 ```powershell
-& .\scripts\build-alpha1.ps1 -Configuration Debug
+cd .\scripts
+.\build-alpha1.cmd -Configuration Debug
 ```
 
-Full bootstrap (build + launch both components):
+If you prefer PowerShell directly, keep the existing calls:
 
 ```powershell
-& .\scripts\run-alpha1-all.ps1 -Configuration Debug
+& .\build-alpha1.ps1 -Configuration Debug
+```
+
+Run all services (debug) with wrappers:
+
+```powershell
+.\run-alpha1-all.cmd -Configuration Debug
+```
+
+Run host and CLI in managed mode with wrappers:
+
+```powershell
+.\run-alpha1-api.cmd -ApiUrl "http://127.0.0.1:5240"
+```
+
+```powershell
+.\run-alpha1-cli.cmd -ApiUrl "http://127.0.0.1:5240" -Mode attach
 ```
 
 Run unit + integration-style smoke tests:
 
 ```powershell
-& .\scripts\test-alpha1.ps1 -Configuration Debug
+.\test-alpha1.cmd -Configuration Debug
 ```
 
-Run host:
+Equivalent direct PowerShell commands:
 
 ```powershell
-& .\scripts\run-alpha1-api.ps1 -ApiUrl "http://127.0.0.1:5240"
-```
-
-Run CLI:
-
-```powershell
-& .\scripts\run-alpha1-cli.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode attach
+& .\run-alpha1-all.ps1 -Configuration Debug
+& .\run-alpha1-api.ps1 -ApiUrl "http://127.0.0.1:5240"
+& .\run-alpha1-cli.ps1 -ApiUrl "http://127.0.0.1:5240" -Mode attach
+& .\test-alpha1.ps1 -Configuration Debug
 ```
 
 Use this set as the default Alpha 1 “build pack” before adding tray/frontend orchestrators.
