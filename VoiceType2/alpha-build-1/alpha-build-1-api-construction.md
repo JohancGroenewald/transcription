@@ -13,7 +13,7 @@ Build a minimal but production-ready internal API runtime first, with clear star
 - Transcription path is provider-driven through `ITranscriptionProvider` and the alpha mock provider.
 - Background processing is decoupled from the HTTP request lifetime (session-scoped cancellation is used).
 - Event stream channels are bounded with oldest-event dropping to avoid unlimited memory growth.
-- Closeout verification (2026-02-22): implemented behaviors are covered by `dotnet test` + `scripts/test-alpha1.ps1` smoke checks.
+- Closeout verification (2026-02-26): implemented behaviors are covered by `dotnet test` + `scripts/test-alpha1.ps1` smoke checks.
 
 ## 2) Project layout for day one
 
@@ -206,6 +206,7 @@ dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.ApiHost/VoiceType2.
 dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj --configuration Debug -- run --api-url "http://127.0.0.1:5240"
 dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- status --session-id "<session-id>" --api-url "http://127.0.0.1:5240"
 dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- resolve submit --session-id "<session-id>" --api-url "http://127.0.0.1:5240"
+dotnet run --project VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj -- tui --api-url "http://127.0.0.1:5240" --mode managed
 ```
 
 CLI-driven API control target for alpha (planned):

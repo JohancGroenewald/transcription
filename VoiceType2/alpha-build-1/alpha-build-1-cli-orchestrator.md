@@ -6,7 +6,8 @@
 
 - Managed mode now validates API readiness and attempts graceful child-process shutdown with timed fallback.
 - Command surface currently includes `run`, `status`, `stop`, `resolve`, and `api` helpers; token handling and retry/submit/cancel actions are supported in the interactive run loop.
-- Closeout verification (2026-02-22): command behavior validated through API session client integration tests and smoke checks.
+- `vt2 tui` / `vt2 --tui` is now implemented as a Spectre.Console-based interactive session interface.
+- Closeout verification (2026-02-26): command behavior validated through API session client integration tests and smoke checks.
 
 Build a CLI orchestrator that can:
 
@@ -116,12 +117,16 @@ Use the command list below as the runtime behavior target now, and the rest as p
   - interactive default when no command is supplied
 - `vt2 run --mode attach|managed`:
   - start interactive loop and register session
+- `vt2 tui --mode attach|managed`:
+  - start Spectre.Console TUI session loop
 - `vt2 status`:
   - interactive status display when used from run loop
 - `vt2 stop`:
   - request session stop (requires `--session-id` when used outside run loop)
 - `vt2 resolve submit|cancel|retry --session-id <id>`:
   - send `POST /v1/sessions/{id}/resolve`
+- `vt2 tui [--mode attach|managed]`:
+  - start same workflow as `run` with menu-driven terminal UI
 Planned (not yet in the current scaffold):
 
 - `vt2 api start [--port] [--urls]`:

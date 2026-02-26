@@ -32,6 +32,11 @@ Start the app in one of these modes:
 
 `all` is not a CLI mode flag; it is the `run-alpha1-all` bootstrap script.
 
+There are two CLI interface styles:
+
+- `run` (default): plain text session menu in the terminal.
+- `tui`: Spectre.Console-powered interactive menu in the terminal.
+
 Service mode examples:
 
 ```powershell
@@ -115,6 +120,12 @@ Use managed auto mode for quick local iteration:
 .\scripts\run-alpha1-all.cmd -Configuration Debug
 ```
 
+Use managed TUI bootstrap for quick iteration:
+
+```powershell
+.\scripts\run-alpha1-all-tui.cmd -Configuration Debug
+```
+
 Run unit + integration-style smoke tests:
 
 ```powershell
@@ -134,7 +145,7 @@ Equivalent direct PowerShell commands:
 
 Use this set as the default Alpha 1 “build pack” before adding tray/frontend orchestrators.
 
-## Alpha 1 implementation status (2026-02-22)
+## Alpha 1 implementation status (2026-02-26)
 
 - API host:
   - in-memory session registry with auth-mode policy support
@@ -144,6 +155,13 @@ Use this set as the default Alpha 1 “build pack” before adding tray/frontend
 - CLI orchestrator:
   - interactive run loop and top-level `status`, `stop`, `resolve`, `api` commands
   - managed API startup mode with best-effort graceful stop fallback
+  - Spectre.Console-powered `tui` mode via `vt2 tui` and `vt2 --tui`
+- Script support:
+  - single-command launchers for run, tui, and all variants:
+    - `run-alpha1-api.*`
+    - `run-alpha1-cli.*`
+    - `run-alpha1-tui.*`
+    - `run-alpha1-all-tui.*`
 - Validation and docs:
   - runtime config validation for URLs and auth mode
   - closeoff tests expanded around status/authorization behavior and config validation
@@ -160,7 +178,9 @@ Implemented:
 - [x] Runtime config parsing + validation (`RuntimeConfig`).
 - [x] Auth mode handling (`none`, `token-optional`, `token-required`).
 - [x] Top-level CLI commands: `run`, `status`, `stop`, `resolve`, `api`.
+- [x] Top-level command `tui` and alias `--tui` for Spectre.Console TUI.
 - [x] Interactive run controls: `submit`, `cancel`, `retry`, `status`, `quit`.
+- [x] Run-style wrapper scripts and TUI wrapper scripts (`run-alpha1-tui`, `run-alpha1-all-tui`).
 - [x] In-memory auth token generation and session registry.
 - [x] Cleanup of stale/expired sessions.
 
@@ -180,7 +200,7 @@ Not started yet:
 
 ### Closeoff verification status
 
-- `2026-02-22`: Unit/integration tests and smoke checks passed in `Debug`.
+- `2026-02-26`: Unit/integration tests and smoke checks pass in `Debug`.
 
 ## Documentation (local readthedocs-style)
 
