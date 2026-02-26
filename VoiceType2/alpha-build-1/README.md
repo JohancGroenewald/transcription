@@ -15,6 +15,36 @@ cd .\scripts
 .\build-alpha1.cmd -Configuration Debug
 ```
 
+## Start modes (copy/paste)
+
+Auto mode (managed startup):
+
+```powershell
+.\scripts\run-alpha1-cli.cmd -Mode managed -ApiUrl "http://127.0.0.1:5240"
+```
+
+```powershell
+.\scripts\run-alpha1-all.cmd -Configuration Debug
+```
+
+Self-contained mode (publish + launch standalone binaries):
+
+```powershell
+dotnet publish src\VoiceType2.ApiHost\VoiceType2.ApiHost.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o src\VoiceType2.ApiHost\publish\win-x64
+```
+
+```powershell
+dotnet publish src\VoiceType2.App.Cli\VoiceType2.App.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o src\VoiceType2.App.Cli\publish\win-x64
+```
+
+```powershell
+.\src\VoiceType2.ApiHost\publish\win-x64\VoiceType2.ApiHost.exe --mode service --urls "http://127.0.0.1:5240"
+```
+
+```powershell
+.\src\VoiceType2.App.Cli\publish\win-x64\VoiceType2.App.Cli.exe run --mode attach --api-url "http://127.0.0.1:5240"
+```
+
 If you prefer PowerShell directly, keep the existing calls:
 
 ```powershell

@@ -58,6 +58,20 @@ vt2 resolve retry --session-id <session-id>
 vt2 resolve cancel --session-id <session-id>
 ```
 
+Auto mode (managed start) and self-contained launch examples:
+
+```powershell
+vt2 run --mode managed --api-url "http://127.0.0.1:5240" --managed-start true
+```
+
+```powershell
+dotnet publish VoiceType2\alpha-build-1\src\VoiceType2.App.Cli\VoiceType2.App.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o VoiceType2\alpha-build-1\src\VoiceType2.App.Cli\publish\win-x64
+```
+
+```powershell
+.\VoiceType2\alpha-build-1\src\VoiceType2.App.Cli\publish\win-x64\VoiceType2.App.Cli.exe run --mode attach --api-url "http://127.0.0.1:5240"
+```
+
 ## `vt2 run`
 
 ```text
