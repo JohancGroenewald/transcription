@@ -34,3 +34,4 @@ __pycache__/
 .ruff_cache/
 .cache/
 VoiceType2/alpha-build-1/ClientConfig.json
+audio-debug-test.wav
