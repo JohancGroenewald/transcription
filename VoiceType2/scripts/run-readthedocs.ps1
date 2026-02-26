@@ -9,22 +9,28 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $docsDir = Join-Path $root "docs"
 $requirements = Join-Path $docsDir "requirements.txt"
-$venvPython = Join-Path $root ".venv\Scripts\python.exe"
+$venvPath = Join-Path $root ".venv"
+$venvPython = Join-Path $venvPath "Scripts\python.exe"
 
-if (Test-Path $venvPython) {
-    $python = $venvPython
-} else {
-    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $pythonCommand) {
-        Write-Error "Python not found in PATH. Install Python 3.11+ or create .venv in VoiceType2."
-        exit 1
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Write-Error "uv not found in PATH. Install uv (https://astral.sh/uv) and retry."
+    exit 1
+}
+
+if (-not (Test-Path $venvPython)) {
+    & uv venv $venvPath
+}
+
+function Invoke-UvCommand {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs)
+    & uv run --python $venvPython -- @CommandArgs
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
-
-    $python = $pythonCommand.Path
 }
 
 if ($ReinstallDeps) {
-    & $python -m pip install -r $requirements
+    Invoke-UvCommand python -m pip install -r $requirements
 }
 
 if ($Clean -and (Test-Path (Join-Path $docsDir "_build"))) {
@@ -33,14 +39,11 @@ if ($Clean -and (Test-Path (Join-Path $docsDir "_build"))) {
 
 Push-Location $docsDir
 try {
-    & $python -m sphinx.cmd.build -b html $docsDir "$docsDir\_build\html"
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-UvCommand sphinx-build -b html . .\_build\html
 
     Write-Host "Docs built successfully."
     Write-Host "Preview: http://localhost:$Port"
-    & $python -m http.server $Port --directory "$docsDir\_build\html"
+    Invoke-UvCommand python -m http.server $Port --directory .\_build\html
 }
 finally {
     Pop-Location
