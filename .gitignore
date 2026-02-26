@@ -16,3 +16,20 @@ NUL
 Gemini_Generated_Image_*.png
 install-report.json
 voicetype-settings-*.json
+
+# Temporary build and generated artifacts
+_build/
+build/
+dist/
+*.egg-info/
+.coverage
+coverage/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
