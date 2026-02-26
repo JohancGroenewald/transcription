@@ -64,23 +64,30 @@ public class RuntimeConfigTests
     }
 
     [Fact]
-    public void Load_normalizes_empty_urls_to_default()
+    public void Load_overlays_on_sample_config_when_path_values_are_missing()
     {
         var payload = JsonSerializer.Serialize(new
         {
             HostBinding = new
             {
-                Urls = string.Empty
+                Urls = "http://127.0.0.1:7000"
+            },
+            SessionPolicy = new
+            {
+                MaxConcurrentSessions = 2
             }
         });
 
-        var filePath = Path.Combine(Path.GetTempPath(), $"vt2-runtime-config-empty-{Guid.NewGuid():N}.json");
+        var filePath = Path.Combine(Path.GetTempPath(), $"vt2-runtime-config-overlay-{Guid.NewGuid():N}.json");
         File.WriteAllText(filePath, payload);
 
         try
         {
             var config = RuntimeConfig.Load(filePath);
-            Assert.Equal("http://127.0.0.1:5240", config.HostBinding.Urls);
+
+            Assert.Equal("http://127.0.0.1:7000", config.HostBinding.Urls);
+            Assert.Equal(2, config.SessionPolicy.MaxConcurrentSessions);
+            Assert.Equal(300000, config.SessionPolicy.DefaultSessionTimeoutMs);
         }
         finally
         {

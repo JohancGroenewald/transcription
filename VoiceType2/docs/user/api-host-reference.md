@@ -13,9 +13,14 @@ dotnet run --project VoiceType2\alpha-build-1\src\VoiceType2.ApiHost\VoiceType2.
 - `--config <path>`: path to runtime config file.
 - `--help`, `-h`: print usage.
 
-If you pass `--urls`, it overrides `RuntimeConfig.HostBinding.Urls`.
+If you pass `--urls`, it overrides `RuntimeConfig.HostBinding.Urls` from the loaded config.
 
-If `--config` is omitted, defaults are used:
+If `--config` is omitted, the host looks for `RuntimeConfig.json`.
+If that file does not exist, it is created automatically from
+`RuntimeConfig.sample.json`.
+If `RuntimeConfig.sample.json` is missing, startup fails.
+
+When loading a config file, these defaults are expected:
 
 - `HostBinding.Urls`: `http://127.0.0.1:5240`
 - `SessionPolicy.MaxConcurrentSessions`: `4`
