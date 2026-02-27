@@ -951,8 +951,15 @@ static async Task ProcessSessionAsync(
             sessionId,
             correlationId,
             ct);
+        await audioBootstrapper.PlayConfirmationToneAsync(
+            audioDevices,
+            sessionId,
+            correlationId,
+            ct);
 
-        using var audio = new MemoryStream(Array.Empty<byte>());
+        using var audio = recordingCapture is null
+            ? new MemoryStream(Array.Empty<byte>())
+            : await recordingCapture.GetAudioStreamAsync(ct);
         var options = new TranscriptionOptions(
             string.IsNullOrWhiteSpace(transcriptionDefaults.DefaultLanguage) ? null : transcriptionDefaults.DefaultLanguage,
             string.IsNullOrWhiteSpace(transcriptionDefaults.DefaultPrompt) ? null : transcriptionDefaults.DefaultPrompt,

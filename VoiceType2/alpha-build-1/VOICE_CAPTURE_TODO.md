@@ -29,3 +29,12 @@ Add real voice capture with explicit device selection flow across CLI and API ru
 - [x] Add playback device plumbing (e.g., optional TTS validation/replay for confirmation) after capture path exists.
 - [x] Add integration test that list-device output reflects `/v1/devices` payload shape.
 - [x] Add user-facing checklist for required permissions (mic/camera/speaker) per OS.
+
+## Phase 2 (next implementation target)
+
+- [x] Phase 2-a (capture pipeline): implement host-side live capture for `WaveInEvent`, assemble a finite WAV stream per session window, and pass that stream into `TranscribeAsync` with selected device IDs.
+- [x] Phase 2-b (audio feedback): implement `PlayConfirmationToneAsync` in host bootstrapper with playback device selection and call from session startup path.
+- [ ] Phase 2-c (validation): add hard validation/safety for missing/invalid device IDs and unsupported platforms before capture start; short-circuit to fallback empty stream.
+- [ ] Phase 2-d (tests): keep provider-facing tests device-aware and add explicit capture-session assertions (`recordingPlaybackInitialized`, `confirmationTonePlayed`, and captured-bytes assertions).
+- [ ] Phase 2-e (documentation): update usage/docs once pipeline is live to distinguish device selection vs confirmation feedback behavior.
+- [ ] Expand API-host tests around capture lifecycle (`start`/`retry`/`stop`) with capture-session coverage.

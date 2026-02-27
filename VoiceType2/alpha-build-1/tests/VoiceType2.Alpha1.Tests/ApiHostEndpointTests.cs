@@ -187,7 +187,8 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
     public async Task Start_uses_session_selected_audio_devices_in_transcription()
     {
         var provider = new CapturingTranscriptionProvider();
-        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider);
+        var bootstrapper = new TrackingAudioBootstrapper();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
         using var client = factory.CreateClient();
 
         var created = await RegisterSessionAsync(
@@ -211,6 +212,43 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         Assert.NotNull(provider.CapturedSelection);
         Assert.Equal("rec:0", provider.CapturedSelection!.RecordingDeviceId);
         Assert.Equal("play:1", provider.CapturedSelection.PlaybackDeviceId);
+        Assert.True(bootstrapper.RecordingCaptureInitialized);
+        Assert.True(bootstrapper.PlaybackInitialized);
+        Assert.True(bootstrapper.ConfirmationTonePlayed);
+    }
+
+    [Fact]
+    public async Task Start_transcribes_with_host_capture_stream()
+    {
+        var provider = new CapturingAudioBytesTranscriptionProvider();
+        var bootstrapper = new FakeAudioBootstrapper();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:1"
+            });
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        Assert.True(bootstrapper.RecordingCaptureInitialized);
+        Assert.True(bootstrapper.PlaybackInitialized);
+        Assert.True(bootstrapper.ConfirmationTonePlayed);
+        Assert.NotNull(provider.CapturedAudio);
+        Assert.Equal(bootstrapper.CapturedAudioPayload, provider.CapturedAudio);
+        Assert.Equal("rec:0", provider.CapturedSelection!.RecordingDeviceId);
     }
 
     [Fact]
@@ -241,6 +279,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
 
         Assert.True(bootstrapper.RecordingCaptureInitialized);
         Assert.True(bootstrapper.PlaybackInitialized);
+        Assert.True(bootstrapper.ConfirmationTonePlayed);
         Assert.NotNull(bootstrapper.InitializedAudioDevices);
         Assert.Equal("rec:0", bootstrapper.InitializedAudioDevices!.RecordingDeviceId);
         Assert.Equal("play:1", bootstrapper.InitializedAudioDevices!.PlaybackDeviceId);
@@ -464,13 +503,43 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
         }
     }
 
+    private sealed class CapturingAudioBytesTranscriptionProvider : ITranscriptionProvider
+    {
+        public AudioDeviceSelection? CapturedSelection { get; private set; }
+        public byte[]? CapturedAudio { get; private set; }
+
+        public Task<TranscriptionResult> TranscribeAsync(
+            Stream audioWav,
+            string correlationId,
+            TranscriptionOptions? options = null,
+            AudioDeviceSelection? audioDevices = null,
+            CancellationToken cancellationToken = default)
+        {
+            using var copy = new MemoryStream();
+            audioWav.CopyTo(copy);
+
+            CapturedSelection = audioDevices;
+            CapturedAudio = copy.ToArray();
+            return Task.FromResult(
+                new TranscriptionResult(
+                    "mock transcript text",
+                    "mock-provider",
+                    TimeSpan.Zero,
+                    true,
+                    null,
+                    null,
+                    null));
+        }
+    }
+
     private sealed class TrackingAudioBootstrapper : IHostAudioBootstrapper
     {
         public AudioDeviceSelection? InitializedAudioDevices { get; private set; }
         public bool RecordingCaptureInitialized { get; private set; }
         public bool PlaybackInitialized { get; private set; }
+        public bool ConfirmationTonePlayed { get; private set; }
 
-        public Task<IDisposable?> InitializeRecordingCaptureAsync(
+        public Task<IHostAudioCaptureSession?> InitializeRecordingCaptureAsync(
             AudioDeviceSelection? audioDevices,
             string sessionId,
             string correlationId,
@@ -482,7 +551,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
             InitializedAudioDevices = audioDevices;
             RecordingCaptureInitialized = true;
 
-            return Task.FromResult<IDisposable?>(null);
+            return Task.FromResult<IHostAudioCaptureSession?>(null);
         }
 
         public Task InitializePlaybackAsync(
@@ -497,6 +566,94 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
             InitializedAudioDevices = audioDevices;
             PlaybackInitialized = true;
             return Task.CompletedTask;
+        }
+
+        public Task PlayConfirmationToneAsync(
+            AudioDeviceSelection? audioDevices,
+            string sessionId,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            _ = audioDevices;
+            _ = sessionId;
+            _ = correlationId;
+            _ = cancellationToken;
+
+            ConfirmationTonePlayed = true;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeAudioBootstrapper : IHostAudioBootstrapper
+    {
+        public bool RecordingCaptureInitialized { get; private set; }
+        public bool PlaybackInitialized { get; private set; }
+        public bool ConfirmationTonePlayed { get; private set; }
+        public byte[] CapturedAudioPayload { get; } = [1, 2, 3, 4];
+
+        public Task<IHostAudioCaptureSession?> InitializeRecordingCaptureAsync(
+            AudioDeviceSelection? audioDevices,
+            string sessionId,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            _ = audioDevices;
+            _ = sessionId;
+            _ = correlationId;
+            _ = cancellationToken;
+
+            RecordingCaptureInitialized = true;
+            return Task.FromResult<IHostAudioCaptureSession?>(new FakeAudioCaptureSession(CapturedAudioPayload));
+        }
+
+        public Task InitializePlaybackAsync(
+            AudioDeviceSelection? audioDevices,
+            string sessionId,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            _ = audioDevices;
+            _ = sessionId;
+            _ = correlationId;
+            _ = cancellationToken;
+
+            PlaybackInitialized = true;
+            return Task.CompletedTask;
+        }
+
+        public Task PlayConfirmationToneAsync(
+            AudioDeviceSelection? audioDevices,
+            string sessionId,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            _ = audioDevices;
+            _ = sessionId;
+            _ = correlationId;
+            _ = cancellationToken;
+
+            ConfirmationTonePlayed = true;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeAudioCaptureSession : IHostAudioCaptureSession
+    {
+        private readonly byte[] _payload;
+
+        public FakeAudioCaptureSession(byte[] payload)
+        {
+            _payload = payload;
+        }
+
+        public Task<Stream> GetAudioStreamAsync(CancellationToken cancellationToken)
+        {
+            _ = cancellationToken;
+            return Task.FromResult<Stream>(new MemoryStream(_payload, false));
+        }
+
+        public void Dispose()
+        {
         }
     }
 }
