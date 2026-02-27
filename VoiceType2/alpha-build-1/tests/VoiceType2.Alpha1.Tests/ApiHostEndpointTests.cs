@@ -218,6 +218,35 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
     }
 
     [Fact]
+    public async Task Start_without_audio_devices_uses_fallback_empty_audio()
+    {
+        var provider = new CapturingAudioBytesTranscriptionProvider();
+        var bootstrapper = new TrackingAudioBootstrapper();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(client);
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        Assert.True(bootstrapper.RecordingCaptureInitialized);
+        Assert.True(bootstrapper.PlaybackInitialized);
+        Assert.True(bootstrapper.ConfirmationTonePlayed);
+        Assert.Null(bootstrapper.InitializedAudioDevices);
+        Assert.Null(provider.CapturedSelection);
+        Assert.NotNull(provider.CapturedAudio);
+        Assert.Empty(provider.CapturedAudio);
+    }
+
+    [Fact]
     public async Task Start_transcribes_with_host_capture_stream()
     {
         var provider = new CapturingAudioBytesTranscriptionProvider();

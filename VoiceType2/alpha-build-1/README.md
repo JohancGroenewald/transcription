@@ -126,6 +126,14 @@ Use managed TUI bootstrap for quick iteration:
 .\scripts\run-alpha1-all-tui.cmd -Configuration Debug
 ```
 
+Audio behavior (capture vs confirmation tone):
+
+- `recordingDeviceId` controls which input device is used for live capture.
+- `playbackDeviceId` controls where the confirmation tone is played.
+- Audio device IDs are normalized at session start; unsupported platform, missing/invalid IDs, or devices not found result in a safe fallback path.
+- On fallback, transcription still runs with an empty audio payload so the session remains functional.
+- Confirmation tone is only requested when playback selection resolves to a valid playback device.
+
 Run unit + integration-style smoke tests:
 
 ```powershell
