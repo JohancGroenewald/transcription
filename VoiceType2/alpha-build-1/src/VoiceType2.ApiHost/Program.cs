@@ -500,30 +500,52 @@ static IResult? ValidateAudioDeviceSelection(AudioDeviceSelection? audioDevices,
         return null;
     }
 
-    var recordingCandidates = GetHostRecordingDevices();
-    var playbackCandidates = GetHostPlaybackDevices();
-
     if (!string.IsNullOrWhiteSpace(audioDevices.RecordingDeviceId)
-        && !ContainsAudioDevice(recordingCandidates, audioDevices.RecordingDeviceId))
+        && !TryParseDeviceId(audioDevices.RecordingDeviceId, "rec", out _))
     {
         return Problem(
             400,
             "INVALID_RECORDING_DEVICE",
-            $"Unknown recording device id '{audioDevices.RecordingDeviceId}'.",
+            $"Invalid recording device id '{audioDevices.RecordingDeviceId}'.",
             correlationId: requestCorrelationId);
     }
 
     if (!string.IsNullOrWhiteSpace(audioDevices.PlaybackDeviceId)
-        && !ContainsAudioDevice(playbackCandidates, audioDevices.PlaybackDeviceId))
+        && !TryParseDeviceId(audioDevices.PlaybackDeviceId, "play", out _))
     {
         return Problem(
             400,
             "INVALID_PLAYBACK_DEVICE",
-            $"Unknown playback device id '{audioDevices.PlaybackDeviceId}'.",
+            $"Invalid playback device id '{audioDevices.PlaybackDeviceId}'.",
             correlationId: requestCorrelationId);
     }
 
     return null;
+}
+
+static bool TryParseDeviceId(string deviceId, string expectedPrefix, out int deviceIndex)
+{
+    deviceIndex = -1;
+    if (string.IsNullOrWhiteSpace(deviceId))
+    {
+        return false;
+    }
+
+    return TryParseDeviceIndex(deviceId, expectedPrefix, out deviceIndex);
+}
+
+static bool TryParseDeviceIndex(string deviceId, string expectedPrefix, out int deviceIndex)
+{
+    deviceIndex = -1;
+    var prefix = $"{expectedPrefix}:";
+    if (string.IsNullOrWhiteSpace(deviceId) ||
+        !deviceId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    var rawIndex = deviceId.Substring(prefix.Length);
+    return int.TryParse(rawIndex, out deviceIndex);
 }
 
 static AudioDeviceSelection? ResolveCaptureAudioSelection(AudioDeviceSelection? audioDevices)
@@ -538,11 +560,8 @@ static AudioDeviceSelection? ResolveCaptureAudioSelection(AudioDeviceSelection? 
         return null;
     }
 
-    var hostRecordingDevices = GetHostRecordingDevices();
-    var hostPlaybackDevices = GetHostPlaybackDevices();
-
-    var recordingDeviceId = ResolveCaptureDeviceId(audioDevices.RecordingDeviceId, "rec", hostRecordingDevices);
-    var playbackDeviceId = ResolveCaptureDeviceId(audioDevices.PlaybackDeviceId, "play", hostPlaybackDevices);
+    var recordingDeviceId = ResolveCaptureDeviceId(audioDevices.RecordingDeviceId, "rec");
+    var playbackDeviceId = ResolveCaptureDeviceId(audioDevices.PlaybackDeviceId, "play");
 
     if (string.IsNullOrWhiteSpace(recordingDeviceId) && string.IsNullOrWhiteSpace(playbackDeviceId))
     {
@@ -556,10 +575,7 @@ static AudioDeviceSelection? ResolveCaptureAudioSelection(AudioDeviceSelection? 
     };
 }
 
-static string? ResolveCaptureDeviceId(
-    string? deviceId,
-    string expectedPrefix,
-    IReadOnlyList<HostAudioDevice> discoveredDevices)
+static string? ResolveCaptureDeviceId(string? deviceId, string expectedPrefix)
 {
     if (string.IsNullOrWhiteSpace(deviceId))
     {
@@ -579,35 +595,7 @@ static string? ResolveCaptureDeviceId(
         return null;
     }
 
-    if (discoveredDevices.Count > 0 && !ContainsAudioDevice(discoveredDevices, trimmed))
-    {
-        return null;
-    }
-
     return trimmed;
-}
-
-static bool ContainsAudioDevice(IReadOnlyList<HostAudioDevice> devices, string? deviceId)
-{
-    if (string.IsNullOrWhiteSpace(deviceId))
-    {
-        return false;
-    }
-
-    if (devices.Count == 0)
-    {
-        return true;
-    }
-
-    foreach (var device in devices)
-    {
-        if (string.Equals(device.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 static IReadOnlyList<HostAudioDevice> GetHostRecordingDevices()
