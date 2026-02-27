@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
-using NAudio.CoreAudioApi;
+using NAudio.Wave;
 using VoiceType2.ApiHost;
 using VoiceType2.ApiHost.Services;
 using VoiceType2.Core.Contracts;
@@ -602,7 +602,7 @@ static IReadOnlyList<HostAudioDevice> GetHostRecordingDevices()
 {
     if (OperatingSystem.IsWindows())
     {
-        return GetHostWaveDevices("NAudio.Wave.WaveInEvent", "rec");
+        return GetHostWaveDevices("rec", typeof(WaveInEvent));
     }
 
     if (OperatingSystem.IsLinux())
@@ -622,7 +622,7 @@ static IReadOnlyList<HostAudioDevice> GetHostPlaybackDevices()
 {
     if (OperatingSystem.IsWindows())
     {
-        return GetHostWaveDevicesForPlayback("play");
+        return GetHostWaveDevices("play", typeof(WaveOutEvent));
     }
 
     if (OperatingSystem.IsLinux())
@@ -638,17 +638,11 @@ static IReadOnlyList<HostAudioDevice> GetHostPlaybackDevices()
     return [];
 }
 
-static IReadOnlyList<HostAudioDevice> GetHostWaveDevices(string typeName, string prefix)
+static IReadOnlyList<HostAudioDevice> GetHostWaveDevices(string prefix, Type waveType)
 {
     try
     {
-        var type = Type.GetType($"{typeName}, NAudio");
-        if (type is null)
-        {
-            return [];
-        }
-
-        var deviceCountProperty = type.GetProperty(
+        var deviceCountProperty = waveType.GetProperty(
             "DeviceCount",
             BindingFlags.Public | BindingFlags.Static);
         if (deviceCountProperty is null)
@@ -656,65 +650,46 @@ static IReadOnlyList<HostAudioDevice> GetHostWaveDevices(string typeName, string
             return [];
         }
 
-        var getCapabilitiesMethod = type.GetMethod(
+        if (deviceCountProperty.GetValue(null) is not int count)
+        {
+            return [];
+        }
+
+        var getCapabilitiesMethod = waveType.GetMethod(
             "GetCapabilities",
-            BindingFlags.Public | BindingFlags.Static);
+            BindingFlags.Public | BindingFlags.Static,
+            null,
+            [typeof(int)],
+            null);
         if (getCapabilitiesMethod is null)
         {
             return [];
         }
 
-        var count = (int)(deviceCountProperty.GetValue(null) ?? 0);
         var devices = new List<HostAudioDevice>();
 
         for (var index = 0; index < count; index++)
         {
-            var capabilities = getCapabilitiesMethod.Invoke(null, [index]);
-            if (capabilities is null)
+            object? capabilities;
+            try
+            {
+                capabilities = getCapabilitiesMethod.Invoke(null, [index]);
+            }
+            catch
             {
                 continue;
             }
 
-            var nameProperty = capabilities.GetType().GetProperty("ProductName");
-            var name = nameProperty?.GetValue(capabilities) as string;
+            var name = capabilities?.GetType().GetProperty("ProductName")?.GetValue(capabilities) as string;
 
             devices.Add(new HostAudioDevice
             {
                 DeviceId = $"{prefix}:{index}",
-                Name = string.IsNullOrWhiteSpace(name) ? $"{typeName} {index}" : name
+                Name = string.IsNullOrWhiteSpace(name) ? $"{waveType.Name} {index}" : name
             });
         }
 
         return devices;
-    }
-    catch
-    {
-    }
-
-    return [];
-}
-
-static IReadOnlyList<HostAudioDevice> GetHostWaveDevicesForPlayback(string prefix)
-{
-    try
-    {
-        using var enumerator = new MMDeviceEnumerator();
-        var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-        var hostDevices = new List<HostAudioDevice>(devices.Count);
-
-        for (var index = 0; index < devices.Count; index++)
-        {
-            using var device = devices[index];
-            hostDevices.Add(new HostAudioDevice
-            {
-                DeviceId = $"{prefix}:{index}",
-                Name = string.IsNullOrWhiteSpace(device.FriendlyName)
-                    ? $"{prefix}:{index}"
-                    : device.FriendlyName
-            });
-        }
-
-        return hostDevices;
     }
     catch
     {
