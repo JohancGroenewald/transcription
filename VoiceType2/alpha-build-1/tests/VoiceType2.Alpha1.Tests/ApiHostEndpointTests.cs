@@ -286,6 +286,123 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
     }
 
     [Fact]
+    public async Task Start_falls_back_to_empty_audio_when_no_capture_session_is_created()
+    {
+        var provider = new CapturingAudioBytesTranscriptionProvider();
+        var bootstrapper = new FakeAudioBootstrapper(captureEnabled: false);
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:9999",
+                PlaybackDeviceId = "play:9999"
+            });
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, bootstrapper.RecordingCaptureInitializedCount);
+        Assert.Equal(1, bootstrapper.PlaybackInitializedCount);
+        Assert.Equal(1, bootstrapper.ConfirmationTonePlayedCount);
+        Assert.False(bootstrapper.RecordingCaptureStarted);
+        Assert.True(bootstrapper.ConfirmationTonePlayed);
+        Assert.NotNull(provider.CapturedAudio);
+        Assert.Empty(provider.CapturedAudio);
+        Assert.Equal("rec:9999", provider.CapturedSelection!.RecordingDeviceId);
+        Assert.Equal("play:9999", provider.CapturedSelection!.PlaybackDeviceId);
+    }
+
+    [Fact]
+    public async Task Resolve_retry_reinvokes_capture_pipeline()
+    {
+        var provider = new CapturingAudioBytesTranscriptionProvider();
+        var bootstrapper = new FakeAudioBootstrapper();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:1"
+            });
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        var retry = await ResolveAsync(client, created.SessionId, created.OrchestratorToken, "retry");
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(3));
+
+        Assert.Equal(2, bootstrapper.RecordingCaptureInitializedCount);
+        Assert.Equal(2, bootstrapper.PlaybackInitializedCount);
+        Assert.Equal(2, bootstrapper.ConfirmationTonePlayedCount);
+        Assert.Equal(2, provider.TranscribeInvocationCount);
+        Assert.True(provider.CapturedAudio!.Length > 0);
+    }
+
+    [Fact]
+    public async Task Stop_prevents_retry_from_restarting_capture_work()
+    {
+        var provider = new CapturingAudioBytesTranscriptionProvider();
+        var bootstrapper = new FakeAudioBootstrapper();
+        using var factory = CreateApiHostFactory(new RuntimeSecurityConfig(), provider, bootstrapper);
+        using var client = factory.CreateClient();
+
+        var created = await RegisterSessionAsync(
+            client,
+            audioDevices: new AudioDeviceSelection
+            {
+                RecordingDeviceId = "rec:0",
+                PlaybackDeviceId = "play:1"
+            });
+
+        using var start = await StartAsync(client, created);
+        start.EnsureSuccessStatusCode();
+
+        await WaitForStateAsync(
+            client,
+            created.SessionId,
+            created.OrchestratorToken,
+            SessionState.AwaitingDecision,
+            TimeSpan.FromSeconds(2));
+
+        using var stop = await StopAsync(client, created.SessionId, created.OrchestratorToken);
+        Assert.Equal(HttpStatusCode.OK, stop.StatusCode);
+
+        var status = await GetStatusAsync(client, created.SessionId, created.OrchestratorToken);
+        Assert.Equal(SessionState.Stopped.ToString(), status.State);
+
+        var retry = await ResolveAsync(client, created.SessionId, created.OrchestratorToken, "retry");
+        Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);
+        Assert.Equal(1, bootstrapper.RecordingCaptureInitializedCount);
+    }
+
+    [Fact]
     public async Task Stop_is_idempotent_in_terminal_transition()
     {
         using var client = _factory.CreateClient();
@@ -507,6 +624,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
     {
         public AudioDeviceSelection? CapturedSelection { get; private set; }
         public byte[]? CapturedAudio { get; private set; }
+        public int TranscribeInvocationCount { get; private set; }
 
         public Task<TranscriptionResult> TranscribeAsync(
             Stream audioWav,
@@ -515,6 +633,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
             AudioDeviceSelection? audioDevices = null,
             CancellationToken cancellationToken = default)
         {
+            TranscribeInvocationCount += 1;
             using var copy = new MemoryStream();
             audioWav.CopyTo(copy);
 
@@ -586,10 +705,23 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
 
     private sealed class FakeAudioBootstrapper : IHostAudioBootstrapper
     {
+        public bool RecordingCaptureStarted { get; private set; }
         public bool RecordingCaptureInitialized { get; private set; }
+        public int RecordingCaptureInitializedCount { get; private set; }
         public bool PlaybackInitialized { get; private set; }
+        public int PlaybackInitializedCount { get; private set; }
         public bool ConfirmationTonePlayed { get; private set; }
-        public byte[] CapturedAudioPayload { get; } = [1, 2, 3, 4];
+        public int ConfirmationTonePlayedCount { get; private set; }
+        private readonly bool _captureEnabled;
+        private readonly byte[]? _capturedAudioPayload;
+
+        public FakeAudioBootstrapper(byte[]? capturedAudioPayload = null, bool captureEnabled = true)
+        {
+            _captureEnabled = captureEnabled;
+            _capturedAudioPayload = capturedAudioPayload is null && captureEnabled ? [1, 2, 3, 4] : capturedAudioPayload;
+        }
+
+        public byte[]? CapturedAudioPayload => _capturedAudioPayload;
 
         public Task<IHostAudioCaptureSession?> InitializeRecordingCaptureAsync(
             AudioDeviceSelection? audioDevices,
@@ -603,7 +735,19 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
             _ = cancellationToken;
 
             RecordingCaptureInitialized = true;
-            return Task.FromResult<IHostAudioCaptureSession?>(new FakeAudioCaptureSession(CapturedAudioPayload));
+            RecordingCaptureInitializedCount++;
+            if (!_captureEnabled)
+            {
+                return Task.FromResult<IHostAudioCaptureSession?>(null);
+            }
+
+            if (_capturedAudioPayload is null || _capturedAudioPayload.Length == 0)
+            {
+                return Task.FromResult<IHostAudioCaptureSession?>(null);
+            }
+
+            RecordingCaptureStarted = true;
+            return Task.FromResult<IHostAudioCaptureSession?>(new FakeAudioCaptureSession(_capturedAudioPayload));
         }
 
         public Task InitializePlaybackAsync(
@@ -618,6 +762,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
             _ = cancellationToken;
 
             PlaybackInitialized = true;
+            PlaybackInitializedCount++;
             return Task.CompletedTask;
         }
 
@@ -632,6 +777,7 @@ public sealed class ApiHostEndpointTests : IClassFixture<WebApplicationFactory<A
             _ = correlationId;
             _ = cancellationToken;
 
+            ConfirmationTonePlayedCount++;
             ConfirmationTonePlayed = true;
             return Task.CompletedTask;
         }
