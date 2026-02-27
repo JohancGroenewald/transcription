@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Reflection;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using VoiceType2.Core.Contracts;
 
@@ -242,7 +243,16 @@ public sealed class HostAudioBootstrapper : IHostAudioBootstrapper
             return false;
         }
 
-        return IsValidDeviceIndex(index, typeof(WaveOutEvent));
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            var playbackDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            return index < playbackDevices.Count;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsValidDeviceIndex(int index, Type waveType)

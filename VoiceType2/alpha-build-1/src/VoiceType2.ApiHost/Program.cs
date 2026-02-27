@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using VoiceType2.ApiHost;
 using VoiceType2.ApiHost.Services;
@@ -622,7 +623,7 @@ static IReadOnlyList<HostAudioDevice> GetHostPlaybackDevices()
 {
     if (OperatingSystem.IsWindows())
     {
-        return GetHostWaveDevices("play", typeof(WaveOutEvent));
+        return GetHostCoreAudioWaveOutDevices("play");
     }
 
     if (OperatingSystem.IsLinux())
@@ -690,6 +691,35 @@ static IReadOnlyList<HostAudioDevice> GetHostWaveDevices(string prefix, Type wav
         }
 
         return devices;
+    }
+    catch
+    {
+    }
+
+    return [];
+}
+
+static IReadOnlyList<HostAudioDevice> GetHostCoreAudioWaveOutDevices(string prefix)
+{
+    try
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+        var hostDevices = new List<HostAudioDevice>(devices.Count);
+
+        for (var index = 0; index < devices.Count; index++)
+        {
+            using var device = devices[index];
+            hostDevices.Add(new HostAudioDevice
+            {
+                DeviceId = $"{prefix}:{index}",
+                Name = string.IsNullOrWhiteSpace(device.FriendlyName)
+                    ? $"{prefix}:{index}"
+                    : device.FriendlyName
+            });
+        }
+
+        return hostDevices;
     }
     catch
     {
