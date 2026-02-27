@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using NAudio.CoreAudioApi;
 using VoiceType2.ApiHost;
 using VoiceType2.ApiHost.Services;
 using VoiceType2.Core.Contracts;
@@ -613,7 +614,7 @@ static IReadOnlyList<HostAudioDevice> GetHostRecordingDevices()
 {
     if (OperatingSystem.IsWindows())
     {
-        return GetHostWaveDevices("NAudio.Wave.WaveIn", "rec");
+        return GetHostWaveDevices("NAudio.Wave.WaveInEvent", "rec");
     }
 
     if (OperatingSystem.IsLinux())
@@ -633,7 +634,7 @@ static IReadOnlyList<HostAudioDevice> GetHostPlaybackDevices()
 {
     if (OperatingSystem.IsWindows())
     {
-        return GetHostWaveDevices("NAudio.Wave.WaveOut", "play");
+        return GetHostWaveDevicesForPlayback("play");
     }
 
     if (OperatingSystem.IsLinux())
@@ -697,6 +698,35 @@ static IReadOnlyList<HostAudioDevice> GetHostWaveDevices(string typeName, string
         }
 
         return devices;
+    }
+    catch
+    {
+    }
+
+    return [];
+}
+
+static IReadOnlyList<HostAudioDevice> GetHostWaveDevicesForPlayback(string prefix)
+{
+    try
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+        var hostDevices = new List<HostAudioDevice>(devices.Count);
+
+        for (var index = 0; index < devices.Count; index++)
+        {
+            using var device = devices[index];
+            hostDevices.Add(new HostAudioDevice
+            {
+                DeviceId = $"{prefix}:{index}",
+                Name = string.IsNullOrWhiteSpace(device.FriendlyName)
+                    ? $"{prefix}:{index}"
+                    : device.FriendlyName
+            });
+        }
+
+        return hostDevices;
     }
     catch
     {

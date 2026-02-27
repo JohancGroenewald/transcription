@@ -14,7 +14,7 @@ internal static class ClientConfigLoader
     {
         var resolvedPath = ResolveConfigPath(path);
         var loadedJson = ParseConfigJson(resolvedPath);
-        var samplePath = FindFile(SampleConfigFile);
+        var samplePath = FindConfigFilePath(SampleConfigFile);
         if (string.IsNullOrWhiteSpace(samplePath))
         {
             throw new FileNotFoundException(
@@ -69,29 +69,44 @@ internal static class ClientConfigLoader
             return resolvedConfiguredPath;
         }
 
-        var existingConfig = FindFile(DefaultConfigFile);
-        if (!string.IsNullOrWhiteSpace(existingConfig))
+        var searchPaths = new[]
         {
-            return existingConfig;
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory
+        };
+
+        foreach (var searchPath in searchPaths)
+        {
+            var current = searchPath;
+            for (var depth = 0; depth < SearchDepth && !string.IsNullOrWhiteSpace(current); depth++)
+            {
+                var currentConfigPath = Path.Combine(current, DefaultConfigFile);
+                if (File.Exists(currentConfigPath))
+                {
+                    return currentConfigPath;
+                }
+
+                var currentSamplePath = Path.Combine(current, SampleConfigFile);
+                if (File.Exists(currentSamplePath))
+                {
+                    var generatedPath = Path.Combine(current, DefaultConfigFile);
+                    if (!File.Exists(generatedPath))
+                    {
+                        File.Copy(currentSamplePath, generatedPath, overwrite: false);
+                    }
+
+                    return generatedPath;
+                }
+
+                current = Directory.GetParent(current)?.FullName;
+            }
         }
 
-        var samplePath = FindFile(SampleConfigFile);
-        if (string.IsNullOrWhiteSpace(samplePath))
-        {
-            throw new FileNotFoundException(
-                $"Could not locate a client config. Expected '{DefaultConfigFile}' or '{SampleConfigFile}' in the current or parent directories.");
-        }
-
-        var generatedPath = Path.Combine(Path.GetDirectoryName(samplePath) ?? string.Empty, DefaultConfigFile);
-        if (!File.Exists(generatedPath))
-        {
-            File.Copy(samplePath, generatedPath, overwrite: false);
-        }
-
-        return generatedPath;
+        throw new FileNotFoundException(
+            $"Could not locate a client config. Expected '{DefaultConfigFile}' or '{SampleConfigFile}' in the current or parent directories.");
     }
 
-    private static string? FindFile(string fileName)
+    private static string? FindConfigFilePath(string fileName)
     {
         var roots = new[]
         {

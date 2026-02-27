@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Reflection;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using VoiceType2.Core.Contracts;
 
@@ -117,10 +118,19 @@ public sealed class HostAudioBootstrapper : IHostAudioBootstrapper
 
         try
         {
-            using var waveOut = new WaveOutEvent
+            using var enumerator = new MMDeviceEnumerator();
+            var playbackDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            if (playbackDeviceIndex < 0 || playbackDeviceIndex >= playbackDevices.Count)
             {
-                DeviceNumber = playbackDeviceIndex
-            };
+                return Task.CompletedTask;
+            }
+
+            using var playbackDevice = playbackDevices[playbackDeviceIndex];
+            using var waveOut = new WasapiOut(
+                playbackDevice,
+                AudioClientShareMode.Shared,
+                false,
+                100);
         }
         catch
         {
@@ -177,11 +187,19 @@ public sealed class HostAudioBootstrapper : IHostAudioBootstrapper
         await using var toneStream = new MemoryStream(toneBytes);
         try
         {
-            using var waveOut = new WaveOutEvent
+            using var enumerator = new MMDeviceEnumerator();
+            var playbackDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            if (playbackDeviceIndex < 0 || playbackDeviceIndex >= playbackDevices.Count)
             {
-                DeviceNumber = playbackDeviceIndex,
-                DesiredLatency = 100
-            };
+                return;
+            }
+
+            using var playbackDevice = playbackDevices[playbackDeviceIndex];
+            using var waveOut = new WasapiOut(
+                playbackDevice,
+                AudioClientShareMode.Shared,
+                false,
+                100);
             using var reader = new WaveFileReader(toneStream);
             waveOut.Init(reader);
             waveOut.Play();
@@ -239,12 +257,27 @@ public sealed class HostAudioBootstrapper : IHostAudioBootstrapper
 
     private static bool HasCaptureDevice(int index)
     {
-        return IsValidDeviceIndex(index, "NAudio.Wave.WaveIn");
+        return IsValidDeviceIndex(index, "NAudio.Wave.WaveInEvent");
     }
 
     private static bool HasPlaybackDevice(int index)
     {
-        return IsValidDeviceIndex(index, "NAudio.Wave.WaveOut");
+        if (index < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            var playbackDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            return index < playbackDevices.Count;
+        }
+        catch
+        {
+        }
+
+        return false;
     }
 
     private static bool IsValidDeviceIndex(int index, string typeName)

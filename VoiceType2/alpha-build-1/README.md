@@ -167,6 +167,19 @@ Equivalent `.cmd` wrappers:
 .\run-alpha1-all.cmd -ApiUrl "http://127.0.0.1:5240" -RecordingDeviceId rec:0 -PlaybackDeviceId play:0
 ```
 
+After building the latest API binary, you can run the host directly and query devices manually to verify hardware discovery (without CLI):
+
+```powershell
+cd .\src\VoiceType2.ApiHost
+dotnet run -- --mode service --urls "http://127.0.0.1:5240"
+```
+
+Then test discovery with:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:5240/v1/devices
+```
+
 Use this set as the default Alpha 1 “build pack” before adding tray/frontend orchestrators.
 
 ## Alpha 1 implementation status (2026-02-26)
