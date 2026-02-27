@@ -525,6 +525,67 @@ static IResult? ValidateAudioDeviceSelection(AudioDeviceSelection? audioDevices,
     return null;
 }
 
+static AudioDeviceSelection? ResolveCaptureAudioSelection(AudioDeviceSelection? audioDevices)
+{
+    if (audioDevices is null)
+    {
+        return null;
+    }
+
+    if (!OperatingSystem.IsWindows())
+    {
+        return null;
+    }
+
+    var hostRecordingDevices = GetHostRecordingDevices();
+    var hostPlaybackDevices = GetHostPlaybackDevices();
+
+    var recordingDeviceId = ResolveCaptureDeviceId(audioDevices.RecordingDeviceId, "rec", hostRecordingDevices);
+    var playbackDeviceId = ResolveCaptureDeviceId(audioDevices.PlaybackDeviceId, "play", hostPlaybackDevices);
+
+    if (string.IsNullOrWhiteSpace(recordingDeviceId) && string.IsNullOrWhiteSpace(playbackDeviceId))
+    {
+        return null;
+    }
+
+    return new AudioDeviceSelection
+    {
+        RecordingDeviceId = recordingDeviceId,
+        PlaybackDeviceId = playbackDeviceId
+    };
+}
+
+static string? ResolveCaptureDeviceId(
+    string? deviceId,
+    string expectedPrefix,
+    IReadOnlyList<HostAudioDevice> discoveredDevices)
+{
+    if (string.IsNullOrWhiteSpace(deviceId))
+    {
+        return null;
+    }
+
+    var trimmed = deviceId.Trim();
+    var expected = $"{expectedPrefix}:";
+    if (!trimmed.StartsWith(expected, StringComparison.OrdinalIgnoreCase))
+    {
+        return null;
+    }
+
+    var rawIndex = trimmed[expected.Length..];
+    if (!int.TryParse(rawIndex, out var index) || index < 0)
+    {
+        return null;
+    }
+
+    if (discoveredDevices.Count > 0 && !ContainsAudioDevice(discoveredDevices, trimmed))
+    {
+        return null;
+    }
+
+    return trimmed;
+}
+
 static bool ContainsAudioDevice(IReadOnlyList<HostAudioDevice> devices, string? deviceId)
 {
     if (string.IsNullOrWhiteSpace(deviceId))
@@ -940,19 +1001,21 @@ static async Task ProcessSessionAsync(
             return;
         }
 
+        var captureAudioDevices = ResolveCaptureAudioSelection(audioDevices);
+
         await Task.Delay(250, ct);
         using var recordingCapture = await audioBootstrapper.InitializeRecordingCaptureAsync(
-            audioDevices,
+            captureAudioDevices,
             sessionId,
             correlationId,
             ct);
         await audioBootstrapper.InitializePlaybackAsync(
-            audioDevices,
+            captureAudioDevices,
             sessionId,
             correlationId,
             ct);
         await audioBootstrapper.PlayConfirmationToneAsync(
-            audioDevices,
+            captureAudioDevices,
             sessionId,
             correlationId,
             ct);
