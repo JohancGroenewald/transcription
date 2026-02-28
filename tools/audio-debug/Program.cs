@@ -1,4 +1,5 @@
 using System.Globalization;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using VoiceType;
@@ -11,8 +12,16 @@ internal static class Program
     private const int DefaultDingDurationMs = 900;
     private const string DefaultSaveFile = "audio-debug-test.wav";
     private const float DefaultOutputVolume = 0.5f;
+    private const float DefaultInputGain = 1f;
+    private const float DefaultInputHardwareVolumePercent = -1f;
     private const int MinCaptureDurationMs = 250;
     private const int MaxCaptureDurationMs = 300000;
+    private const int MinLoopCount = 1;
+    private const int MaxLoopCount = 20;
+    private const float MinInputGainPercent = 0f;
+    private const float MaxInputGainPercent = 400f;
+    private const float MinInputHardwareVolumePercent = 0f;
+    private const float MaxInputHardwareVolumePercent = 100f;
 
     private static async Task<int> Main(string[] args)
     {
@@ -40,7 +49,7 @@ internal static class Program
                 ? await RunPlayFileAsync(options)
                 : options.Ding
                 ? await RunDingTestAsync(options)
-                : await RunMicValidationAsync(options);
+                : await RunMicValidationLoopAsync(options);
             return result ? 0 : 1;
         }
         catch (ArgumentException ex)
@@ -88,6 +97,36 @@ internal static class Program
         }
     }
 
+    private static async Task<bool> RunMicValidationLoopAsync(DebugOptions options)
+    {
+        if (options.LoopCount <= 1)
+        {
+            return await RunMicValidationAsync(options);
+        }
+
+        Console.WriteLine($"=== VoiceType audio validation loop ({options.LoopCount}x) ===");
+        Console.WriteLine($"Input mic gain: {options.InputGain * 100:F0}%");
+        Console.WriteLine();
+
+        for (var loopIndex = 1; loopIndex <= options.LoopCount; loopIndex++)
+        {
+            Console.WriteLine($"-- Loop {loopIndex} of {options.LoopCount} --");
+            var loopResult = await RunMicValidationAsync(options, loopIndex, options.LoopCount);
+            if (!loopResult)
+            {
+                Console.WriteLine($"Loop {loopIndex} failed. Stopping.");
+                return false;
+            }
+
+            if (loopIndex < options.LoopCount)
+            {
+                Console.WriteLine();
+            }
+        }
+
+        return true;
+    }
+
     private static async Task<bool> RunPlayFileAsync(DebugOptions options)
     {
         var requestedOutputSummary = options.OutputIndex < 0
@@ -123,7 +162,7 @@ internal static class Program
         }
     }
 
-    private static async Task<bool> RunMicValidationAsync(DebugOptions options)
+    private static async Task<bool> RunMicValidationAsync(DebugOptions options, int loopIndex = 1, int loopCount = 1)
     {
         var inputIndex = options.InputIndex;
         var inputName = options.InputName;
@@ -137,11 +176,37 @@ internal static class Program
             ? "system default output"
             : $"index {outputIndex}";
 
-        Console.WriteLine("=== VoiceType audio validation ===");
+        if (loopCount > 1)
+        {
+            Console.WriteLine($"=== VoiceType audio validation (loop {loopIndex}/{loopCount}) ===");
+        }
+        else
+        {
+            Console.WriteLine("=== VoiceType audio validation ===");
+        }
+
         Console.WriteLine($"Input device request: {requestedInputSummary}");
         Console.WriteLine($"Output device request: {requestedOutputSummary}");
         Console.WriteLine($"Capture duration: {durationMs} ms");
+        Console.WriteLine($"Input gain: {options.InputGain * 100:F0}%");
+        Console.WriteLine(
+            InputVolumeChangesRequested(options.InputHardwareVolumePercent)
+                ? $"Input hardware volume request: {options.InputHardwareVolumePercent:F0}%"
+                : "Input hardware volume: unchanged");
         Console.WriteLine();
+
+        MMDevice? captureVolumeDevice = null;
+        var originalCaptureVolumePercent = DefaultInputHardwareVolumePercent;
+
+        try
+        {
+            SetCaptureInputHardwareVolume(
+                inputIndex,
+                inputName,
+                options.InputHardwareVolumePercent,
+                out captureVolumeDevice,
+                out originalCaptureVolumePercent);
+
         using var recorder = new AudioRecorder(inputIndex, inputName);
 
         try
@@ -165,6 +230,20 @@ internal static class Program
             audio = recorder.Stop();
             metrics = recorder.LastCaptureMetrics;
             captureSelection = recorder.LastCaptureSelection;
+
+            if (!InputGainsAreEqual(options.InputGain, DefaultInputGain))
+            {
+                try
+                {
+                    audio = ApplyInputGain(audio, options.InputGain);
+                    Console.WriteLine($"      Mic gain applied: {options.InputGain * 100:F0}%");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"      Failed to apply mic gain ({ex.Message}). Using raw capture.");
+                }
+            }
+
             var selectionSummary = $"requested={captureSelection.RequestedSummary}, " +
                 $"active={captureSelection.ActiveSummary}, reason={captureSelection.SelectionReason}, " +
                 $"fallback={captureSelection.UsedFallback}";
@@ -207,7 +286,7 @@ internal static class Program
             }
             else
             {
-                SaveAudioFile("input", audio, options.SaveInputPath);
+                SaveAudioFile("input", audio, options.SaveInputPath, loopIndex, loopCount);
             }
 
             return true;
@@ -226,15 +305,24 @@ internal static class Program
         }
 
         if (options.SaveInput)
-            SaveAudioFile("input", audio, options.SaveInputPath);
+            SaveAudioFile("input", audio, options.SaveInputPath, loopIndex, loopCount);
 
         if (options.SaveOutput)
         {
-            SaveAudioFile("output", audio, options.SaveOutputPath);
+            SaveAudioFile("output", audio, options.SaveOutputPath, loopIndex, loopCount);
         }
 
         Console.WriteLine("[2/2] Validation succeeded.");
         return true;
+        }
+        finally
+        {
+            if (captureVolumeDevice is not null &&
+                InputVolumeChangesRequested(options.InputHardwareVolumePercent))
+            {
+                RestoreCaptureInputHardwareVolume(captureVolumeDevice, originalCaptureVolumePercent);
+            }
+        }
     }
 
     private static async Task StartPlaybackAsync(
@@ -298,6 +386,52 @@ internal static class Program
         var outputPath = ResolveSavePath(explicitPath);
         File.WriteAllBytes(outputPath, audioData);
         Console.WriteLine($"  Saved {stage} audio to: {outputPath}");
+    }
+
+    private static void SaveAudioFile(
+        string stage,
+        byte[] audioData,
+        string? explicitPath,
+        int loopIndex,
+        int loopCount)
+    {
+        var outputPath = ResolveSavePath(explicitPath, loopIndex, loopCount);
+        File.WriteAllBytes(outputPath, audioData);
+        Console.WriteLine($"  Saved {stage} audio to: {outputPath}");
+    }
+
+    private static byte[] ApplyInputGain(byte[] sourceAudio, float inputGain)
+    {
+        if (sourceAudio.Length == 0)
+        {
+            return sourceAudio;
+        }
+
+        var clampedGain = Math.Clamp(inputGain, 0f, 4f);
+        if (InputGainsAreEqual(clampedGain, 1f))
+        {
+            return sourceAudio;
+        }
+
+        using var sourceStream = new MemoryStream(sourceAudio);
+        using var reader = new WaveFileReader(sourceStream);
+        var volumeProvider = new VolumeSampleProvider(reader.ToSampleProvider())
+        {
+            Volume = clampedGain
+        };
+        using var outputStream = new MemoryStream();
+        using (var writer = new WaveFileWriter(outputStream, reader.WaveFormat))
+        {
+            using var convertedProvider = new SampleToWaveProvider16(volumeProvider);
+            var buffer = new byte[4096];
+            int read;
+            while ((read = convertedProvider.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                writer.Write(buffer, 0, read);
+            }
+        }
+
+        return outputStream.ToArray();
     }
 
     private static WaveOutEvent BuildPlaybackOutput(int outputDeviceIndex, out string outputSummary)
@@ -447,6 +581,164 @@ internal static class Program
         }
     }
 
+    private static void SetCaptureInputHardwareVolume(
+        int inputDeviceIndex,
+        string? inputDeviceName,
+        float requestedInputVolumePercent,
+        out MMDevice? selectedDevice,
+        out float originalVolumePercent)
+    {
+        selectedDevice = null;
+        originalVolumePercent = DefaultInputHardwareVolumePercent;
+
+        if (!InputVolumeChangesRequested(requestedInputVolumePercent))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            var captureDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+
+            var selectedDeviceId = ResolveCaptureDeviceIdByNameOrIndex(
+                captureDevices,
+                inputDeviceIndex,
+                ResolveInputDeviceName(inputDeviceIndex, inputDeviceName));
+
+            if (string.IsNullOrWhiteSpace(selectedDeviceId))
+            {
+                return;
+            }
+
+            var matchingDevice = enumerator.GetDevice(selectedDeviceId);
+            if (matchingDevice is null)
+            {
+                return;
+            }
+
+            var endpointVolume = matchingDevice.AudioEndpointVolume;
+            originalVolumePercent = endpointVolume.MasterVolumeLevelScalar * 100f;
+            endpointVolume.MasterVolumeLevelScalar = Math.Clamp(
+                requestedInputVolumePercent / 100f,
+                0f,
+                1f);
+
+            selectedDevice = matchingDevice;
+            Console.WriteLine(
+                $"  Input hardware volume changed from {originalVolumePercent:F0}% to {requestedInputVolumePercent:F0}% on {matchingDevice.FriendlyName}");
+        }
+        catch
+        {
+        }
+    }
+
+    private static void RestoreCaptureInputHardwareVolume(
+        MMDevice captureVolumeDevice,
+        float originalVolumePercent)
+    {
+        try
+        {
+            if (originalVolumePercent < MinInputHardwareVolumePercent ||
+                originalVolumePercent > MaxInputHardwareVolumePercent)
+            {
+                return;
+            }
+
+            captureVolumeDevice.AudioEndpointVolume.MasterVolumeLevelScalar = originalVolumePercent / 100f;
+            Console.WriteLine(
+                $"  Input hardware volume restored to {originalVolumePercent:F0}% on {captureVolumeDevice.FriendlyName}");
+        }
+        finally
+        {
+            captureVolumeDevice.Dispose();
+        }
+    }
+
+    private static string? ResolveCaptureDeviceIdByNameOrIndex(
+        MMDeviceCollection captureDevices,
+        int inputDeviceIndex,
+        string requestedInputDeviceName)
+    {
+        if (captureDevices.Count <= 0)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(requestedInputDeviceName))
+        {
+            if (inputDeviceIndex >= 0 && inputDeviceIndex < captureDevices.Count)
+            {
+                return captureDevices[inputDeviceIndex]?.ID;
+            }
+
+            return null;
+        }
+
+        var exactMatch = CaptureDeviceIdByName(captureDevices, requestedInputDeviceName, exactMatch: true);
+        if (exactMatch is not null)
+        {
+            return exactMatch;
+        }
+
+        var partialMatch = CaptureDeviceIdByName(captureDevices, requestedInputDeviceName, exactMatch: false);
+        if (partialMatch is not null)
+        {
+            return partialMatch;
+        }
+
+        if (inputDeviceIndex >= 0 && inputDeviceIndex < captureDevices.Count)
+        {
+            return captureDevices[inputDeviceIndex]?.ID;
+        }
+
+        return null;
+    }
+
+    private static string? CaptureDeviceIdByName(
+        MMDeviceCollection captureDevices,
+        string requestedInputDeviceName,
+        bool exactMatch)
+    {
+        for (var captureDeviceIndex = 0; captureDeviceIndex < captureDevices.Count; captureDeviceIndex++)
+        {
+            var device = captureDevices[captureDeviceIndex];
+            var friendlyName = device.FriendlyName;
+            var isMatch = exactMatch
+                ? string.Equals(requestedInputDeviceName, friendlyName, StringComparison.OrdinalIgnoreCase)
+                : friendlyName.Contains(requestedInputDeviceName, StringComparison.OrdinalIgnoreCase);
+            if (!isMatch)
+            {
+                continue;
+            }
+
+            return device.ID;
+        }
+
+        return null;
+    }
+
+    private static string ResolveInputDeviceName(int inputDeviceIndex, string? inputDeviceName)
+    {
+        if (!string.IsNullOrWhiteSpace(inputDeviceName))
+        {
+            return inputDeviceName!.Trim();
+        }
+
+        return GetInputDeviceName(inputDeviceIndex);
+    }
+
+    private static bool InputVolumeChangesRequested(float inputHardwareVolumePercent)
+    {
+        return inputHardwareVolumePercent >= MinInputHardwareVolumePercent &&
+            inputHardwareVolumePercent <= MaxInputHardwareVolumePercent;
+    }
+
     private static void ApplyConfigDefaults(ref DebugOptions options)
     {
         var config = AppConfig.Load();
@@ -472,6 +764,29 @@ internal static class Program
     private static string ResolveSavePath(string? explicitPath)
     {
         return string.IsNullOrWhiteSpace(explicitPath) ? DefaultSaveFile : explicitPath;
+    }
+
+    private static string ResolveSavePath(string? explicitPath, int loopIndex, int loopCount)
+    {
+        var basePath = ResolveSavePath(explicitPath);
+        if (loopCount <= 1)
+        {
+            return basePath;
+        }
+
+        var directory = Path.GetDirectoryName(basePath);
+        var fileName = Path.GetFileNameWithoutExtension(basePath);
+        var extension = Path.GetExtension(basePath);
+        var suffixedFileName = $"{fileName}.loop{loopIndex:00}{extension}";
+
+        return string.IsNullOrWhiteSpace(directory)
+            ? suffixedFileName
+            : Path.Combine(directory, suffixedFileName);
+    }
+
+    private static bool InputGainsAreEqual(float left, float right)
+    {
+        return Math.Abs(left - right) <= 0.0001f;
     }
 
     private static DebugOptions ParseOptions(string[] args)
@@ -572,6 +887,24 @@ internal static class Program
                             $"duration-ms must be between {MinCaptureDurationMs} and {MaxCaptureDurationMs}.");
                     options = options with { DurationMs = durationMs };
                     break;
+                case "--loop":
+                case "--loops":
+                case "--loop-count":
+                    if (i + 1 >= args.Length)
+                        throw new ArgumentException($"{arg} requires an integer count.");
+                    if (!int.TryParse(
+                        args[++i],
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out var loopCount))
+                    {
+                        throw new ArgumentException("Invalid loop count.");
+                    }
+                    if (loopCount < MinLoopCount || loopCount > MaxLoopCount)
+                        throw new ArgumentException(
+                            $"loop-count must be between {MinLoopCount} and {MaxLoopCount}.");
+                    options = options with { LoopCount = loopCount };
+                    break;
                 case "--input":
                 case "--input-index":
                     if (i + 1 >= args.Length)
@@ -590,6 +923,44 @@ internal static class Program
                     if (i + 1 >= args.Length)
                         throw new ArgumentException("--input-name requires a string.");
                     options = options with { InputName = args[++i] };
+                    break;
+                case "--input-gain":
+                case "--mic-gain":
+                    if (i + 1 >= args.Length)
+                        throw new ArgumentException("--input-gain requires a percentage.");
+                    if (!float.TryParse(
+                        args[++i],
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out var inputGain))
+                    {
+                        throw new ArgumentException("Invalid input-gain value.");
+                    }
+                    if (inputGain < MinInputGainPercent || inputGain > MaxInputGainPercent)
+                        throw new ArgumentException(
+                            $"input-gain must be between {MinInputGainPercent} and {MaxInputGainPercent}.");
+                    options = options with { InputGain = inputGain / 100f };
+                    break;
+                case "--input-volume":
+                case "--mic-volume":
+                case "--record-volume":
+                    if (i + 1 >= args.Length)
+                        throw new ArgumentException($"{arg} requires a percentage.");
+                    if (!float.TryParse(
+                        args[++i],
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out var inputHardwareVolume))
+                    {
+                        throw new ArgumentException("Invalid input-volume value.");
+                    }
+                    if (inputHardwareVolume < MinInputHardwareVolumePercent ||
+                        inputHardwareVolume > MaxInputHardwareVolumePercent)
+                    {
+                        throw new ArgumentException(
+                            $"input-volume must be between {MinInputHardwareVolumePercent} and {MaxInputHardwareVolumePercent}.");
+                    }
+                    options = options with { InputHardwareVolumePercent = inputHardwareVolume };
                     break;
                 case "--output":
                 case "--output-index":
@@ -628,12 +999,17 @@ internal static class Program
         Console.WriteLine("  --save-in [path]               Save captured audio (default: audio-debug-test.wav in current directory).");
         Console.WriteLine("  --save-out [path]              Save playback output audio (default: audio-debug-test.wav in current directory).");
         Console.WriteLine("  --save, -s <path>              Legacy: save captured input audio (and ding output when --ding is used).");
-        Console.WriteLine("  --input-index, --input <n>     Preferred microphone input index (default: -1).");
-        Console.WriteLine("  --input-name <name>            Preferred microphone input name.");
-        Console.WriteLine("  --output-index, --output <n>   Output index for playback (default: -1/system default).");
-        Console.WriteLine("  --duration-ms <ms>             Capture window in ms (250 - 300000).");
-        Console.WriteLine("  --output-volume <pct>          Playback volume percentage (0 - 100, default 50).");
-        Console.WriteLine("  --no-playback                  Skip playback of captured audio.");
+        Console.WriteLine("  --input-index, --input <n>      Preferred microphone input index (default: -1).");
+        Console.WriteLine("  --input-name <name>             Preferred microphone input name.");
+        Console.WriteLine("  --input-gain <pct>              Software mic gain multiplier in percent (0 - 400, default 100).");
+        Console.WriteLine("  --input-volume <pct>            Set input device master volume level (0 - 100, default unchanged).");
+        Console.WriteLine("  --mic-volume <pct>              Alias for --input-volume.");
+        Console.WriteLine("  --record-volume <pct>           Alias for --input-volume.");
+        Console.WriteLine("  --loop, --loops <n>             Repeat capture/playback n times (1 - 20, default 1).");
+        Console.WriteLine("  --output-index, --output <n>    Output index for playback (default: -1/system default).");
+        Console.WriteLine("  --duration-ms <ms>              Capture window in ms (250 - 300000).");
+        Console.WriteLine("  --output-volume <pct>           Playback volume percentage (0 - 100, default 50).");
+        Console.WriteLine("  --no-playback                   Skip playback of captured audio.");
         Console.WriteLine();
     }
 
@@ -646,13 +1022,15 @@ internal static class Program
         bool Play = false,
         int InputIndex = -1,
         string? InputName = null,
+        int LoopCount = 1,
+        float InputGain = DefaultInputGain,
         int OutputIndex = -1,
         int DurationMs = DefaultCaptureDurationMs,
         float OutputVolume = DefaultOutputVolume,
+        float InputHardwareVolumePercent = DefaultInputHardwareVolumePercent,
         bool SaveInput = false,
         bool SaveOutput = false,
         string? SaveInputPath = null,
         string? SaveOutputPath = null,
         string? PlayFilePath = null);
 }
-
