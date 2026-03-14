@@ -1,0 +1,68 @@
+#!/usr/bin/env sh
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ALPHA1_TEST_PROJECT="$REPO_ROOT/VoiceType2/alpha-build-1/tests/VoiceType2.Alpha1.Tests/VoiceType2.Alpha1.Tests.csproj"
+ALPHA2_TEST_PROJECT="$REPO_ROOT/VoiceType2/alpha-build-2/tests/VoiceType2.Alpha2.Tests/VoiceType2.Alpha2.Tests.csproj"
+
+has_voicetype2_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^(VoiceType2/|transcription\.sln$)'
+}
+
+has_alpha1_code_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^(VoiceType2/alpha-build-1/(src/|tests/|scripts/).+|VoiceType2/alpha-build-1/.+\.(csproj|json)$|transcription\.sln$)'
+}
+
+has_alpha2_code_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^(VoiceType2/alpha-build-2/(src/|tests/|scripts/).+|VoiceType2/alpha-build-2/.+\.(csproj|json)$|transcription\.sln$)'
+}
+
+run_tests() {
+  project_path="$1"
+  project_name="$2"
+
+  if [ ! -f "$project_path" ]; then
+    echo "[pre-commit] Expected test project not found for $project_name: $project_path"
+    return 1
+  fi
+
+  if ! command -v dotnet >/dev/null 2>&1; then
+    echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run $project_name checks."
+    return 1
+  fi
+
+  echo "[pre-commit] Running $project_name tests."
+  if ! dotnet test "$project_path" -c Debug -p:UseSharedCompilation=false; then
+    echo "[pre-commit] $project_name tests failed."
+    return 1
+  fi
+}
+
+if ! has_voicetype2_changes; then
+  echo "[pre-commit] No staged files changed under VoiceType2/. Skipping VoiceType2 gate."
+  exit 0
+fi
+
+HAS_ALPHA1_CODE_CHANGES=$(has_alpha1_code_changes; echo $?)
+HAS_ALPHA2_CODE_CHANGES=$(has_alpha2_code_changes; echo $?)
+
+if [ "$HAS_ALPHA1_CODE_CHANGES" -ne 0 ] && [ "$HAS_ALPHA2_CODE_CHANGES" -ne 0 ]; then
+  echo "[pre-commit] VoiceType2 changes are docs/config-only. Skipping alpha runtime tests."
+  exit 0
+fi
+
+if [ "$HAS_ALPHA1_CODE_CHANGES" -eq 0 ]; then
+  if ! run_tests "$ALPHA1_TEST_PROJECT" "VoiceType2 Alpha 1"; then
+    exit 1
+  fi
+fi
+
+if [ "$HAS_ALPHA2_CODE_CHANGES" -eq 0 ]; then
+  if ! run_tests "$ALPHA2_TEST_PROJECT" "VoiceType2 Alpha 2"; then
+    exit 1
+  fi
+fi
+
+exit 0

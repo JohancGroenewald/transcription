@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT="$REPO_ROOT/.githooks/bump-version.ps1"
+CLOSE_SCRIPT="$REPO_ROOT/.githooks/close-voicetype.ps1"
+APP_PROJECT="$REPO_ROOT/VoiceType/VoiceType.csproj"
+
+has_voicetype_app_changes() {
+  [ ! -d "$REPO_ROOT/.git" ] && return 1
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^VoiceType/'
+}
+
+run_powershell_script() {
+  script_path="$1"
+  shift
+
+  if command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "$script_path" "$@"
+  elif command -v powershell >/dev/null 2>&1; then
+    powershell -NoProfile -ExecutionPolicy Bypass -File "$script_path" "$@"
+  else
+    echo "[pre-commit] PowerShell is required to run $script_path."
+    return 1
+  fi
+}
+
+if ! has_voicetype_app_changes; then
+  echo "[pre-commit] No staged app files changed under VoiceType/. Skipping VoiceType gate."
+  exit 0
+fi
+
+if [ "${SKIP_VERSION_BUMP:-}" != "1" ] && [ -f "$SCRIPT" ]; then
+  if ! run_powershell_script "$SCRIPT"; then
+    echo "[pre-commit] VoiceType version bump failed."
+    exit 1
+  fi
+fi
+
+if [ -f "$CLOSE_SCRIPT" ]; then
+  if ! run_powershell_script "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
+    echo "[pre-commit] close-voicetype did not finish in time."
+    exit 1
+  fi
+fi
+
+if command -v dotnet >/dev/null 2>&1 && [ -f "$APP_PROJECT" ]; then
+  echo "[pre-commit] Building VoiceType app."
+  if ! dotnet build "$APP_PROJECT" -c Debug; then
+    echo "[pre-commit] VoiceType build failed."
+    exit 1
+  fi
+elif [ -f "$APP_PROJECT" ]; then
+  echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run VoiceType checks."
+  exit 1
+fi
+
+exit 0

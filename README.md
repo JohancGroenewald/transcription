@@ -129,6 +129,7 @@ Important:
 - The hook scripts are committed to the repo.
 - Git does not run them by default in a fresh clone.
 - Each clone must opt in by setting `core.hooksPath`.
+- The pre-commit hook now dispatches separate checks for `VoiceType/` and `VoiceType2/`.
 
 ```powershell
 git config core.hooksPath .githooks

@@ -1,19 +1,13 @@
 #!/usr/bin/env sh
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCRIPT="$REPO_ROOT/.githooks/bump-version.ps1"
-CLOSE_SCRIPT="$REPO_ROOT/.githooks/close-voicetype.ps1"
-APP_PROJECT="$REPO_ROOT/VoiceType2/alpha-build-1/src/VoiceType2.App.Cli/VoiceType2.App.Cli.csproj"
-VOICE_TYPE2_TEST_PROJECT="$REPO_ROOT/VoiceType2/alpha-build-1/tests/VoiceType2.Alpha1.Tests/VoiceType2.Alpha1.Tests.csproj"
+VOICETYPE_PRECOMMIT="$REPO_ROOT/.githooks/pre-commit-voicetype"
+VOICETYPE2_PRECOMMIT="$REPO_ROOT/.githooks/pre-commit-voicetype2"
 
-has_app_file_changes() {
+has_path_changes() {
+  pattern="$1"
   [ ! -d "$REPO_ROOT/.git" ] && return 1
-  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^VoiceType2/alpha-build-1/src/'
-}
-
-has_alpha1_test_file_changes() {
-  [ ! -d "$REPO_ROOT/.git" ] && return 1
-  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE '^VoiceType2/alpha-build-1/tests/'
+  git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD -- | grep -qE "$pattern"
 }
 
 has_markdown_file_changes() {
@@ -153,29 +147,23 @@ run_yaml_lint() {
   return 0
 }
 
-run_tests() {
-  local project="$1"
-  if [ -z "$project" ] || [ ! -f "$project" ]; then
-    echo "[pre-commit] No test project found at: $project"
+run_hook_script() {
+  script_path="$1"
+  if [ ! -f "$script_path" ]; then
+    echo "[pre-commit] Hook helper not found: $script_path"
     return 1
   fi
 
-  echo "[pre-commit] Running tests for $(basename "$project")."
-  if ! dotnet test "$project" -c Debug; then
-    echo "[pre-commit] Tests failed. Please fix test failures before committing."
+  if ! sh "$script_path"; then
     return 1
   fi
 }
 
-if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
-  exit 0
-fi
-
-HAS_APP_CHANGES=$(has_app_file_changes; echo $?)
+HAS_VOICETYPE_CHANGES=$(has_path_changes '^VoiceType/'; echo $?)
+HAS_VOICETYPE2_CHANGES=$(has_path_changes '^(VoiceType2/|transcription\.sln$)'; echo $?)
 HAS_MARKDOWN_CHANGES=$(has_markdown_file_changes; echo $?)
 HAS_JSON_CHANGES=$(has_json_file_changes; echo $?)
 HAS_YAML_CHANGES=$(has_yaml_file_changes; echo $?)
-HAS_ALPHA1_TEST_CHANGES=$(has_alpha1_test_file_changes; echo $?)
 
 if [ "$HAS_MARKDOWN_CHANGES" -eq 0 ]; then
   if ! run_markdown_lint; then
@@ -204,49 +192,14 @@ else
   echo "[pre-commit] No staged YAML files to lint."
 fi
 
-if [ "$HAS_APP_CHANGES" -eq 0 ]; then
-  if [ -f "$SCRIPT" ]; then
-    if command -v pwsh >/dev/null 2>&1; then
-      pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
-    elif command -v powershell >/dev/null 2>&1; then
-      powershell -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"
-    fi
-  fi
-
-  if [ -f "$CLOSE_SCRIPT" ]; then
-    if command -v pwsh >/dev/null 2>&1; then
-      if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
-        echo "[pre-commit] close-voicetype did not finish in time."
-        exit 1
-      fi
-    elif command -v powershell >/dev/null 2>&1; then
-      if ! powershell -NoProfile -ExecutionPolicy Bypass -File "$CLOSE_SCRIPT" -MaxWaitMilliseconds 10000; then
-        echo "[pre-commit] close-voicetype did not finish in time."
-        exit 1
-      fi
-    fi
-  fi
-
-  if command -v dotnet >/dev/null 2>&1 && [ -f "$APP_PROJECT" ]; then
-    if ! dotnet build "$APP_PROJECT" -c Debug; then
-      echo "[pre-commit] Build failed. Please fix compilation errors before committing."
-      exit 1
-    fi
-  elif [ -f "$APP_PROJECT" ]; then
-    echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run compile gate."
+if [ "$HAS_VOICETYPE_CHANGES" -eq 0 ]; then
+  if ! run_hook_script "$VOICETYPE_PRECOMMIT"; then
     exit 1
   fi
-else
-  echo "[pre-commit] No staged app files changed under VoiceType2/. Skipping app rebuild."
 fi
 
-if [ "$HAS_APP_CHANGES" -eq 0 ] || [ "$HAS_ALPHA1_TEST_CHANGES" -eq 0 ]; then
-  if command -v dotnet >/dev/null 2>&1 && [ -f "$VOICE_TYPE2_TEST_PROJECT" ]; then
-    if ! run_tests "$VOICE_TYPE2_TEST_PROJECT"; then
-      exit 1
-    fi
-  elif [ -f "$VOICE_TYPE2_TEST_PROJECT" ]; then
-    echo "[pre-commit] dotnet CLI not found. Install .NET SDK to run tests."
+if [ "$HAS_VOICETYPE2_CHANGES" -eq 0 ]; then
+  if ! run_hook_script "$VOICETYPE2_PRECOMMIT"; then
     exit 1
   fi
 fi
