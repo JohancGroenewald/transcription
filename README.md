@@ -59,6 +59,16 @@ Alpha 1 test sweep (unit + smoke):
 .\VoiceType2\alpha-build-1\scripts\test-alpha1.ps1 -Configuration Debug
 ```
 
+VoiceType2 Alpha 2 (fresh capture/transcription runtime with explicit start/stop):
+
+```powershell
+dotnet build VoiceType2/alpha-build-2/src/VoiceType2.Alpha2.ApiHost/VoiceType2.Alpha2.ApiHost.csproj -c Debug
+dotnet build VoiceType2/alpha-build-2/src/VoiceType2.Alpha2.App.Cli/VoiceType2.Alpha2.App.Cli.csproj -c Debug
+
+.\VoiceType2\alpha-build-2\scripts\test-alpha2.ps1 -Configuration Debug
+.\VoiceType2\alpha-build-2\scripts\run-alpha2-cli.ps1 -Mode managed
+```
+
 Design docs for this build:
 
 - `VoiceType2/VoiceType2-Internal-API-and-Orchestrator-Testability-Plan.md`

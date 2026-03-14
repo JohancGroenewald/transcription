@@ -1,0 +1,22 @@
+{
+  "HostBinding": {
+    "Urls": "http://127.0.0.1:5250"
+  },
+  "RuntimeSecurity": {
+    "AuthMode": "token-optional"
+  },
+  "AudioCapture": {
+    "Source": "fake",
+    "PreferredDeviceIndex": -1,
+    "PreferredDeviceName": "",
+    "MaxDurationSeconds": 300
+  },
+  "Transcription": {
+    "Provider": "mock",
+    "Model": "whisper-1",
+    "Language": "en",
+    "EnablePrompt": true,
+    "Prompt": "The speaker is always English. Transcribe the audio as technical instructions for a large language model.",
+    "OpenAiApiKeyEnvVar": "OPENAI_API_KEY"
+  }
+}
