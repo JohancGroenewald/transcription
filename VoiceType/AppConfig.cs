@@ -6,7 +6,7 @@ namespace VoiceType;
 
 public class AppConfig
 {
-    private const string DefaultModel = "whisper-1";
+    private const string DefaultModel = "gpt-4o-transcribe";
     private const string DefaultPastedTextPrefix = "";
     public const int DefaultAudioDeviceIndex = -1;
     private const string DefaultTranscriptionPrompt =

@@ -151,7 +151,7 @@ git config --unset core.hooksPath
 
 1. Right-click the VoiceType tray icon and open `Settings...`.
 2. Enter your OpenAI API key.
-3. Choose a transcription model.
+3. Choose `gpt-4o-transcribe` as the transcription model.
 4. Test dictation with `Ctrl+Shift+Space` (press once to start, once to stop).
 
 ## Features
@@ -243,7 +243,7 @@ VoiceType settings are stored at:
 Available settings:
 
 - `API Key`: OpenAI API key
-- `Transcription model`: `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`
+- `Transcription model`: `gpt-4o-transcribe`
 - `Press Enter after pasting text`
 - `Enable file logging (debug only)`
 - `Show popup notifications`

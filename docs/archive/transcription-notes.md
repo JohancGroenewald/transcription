@@ -6,7 +6,7 @@
 
 ### Speech-to-text (dictation / transcription)
 
-You can transcribe audio with the **Audio API** (`POST /v1/audio/transcriptions`) using models like **`gpt-4o-transcribe`**, **`gpt-4o-mini-transcribe`**, or **`whisper-1`**. ([platform.openai.com][1])
+For this repo, use the **Audio API** (`POST /v1/audio/transcriptions`) with **`gpt-4o-transcribe`** as the transcription model. ([platform.openai.com][1])
 
 There’s also a **Realtime API transcription mode** that streams partial text as the user speaks (more “live captions / dictation”). ([platform.openai.com][2])
 

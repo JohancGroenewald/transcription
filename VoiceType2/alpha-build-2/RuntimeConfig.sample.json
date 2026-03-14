@@ -13,7 +13,7 @@
   },
   "Transcription": {
     "Provider": "mock",
-    "Model": "whisper-1",
+    "Model": "gpt-4o-transcribe",
     "Language": "en",
     "EnablePrompt": true,
     "Prompt": "The speaker is always English. Transcribe the audio as technical instructions for a large language model.",

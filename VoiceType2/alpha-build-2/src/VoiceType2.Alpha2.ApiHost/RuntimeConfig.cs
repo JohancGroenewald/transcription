@@ -104,7 +104,7 @@ public sealed class AudioCaptureConfig
 public sealed class TranscriptionConfig
 {
     public string Provider { get; init; } = "mock";
-    public string Model { get; init; } = "whisper-1";
+    public string Model { get; init; } = "gpt-4o-transcribe";
     public string Language { get; init; } = "en";
     public bool EnablePrompt { get; init; } = true;
     public string Prompt { get; init; } =
